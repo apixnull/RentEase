@@ -1,10 +1,10 @@
-import { toast } from "sonner";
 import { Routes, Route } from "react-router-dom";
 import PublicLayout from "./layouts/PublicLayout";
 import Landing from "./pages/public/landing/Landing";
 import AuthLayout from "./layouts/AuthLayout";
 import Login from "./pages/auth/login/Login";
 import Register from "./pages/auth/register/Register";
+import VerifyEmail from "./pages/auth/VerifyEmail";
 
 export default function App() {
   return (
@@ -20,6 +20,7 @@ export default function App() {
         <Route path="/auth" element={<AuthLayout />}>
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
+          <Route path="verify-email" element={<VerifyEmail />} /> 
         </Route>
 
         {/* Private Routes (e.g., dashboard, settings) */}
