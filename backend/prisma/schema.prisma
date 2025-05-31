@@ -1,0 +1,70 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id         String    @id @default(cuid())
+  email      String    @unique
+  fullName   String
+  password   String?   // nullable for OAuth users
+  isVerified Boolean   @default(false)
+  role       Role      @default(TENANT)
+  identities Identity[]
+  tokens     Token[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([role])
+}
+
+model Identity {
+  id         String   @id @default(cuid())
+  provider   String
+  providerId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  createdAt  DateTime @default(now())
+
+  @@unique([provider, providerId])
+  @@index([userId])
+}
+
+model Token {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  type      TokenType
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  used      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([type, userId])
+  @@index([expiresAt])
+}
+
+
+enum Role {
+  TENANT
+  LANDLORD
+  ADMIN
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  REFRESH_TOKEN
+}
