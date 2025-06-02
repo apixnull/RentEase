@@ -2,6 +2,10 @@ import { Route, Routes } from "react-router-dom";
 import { toast } from "sonner";
 import PublicLayout from "./layouts/PublicLayout";
 import Home from "./pages/public/Home";
+import NotFound from "./pages/NotFound";
+import AuthLayout from "./layouts/AuthLayout";
+import { Login } from "./pages/auth/Login";
+import { Register } from "./pages/auth/Register";
 
 function App() {
   return (
@@ -14,10 +18,18 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/unauthorized" element={<Unauthorized />} /> */}
         </Route>
+        
+         <Route element={<AuthLayout />}>
+          <Route path="/auth/login" element={<Login />} />
+          <Route path="/auth/register" element={<Register />} />
+          {/* <Route path="/unauthorized" element={<Unauthorized />} /> */} 
+        </Route>
 
-     
+
+         
+            
         {/* Fallback route */}
-        <Route path="*" element={<h1>404 - Not Found</h1>} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
 
 
