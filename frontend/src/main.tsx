@@ -11,10 +11,10 @@ createRoot(document.getElementById("root")!).render(
       <App />
     <Toaster
       position="top-right"
-      theme="dark"
+      theme="system"
       duration={4000}
       closeButton
-      offset={20}
+      offset={40}
       expand
       visibleToasts={2}
       richColors
