@@ -2,6 +2,7 @@ import { Routes, Route} from "react-router-dom";
 import PublicLayout from "./layout/PublicLayout";
 import Landing from "./pages/public/landing/Landing";
 import About from "./pages/public/about/About";
+import Login from "./pages/public/auth/login/Login";
 
 
 
@@ -12,13 +13,15 @@ function App() {
 
         {/* **************************** PUBLIC ROUTES **************************** */}
         <Route path="/" element={<PublicLayout />}>
-          <Route index element={<Landing />}></Route>
-          <Route path="/about" element={<About />}></Route>
+          <Route index element={<Landing />} />
+          <Route path="/about" element={<About />} />
         </Route>
 
         {/* **************************** AUTH ROUTES **************************** */}
-        <Route>
-
+        <Route path="auth">
+          <Route path="login" element={<Login />}/>
+          <Route path="register" />
+          <Route path="verify-email" />
         </Route>
         
         {/* **************************** PRIVATE ROUTES **************************** */}
