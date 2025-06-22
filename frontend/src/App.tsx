@@ -4,10 +4,12 @@ import Landing from "./pages/public/landing/Landing";
 import About from "./pages/public/about/About";
 import Login from "./pages/public/auth/login/Login";
 import { Register } from "./pages/public/auth/register/Register";
+import VerifyOtp from "./pages/public/auth/verifyOtp/VerifyOtp";
 
 
 
 function App() {
+
   return (
     <>
       <Routes>
@@ -22,25 +24,29 @@ function App() {
         <Route path="auth">
           <Route path="login" element={<Login />}/>
           <Route path="register" element={<Register />}/>
-          <Route path="verify-email" />
+          <Route path="verify-email" element={<VerifyOtp />}/>
         </Route>
         
-        {/* **************************** PRIVATE ROUTES **************************** */}
+        {/* **************************** level 1 PRIVATE ROUTES **************************** */}
         <Route>
+
+          {/* **************************** level 2 ADMIN ROUTES **************************** */}
+          <Route>
+
+          </Route>
+
+          {/* **************************** level 2 LANDLORD ROUTES **************************** */}
+          <Route>
+
+          </Route>
+
+
+          {/* **************************** level 2 TENANT ROUTES **************************** */}
+          <Route>
+
+          </Route>  
 
         </Route>
-
-        {/* **************************** ADMIN ROUTES **************************** */}
-        <Route>
-
-        </Route>
-
-
-        {/* **************************** TENANT ROUTES **************************** */}
-        <Route>
-
-        </Route>  
-
         {/* **************************** NOT FOUND 404 **************************** */}
         <Route path="*"/>
 
