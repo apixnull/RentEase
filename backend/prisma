@@ -1,0 +1,583 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================
+// USER ENUMS
+// ========================
+
+/// Roles in the system (defines user permissions)
+enum Role {
+  ADMIN      // Full access
+  LANDLORD   // Manage own properties and listings
+  TENANT     // Apply for leases, view own data
+}
+
+// ========================
+// PROPERTY ENUM
+// ========================
+/// Types of property for filtering and search
+enum PropertyType {
+  HOUSE       // Single-family home
+  APARTMENT   // Multi-unit building
+  CONDOMINIUM // Condominium unit
+  STUDIO      // Studio apartment
+}
+
+// ========================
+// LEASE ENUMS
+// ========================
+
+/// Rent billing frequency options for leases
+enum RentInterval {
+  DAILY       // Billed every day
+  WEEKLY      // Billed every week
+  MONTHLY     // Billed every month (default)
+  ANNUALLY    // Billed once a year
+}
+
+
+/// Current state of a lease agreement
+enum LeaseStatus {
+  PENDING     // Created but not yet active
+  ACTIVE      // Currently in effect
+  TERMINATED  // Ended early
+  COMPLETED   // Fully served
+}
+
+
+// ========================
+// PAYMENT ENUMS
+// ========================
+
+/// Methods used for payment transactions
+enum PaymentMethod {
+  CASH
+  GCASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  OTHER
+}
+
+
+// ========================
+// MAINTENANCE ENUMS
+// ========================
+
+/// Progress state of a maintenance request
+enum RequestStatus {
+  OPEN         // Newly reported
+  IN_PROGRESS  // Being worked on
+  RESOLVED     // Issue has been fixed
+}
+
+enum PriorityLevel {
+  LOW          // Minor issue
+  MEDIUM       // Standard priority
+  HIGH         // Urgent attention needed
+  URGENT       // Immediate response required
+}
+
+// ========================
+// NOTIFICATION ENUMS
+// ========================
+
+/// Types of in-app notifications
+enum NotificationType {
+  GENERAL       // System updates
+  PAYMENT       // Payment due/received alerts
+  MAINTENANCE   // Maintenance status updates
+  INVITATION    // Lease or listing invitations
+}
+
+// ========================
+// SCREENING ENUMS
+// ========================
+
+enum ScreeningStatus {
+  PENDING    // Screening requested
+  APPROVED   // Tenant meets criteria
+  REJECTED   // Tenant did not qualify
+}
+
+// ========================
+// LISTING ENUMS
+// ========================
+
+enum ListingStatus {
+  PENDING     // Awaiting payment/approval
+  APPROVED    // Visible to tenants
+  DISAPPROVED // Not allowed to list
+}
+
+// ========================
+// MODELS
+// ========================
+
+// *************************************** USER ***************************************  
+
+/// System user: admin, landlord, or tenant
+model User {
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  passwordHash          String
+  role                  Role                   // ADMIN, LANDLORD, or TENANT
+
+  // user status
+  isVerified Boolean  @default(false)  // Email verified?
+  isDisabled Boolean  @default(false)  // Account disabled
+
+
+  VerificationToken     VerificationToken[]    // Multi-factor auth tokens
+  UserProfile           UserProfile?           // Personal details
+  ContactInfo           UserContactInfo?       // Phone, GCash, social links
+
+  Property              Property[]             // Owned properties (landlords)
+  Lease                 Lease[]                // Active or past leases (tenants)
+  MaintenanceRequest    MaintenanceRequest[]   // Requests filed by this user
+  Notification          Notification[]         // In-app notifications
+
+  TenantScreening       TenantScreening[]      // Screening profile(s)
+  TenantBehaviorStats   TenantBehaviorStats[]  // Aggregated behavior metrics
+  LandlordPreference    LandlordPreference[]   // Screening criteria (landlords)
+  FraudAlert            FraudAlert[]           // Fraud alerts for this user
+  Listing               Listing[]              // Listings created by landlord
+
+  @@map("users") // database table name
+  @@index([email])
+  @@index([passwordHash])
+  @@index([role])
+}
+
+model UserProfile {
+  userId    String   @id
+  firstName String    
+  lastName  String
+  avatarUrl String?  // Profile picture URL
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+model UserContactInfo {
+  userId        String @id
+  phoneNumber   String?// Tenant/landlord phone
+  messengerUrl  String?// Chat link
+  facebookUrl   String?// Social profile
+
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  userId    String
+  id        String   @default(uuid())
+  code      String
+  expiresAt DateTime // Token expiry timestamp
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, id])
+  @@index([userId, expiresAt])
+}
+
+
+// *************************************** PROPERTY ***************************************   
+
+model Property { // weak entity
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  ownerId     String
+  addressId   String
+  type        PropertyType  @default(HOUSE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  requiresScreening Boolean  @default(false) 
+
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  Address Address[]
+  Photo Photo[]
+  Unit Unit[]
+
+
+  MaintenanceRequest MaintenanceRequest[]
+
+  Income Income[]
+
+  Expense Expense[]
+
+  tags PropertyTag[]
+
+
+  FraudAlert FraudAlert[]
+
+  Listing Listing[]
+
+  @@map("properties")
+}
+
+model PropertyTag {
+  id         String   @id @default(uuid())
+  propertyId String
+  name       String
+
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, name]) // prevent duplicate tags per property
+}
+
+
+model Unit { // weak entity kay reliant sa property
+  id          String   @default(uuid()) @unique
+  propertyId  String
+
+  label       String
+  description String
+  status      String   @default("AVAILABLE")
+  createdAt   DateTime @default(now())
+
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Photo       Photo[]
+
+  @@id([propertyId, id])
+  @@unique([propertyId, label])
+  Lease Lease[]
+  MaintenanceRequest MaintenanceRequest[]
+  @@map("units")
+}
+
+model Address { //
+  propertyId  String   @id
+  street      String
+  barangay    String
+  municipality String
+  city        String
+  province    String
+  zipCode     String
+
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  @@map("addresses")
+}
+
+model Photo {
+  id         String   @default(uuid())
+  propertyId String
+  unitId     String?
+  url        String
+  uploadedAt DateTime @default(now())
+
+  property   Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit       Unit?     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([propertyId, id])
+  @@map("photos")
+}
+
+// *************************************** LEASE ***************************************  
+
+model Lease {
+  id                 String       @id @default(uuid())
+  unitId             String       @unique
+  tenantId           String?
+
+  startDate          DateTime
+  endDate            DateTime
+
+  rentAmount         Float
+  interval           RentInterval  @default(MONTHLY)
+
+  status             LeaseStatus   @default(PENDING)
+
+  initialDeposit     Float?         // optional security deposit
+
+  inviteToken        String?
+  inviteExpiresAt    DateTime?
+
+  agreementUrl       String?
+  conditionReportUrl String?
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  unit               Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenant             User?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  Payment Payment[]
+
+  ScheduledPayment ScheduledPayment[]
+  @@map("scheduled_payments")
+}
+
+// *************************************** PAYMENT ***************************************  
+
+model Payment {
+  id        String   @id @default(uuid())
+  leaseId   String
+  amount    Float
+  paidAt    DateTime @default(now())
+  note      String?
+  photoUrl  String?
+  method    PaymentMethod?
+
+  lease     Lease   @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ScheduledPayment ScheduledPayment[]
+  @@map("payments")
+}
+
+
+model ScheduledPayment {
+  id         String   @id @default(uuid())
+  leaseId    String
+  dueDate    DateTime
+  amount     Float
+  isPaid     Boolean  @default(false)
+  paymentId  String?  // Link to actual Payment if paid
+
+  lease      Lease    @relation(fields: [leaseId], references: [id])
+  payment    Payment? @relation(fields: [paymentId], references: [id])
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([leaseId, dueDate])
+}
+
+// *************************************** Maintenance Request ***************************************  
+model MaintenanceRequest {
+  id           String        @id @default(uuid())            /// Unique identifier for the maintenance request
+  propertyId   String                                        /// Foreign key referencing the related property
+  unitId       String?                                       /// Optional FK to a specific unit within the property
+  reporterId   String                                        /// FK to the user who filed the maintenance request
+
+  description  String                                        /// Detailed description of the issue
+  photoUrl     String?                                       /// Optional link to photo evidence or documentation
+
+  priority PriorityLevel @default(MEDIUM)
+
+  status       RequestStatus @default(OPEN)                 /// Current status of the request, default is OPEN
+
+  createdAt    DateTime      @default(now())                 /// Timestamp when the request was created
+  updatedAt    DateTime      @updatedAt                       /// Timestamp of the last update to the request
+
+  // Relations
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit         Unit?         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  reporter     User          @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  @@map("maintenance_requests")
+}
+
+
+// *************************************** Income *************************************** 
+model Income {
+  id          String   @id @default(uuid())           // Unique income ID
+  propertyId  String                                 // FK → Property.id
+  amount      Float                                  // Amount earned
+  description String                                // Optional notes (e.g. "rent", "late fee")
+  date        DateTime @default(now())               // When income was recorded
+
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  @@map("incomes")
+}
+
+
+// *************************************** Expense *************************************** 
+model Expense {
+  id          String   @id @default(uuid())           // Unique expense ID
+  propertyId  String                                 // FK → Property.id
+  amount      Float                                  // Amount spent
+  description String                                // Optional notes (e.g. "plumbing repair")
+  date        DateTime @default(now())               // When expense was recorded
+
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  @@map("expenses")
+}
+
+// *************************************** Notification *************************************** 
+/// In-app notification sent to a user
+model Notification {
+  id        String            @id @default(uuid())           // Unique ID
+  userId    String                                           // FK → User.id
+  message   String                                           // Notification content
+  type      NotificationType  @default(GENERAL)              // Categorized type
+  isRead    Boolean            @default(false)               // Read/unread status
+  createdAt DateTime           @default(now())               // Timestamp
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("notifications")
+}
+
+// *************************************** Tenant Screening with AI Result *************************************** 
+model TenantScreening {
+  tenantId         String   @id  // One screening per tenant
+
+  status           ScreeningStatus @default(PENDING)
+
+  // --- Financial Stability (for incomeScore) ---
+  monthlyIncome        String
+  employmentStatus     String
+  creditScore          String
+  hasDebt              String
+  debtAmount           String?
+  debtType             String?
+
+  // --- Rental Experience (for stabilityScore) ---
+  yearsRented          String
+  rentalExperience     String
+  previousEvictions    String
+  rentalPaymentHistory String
+
+  // --- Lifestyle Factors (for backgroundScore) ---
+  hasPets              String
+  petDescription       String?
+  smoker               String
+
+  // --- Household Details (for stabilityScore) ---
+  numberOfOccupants    String
+  plannedMoveInDate    String
+
+  // --- Identity & Background (for backgroundScore) ---
+  criminalRecord       String
+  photoIdUrl           String?
+
+  // --- Additional Info ---
+  specialRequests      String?
+  reasonForMoving      String?
+
+  // --- AI Result Fields ---
+  aiScore              Float?
+  aiRiskLevel          String?
+  aiRecommendation     String?
+
+  incomeScore          Float?
+  creditScoreValue     Float?
+  stabilityScore       Float?
+  backgroundScore      Float?
+
+  submittedAt          DateTime @default(now())
+  reviewedAt           DateTime?
+
+  tenant   User     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@map("tenant_screenings")
+}
+
+
+// ***************************************  Landlord Preference *************************************** 
+model LandlordPreference {
+  userId                  String   @id   // Landlord user ID is now the primary key
+
+  // --- Screening Thresholds ---
+  minCreditScore          Float?
+  minMonthlyIncome        Float?
+  maxDebtToIncome         Float?
+  allowPets               Boolean? @default(true)
+  allowSmokers            Boolean? @default(true)
+  requireBackgroundCheck  Boolean? @default(true)
+  minRentalYears          Int?
+
+  // --- Weighting for AI Scoring ---
+  weightCreditScore       Int?
+  weightIncome            Int?
+  weightRentalHistory     Int?
+  weightBackground        Int?
+  weightEmployment        Int?
+  weightPets              Int?
+  weightSmoker            Int?
+  weightPaymentHistory    Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("landlord_preferences")
+
+}
+
+// *************************************** Tenant Behavior *************************************** 
+model TenantBehaviorStats {
+  tenantId              String   @id
+  totalPayments         Int      @default(0)
+  onTimePayments        Int      @default(0)
+  latePayments          Int      @default(0)
+  maintenanceRequests   Int      @default(0)
+  avgResponseTime       Float    // In hours
+  tenantBehaviorScore   Float?   // Composite score for overall behavior
+  
+  lastPaymentDate            DateTime?
+  lastMaintenanceRequestDate DateTime?
+  
+  tenant                User     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@map("tenant_behavior_stats")
+}
+// *************************************** Fraud Alert *************************************** 
+model FraudAlert {
+  id           String   @id @default(uuid())
+  userId       String
+  propertyId   String?  // If related to a listing
+  type         String   // e.g., "Fake Listing", "Document Forgery", "Suspicious Login"
+  description  String
+  severity     Int      // Severity score (1-10)
+  resolved     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  reviewedAt   DateTime?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property     Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  Listing Listing[]
+  @@map("fraud_alerts")
+}
+// *************************************** Listing *************************************** 
+model Listing {
+  id            String   @id @default(uuid())
+  propertyId    String
+  landlordId    String
+
+  title         String
+  description   String
+  status        ListingStatus @default(PENDING) // APPROVED, DISAPPROVED
+
+  startDate     DateTime? // When listing becomes active
+  endDate       DateTime? // When listing expires
+
+  submittedAt   DateTime @default(now())
+
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  landlord      User     @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+
+  payments      ListingPayment[]
+
+  fraudAlerts   FraudAlert[]
+
+  @@index([propertyId])
+  @@index([landlordId])
+  @@map("listings")
+}
+
+model ListingPayment {
+  id            String   @id @default(uuid())
+  listingId     String
+  amount        Float
+  method        PaymentMethod
+  paidAt        DateTime @default(now())
+  proofUrl      String?       // Optional receipt or screenshot
+
+  listing       Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@map("listing_payments")
+}
