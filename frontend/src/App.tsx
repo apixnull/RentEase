@@ -1,8 +1,13 @@
 import { toast } from "sonner";
+import Navbar from "./components/public/Navbar";
 
 function App() {
   return (
     <>
+
+
+      {/* Other components */}
+      <Navbar />
       <div className="space-y-2">
         <button onClick={() => toast.success("Success! Everything worked.")}>
           Show Success
