@@ -1,18 +1,21 @@
+import {Check } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Zap, Check } from "lucide-react";
+import { Zap } from "lucide-react";
 import Footer from "@/components/public/Footer";
-import LoginForm from "./LoginForm";
+import { motion } from "framer-motion";
+import { RegisterForm } from "./RegisterForm";
 
-export default function Login() {
+
+
+export const Register = () => {
   return (
     <>
       <div className="grid min-h-svh lg:grid-cols-2">
-        {/* Left Panel - Form Section (unchanged) */}
+        {/* Left Panel - Form Section */}
         <div className="flex flex-col gap-4 p-6 md:p-10 bg-gradient-to-br from-white to-gray-50">
           {/* Logo */}
           <div className="flex justify-center md:justify-start">
-            <Link to="/" className="flex items-center gap-2 font-medium">
+            <Link to={"/"} className="flex items-center gap-2 font-medium">
               <div className="relative">
                 <div className="absolute inset-0 bg-teal-500/20 rounded-full blur-sm" />
                 <Zap className="size-6 text-teal-500" fill="currentColor" />
@@ -39,16 +42,16 @@ export default function Login() {
             }}
           >
             <div className="w-full max-w-xs">
-              <LoginForm />
+              <RegisterForm />
             </div>
           </motion.div>
         </div>
 
-        {/* Updated Right Panel - Modern Visual Design */}
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 relative hidden lg:block overflow-hidden">
+        {/* Updated Right Panel - Modern Geometric Visual */}
+        <div className="bg-gradient-to-br from-teal-600 to-blue-700 relative hidden lg:block overflow-hidden">
           {/* Floating Shapes */}
           <motion.div
-            className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full bg-blue-400/20 backdrop-blur-md"
+            className="absolute top-1/4 left-1/4 w-48 h-48 rounded-full bg-teal-400/20 backdrop-blur-md"
             animate={{
               y: [0, -30, 0],
               scale: [1, 1.05, 1]
@@ -61,7 +64,7 @@ export default function Login() {
           />
           
           <motion.div
-            className="absolute top-1/3 right-1/3 w-24 h-24 rotate-45 bg-white/15 backdrop-blur-sm border border-white/20"
+            className="absolute top-1/3 right-1/3 w-32 h-32 rotate-45 bg-white/10 backdrop-blur-sm border border-white/20"
             animate={{
               rotate: [45, 90, 45],
               x: [0, 20, 0]
@@ -74,7 +77,7 @@ export default function Login() {
           />
           
           <motion.div
-            className="absolute bottom-1/4 left-1/3 w-36 h-36 rounded-lg bg-indigo-400/20 backdrop-blur-md"
+            className="absolute bottom-1/4 left-1/3 w-40 h-40 rounded-lg bg-blue-400/15 backdrop-blur-md"
             animate={{
               y: [0, 40, 0],
               borderRadius: ["20%", "30%", "20%"]
@@ -87,7 +90,7 @@ export default function Login() {
           />
           
           <motion.div
-            className="absolute bottom-1/3 right-1/4 w-20 h-20 rounded-full bg-blue-300/20 backdrop-blur-sm"
+            className="absolute bottom-1/3 right-1/4 w-24 h-24 rounded-full bg-teal-300/20 backdrop-blur-sm"
             animate={{
               scale: [1, 1.2, 1],
               opacity: [0.3, 0.5, 0.3]
@@ -125,7 +128,7 @@ export default function Login() {
                   repeat: Infinity
                 }}
               >
-                Welcome Back to RentEase
+                Join RentEase Community
               </motion.h2>
               
               <motion.p
@@ -134,7 +137,7 @@ export default function Login() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
               >
-                Continue your rental journey with seamless access
+                Discover the perfect rental experience with our powerful platform
               </motion.p>
               
               <motion.div
@@ -144,16 +147,16 @@ export default function Login() {
                 transition={{ delay: 0.7 }}
               >
                 <div className="flex items-center gap-3">
-                  <Check className="h-5 w-5 text-blue-300" />
-                  <span>Manage your properties</span>
+                  <Check className="h-5 w-5 text-teal-300" />
+                  <span>Instant property listings</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Check className="h-5 w-5 text-blue-300" />
-                  <span>Track your applications</span>
+                  <Check className="h-5 w-5 text-teal-300" />
+                  <span>Secure payment system</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Check className="h-5 w-5 text-blue-300" />
-                  <span>Connect with verified users</span>
+                  <Check className="h-5 w-5 text-teal-300" />
+                  <span>Verified users & properties</span>
                 </div>
               </motion.div>
             </motion.div>
@@ -183,33 +186,9 @@ export default function Login() {
               <rect width="100%" height="100%" fill="url(#grid-pattern)" />
             </svg>
           </div>
-
-          {/* Subtle Particles */}
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute rounded-full bg-white/30"
-              style={{
-                top: `${Math.random() * 100}%`,
-                left: `${Math.random() * 100}%`,
-                width: `${Math.random() * 10 + 2}px`,
-                height: `${Math.random() * 10 + 2}px`,
-              }}
-              animate={{
-                y: [0, (Math.random() - 0.5) * 60, 0],
-                x: [0, (Math.random() - 0.5) * 60, 0],
-                opacity: [0.3, 0.6, 0.3],
-              }}
-              transition={{
-                duration: Math.random() * 5 + 5,
-                repeat: Infinity,
-                delay: Math.random() * 2,
-              }}
-            />
-          ))}
         </div>
       </div>
       <Footer />
     </>
   );
-}
+};

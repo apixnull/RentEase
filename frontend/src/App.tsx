@@ -3,6 +3,7 @@ import PublicLayout from "./layout/PublicLayout";
 import Landing from "./pages/public/landing/Landing";
 import About from "./pages/public/about/About";
 import Login from "./pages/public/auth/login/Login";
+import { Register } from "./pages/public/auth/register/Register";
 
 
 
@@ -20,7 +21,7 @@ function App() {
         {/* **************************** AUTH ROUTES **************************** */}
         <Route path="auth">
           <Route path="login" element={<Login />}/>
-          <Route path="register" />
+          <Route path="register" element={<Register />}/>
           <Route path="verify-email" />
         </Route>
         
