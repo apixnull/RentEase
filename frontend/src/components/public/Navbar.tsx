@@ -16,6 +16,7 @@ interface NavLinkItem {
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [mobileSubmenu, setMobileSubmenu] = useState<string | null>(null);
+  const [desktopHoveredMenu, setDesktopHoveredMenu] = useState<string | null>(null);
   const location = useLocation();
 
   const toggleMenu = () => setIsOpen(!isOpen);
@@ -54,12 +55,32 @@ export default function Navbar() {
     return false;
   };
 
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: -10, opacity: 0 },
+    show: { y: 0, opacity: 1 }
+  };
+
   return (
     <header className="w-full px-4 py-3 bg-white/90 backdrop-blur-sm sticky top-0 z-50 border-b border-gray-100 shadow-sm">
       <nav className="max-w-7xl mx-auto flex items-center justify-between">
         
         {/* **************************** LOGO SECTION **************************** */}
-        <div>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3 }}
+        >
           <Link to="/" className="flex items-center space-x-2">
             <Zap 
               className="w-7 h-7 md:w-8 md:h-8 text-teal-500" 
@@ -69,14 +90,26 @@ export default function Navbar() {
               RentEase
             </span>
           </Link>
-        </div>
+        </motion.div>
 
         {/* **************************** DESKTOP NAVIGATION **************************** */}
-        <div className="hidden md:flex gap-3 lg:gap-5 items-center text-sm font-medium">
+        <motion.div 
+          className="hidden md:flex gap-3 lg:gap-5 items-center text-sm font-medium"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+        >
           {navLinks.map((link) => {
             const isActive = isActiveLink(link.path, link.submenu);
             return (
-              <div key={link.path} className="relative group">
+              <motion.div 
+                key={link.path} 
+                className="relative group"
+                whileHover={{ y: -2 }}
+                transition={{ type: "spring", stiffness: 300 }}
+                onHoverStart={() => link.submenu && setDesktopHoveredMenu(link.path)}
+                onHoverEnd={() => setDesktopHoveredMenu(null)}
+              >
                 <NavLink 
                   to={link.path} 
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
@@ -87,61 +120,86 @@ export default function Navbar() {
                   {link.label}
                   
                   {link.submenu && (
-                    <ChevronDown className="w-4 h-4 ml-1 transform group-hover:rotate-180 transition-transform duration-200" />
+                    <ChevronDown className={`w-4 h-4 ml-1 transition-transform duration-200 ${
+                      desktopHoveredMenu === link.path ? "rotate-180" : ""
+                    }`} />
                   )}
                 </NavLink>
                 
-                {/* Desktop submenu */}
+                {/* Desktop submenu - Fixed to only appear on hover */}
                 {link.submenu && (
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-white shadow-xl rounded-lg overflow-hidden transition-all duration-300 origin-top scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 invisible group-hover:visible">
-                    <div className="py-1">
-                      {link.submenu.map((subItem) => (
-                        <NavLink
-                          key={subItem.path}
-                          to={subItem.path}
-                          className={`flex items-center gap-2 px-4 py-2 text-sm ${
-                            location.pathname === subItem.path 
-                              ? "bg-teal-50 text-teal-600 font-medium" 
-                              : "text-gray-700 hover:bg-teal-50 hover:text-teal-600"
-                          }`}
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          {subItem.label}
-                        </NavLink>
-                      ))}
-                    </div>
-                  </div>
+                  <AnimatePresence>
+                    {desktopHoveredMenu === link.path && (
+                      <motion.div 
+                        className="absolute top-full left-0 mt-1 w-48 bg-white shadow-xl rounded-lg overflow-hidden"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <div className="py-1">
+                          {link.submenu.map((subItem) => (
+                            <NavLink
+                              key={subItem.path}
+                              to={subItem.path}
+                              className={`flex items-center gap-2 px-4 py-2 text-sm ${
+                                location.pathname === subItem.path 
+                                  ? "bg-teal-50 text-teal-600 font-medium" 
+                                  : "text-gray-700 hover:bg-teal-50 hover:text-teal-600"
+                              }`}
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              {subItem.label}
+                            </NavLink>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 )}
-              </div>
+              </motion.div>
             );
           })}
 
           {/* **************************** AUTH BUTTONS **************************** */}
-          <div className="flex gap-2 ml-2 lg:ml-4">
-            <NavLink 
-              to="/auth/login" 
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors duration-200"
-            >
-              <LogIn className="w-4 h-4" />
-              Login
-            </NavLink>
-            <NavLink 
-              to="/auth/register" 
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-gradient-to-r from-teal-500 to-blue-600 text-white hover:shadow-md transition-shadow duration-200"
-            >
-              <UserPlus className="w-4 h-4" />
-              Register
-            </NavLink>
-          </div>
-        </div>
+          <motion.div 
+            className="flex gap-2 ml-2 lg:ml-4"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+          >
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <NavLink 
+                to="/auth/login" 
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors duration-200"
+              >
+                <LogIn className="w-4 h-4" />
+                Login
+              </NavLink>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <NavLink 
+                to="/auth/register" 
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-gradient-to-r from-teal-500 to-blue-600 text-white hover:shadow-md transition-shadow duration-200"
+              >
+                <UserPlus className="w-4 h-4" />
+                Register
+              </NavLink>
+            </motion.div>
+          </motion.div>
+        </motion.div>
 
         {/* **************************** MOBILE MENU BUTTON **************************** */}
-        <button
+        <motion.button
           className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
           onClick={toggleMenu}
+          whileTap={{ scale: 0.95 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
         >
           {isOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        </motion.button>
       </nav>
 
       {/* **************************** MOBILE MENU CONTENT **************************** */}
@@ -154,11 +212,20 @@ export default function Navbar() {
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="md:hidden overflow-hidden"
           >
-            <div className="flex flex-col gap-1 py-2 px-2 bg-white/95 backdrop-blur-sm">
+            <motion.div 
+              className="flex flex-col gap-1 py-2 px-2 bg-white/95 backdrop-blur-sm"
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+            >
               {navLinks.map((link) => {
                 const isActive = isActiveLink(link.path, link.submenu);
                 return (
-                  <div key={link.path} className="rounded-lg">
+                  <motion.div 
+                    key={link.path} 
+                    className="rounded-lg"
+                    variants={itemVariants}
+                  >
                     <div className="flex items-center justify-between bg-gray-50 rounded-lg">
                       <NavLink 
                         to={link.path} 
@@ -211,30 +278,45 @@ export default function Navbar() {
                         ))}
                       </motion.div>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })}
 
               {/* **************************** MOBILE AUTH BUTTONS **************************** */}
-              <div className="flex flex-col gap-2 mt-2 pt-3 border-t border-gray-100">
-                <NavLink 
-                  to="/auth/login" 
-                  className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
-                  onClick={closeMenu}
+              <motion.div 
+                className="flex flex-col gap-2 mt-2 pt-3 border-t border-gray-100"
+                variants={itemVariants}
+              >
+                <motion.div 
+                  whileHover={{ scale: 1.02 }} 
+                  whileTap={{ scale: 0.98 }}
+                  className="flex"
                 >
-                  <LogIn className="w-4 h-4" />
-                  Login
-                </NavLink>
-                <NavLink 
-                  to="/auth/register" 
-                  className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm bg-gradient-to-r from-teal-500 to-blue-600 text-white hover:shadow-md transition-shadow"
-                  onClick={closeMenu}
+                  <NavLink 
+                    to="/auth/login" 
+                    className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors flex-1"
+                    onClick={closeMenu}
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Login
+                  </NavLink>
+                </motion.div>
+                <motion.div 
+                  whileHover={{ scale: 1.02 }} 
+                  whileTap={{ scale: 0.98 }}
+                  className="flex"
                 >
-                  <UserPlus className="w-4 h-4" />
-                  Register
-                </NavLink>
-              </div>
-            </div>
+                  <NavLink 
+                    to="/auth/register" 
+                    className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm bg-gradient-to-r from-teal-500 to-blue-600 text-white hover:shadow-md transition-shadow flex-1"
+                    onClick={closeMenu}
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Register
+                  </NavLink>
+                </motion.div>
+              </motion.div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

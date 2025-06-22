@@ -1,41 +1,48 @@
-import { toast } from "sonner";
-import Navbar from "./components/public/Navbar";
+import { Routes, Route} from "react-router-dom";
+import PublicLayout from "./layout/PublicLayout";
+import Landing from "./pages/public/landing/Landing";
+
+
 
 function App() {
   return (
     <>
+      <Routes>
+
+        {/* **************************** PUBLIC ROUTES **************************** */}
+        <Route element={<PublicLayout />}>
+          <Route index element={<Landing />}></Route>
+        </Route>
+
+        {/* **************************** AUTH ROUTES **************************** */}
+        <Route>
+
+        </Route>
+        
+        {/* **************************** PRIVATE ROUTES **************************** */}
+        <Route>
+
+        </Route>
+
+        {/* **************************** ADMIN ROUTES **************************** */}
+        <Route>
+
+        </Route>
 
 
-      {/* Other components */}
-      <Navbar />
-      <div className="space-y-2">
-        <button onClick={() => toast.success("Success! Everything worked.")}>
-          Show Success
-        </button>
+        {/* **************************** TENANT ROUTES **************************** */}
+        <Route>
 
-        <button onClick={() => toast.error("Oops! Something went wrong.")}>
-          Show Error
-        </button>
+        </Route>  
 
-        <button onClick={() => toast.warning("Careful! Check this out.")}>
-          Show Warning
-        </button>
+        {/* **************************** NOT FOUND 404 **************************** */}
+        <Route path="*"/>
 
-        <button onClick={() => toast.info("Heads up! Just so you know.")}>
-          Show Info
-        </button>
+        
+        {/* **************************** UNAUTHORIZED ACCESS 401 **************************** */}
+        <Route path="*"/>
 
-        <button
-          onClick={() => {
-            const id = toast.loading("Loading...");
-            setTimeout(() => {
-              toast.success("Loaded!", { id });
-            }, 2000);
-          }}
-        >
-          Show Loading
-        </button>
-      </div>
+      </Routes> 
     </>
   );
 }
