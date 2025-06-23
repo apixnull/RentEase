@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { GenericButton } from "@/components/shared/GenericButton";
 
 
 export function VerifyOtpForm() {
@@ -14,18 +15,46 @@ export function VerifyOtpForm() {
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const tokenId = searchParams.get("tokenId") || "";
   const [email, setEmail] = useState("");
 
-  // Initialize refs array and get email from local storage
+
+
   useEffect(() => {
-    inputRefs.current = inputRefs.current.slice(0, 6);
-    const storedEmail = localStorage.getItem("registerEmail") || "";
-    setEmail(storedEmail);
-    
-    if (inputRefs.current[0]) {
-      inputRefs.current[0].focus();
+    if (!tokenId) {
+      toast.error("Verification token missing");
+      navigate("/*");
+      return;
     }
-  }, []);
+
+    // Fetch email from backend by tokenId
+    (async () => {
+      try {
+        const res = await fetch("http://localhost:4000/api/auth/verify-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tokenId }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          toast.error(data.message || "Invalid or expired verification token");
+          navigate("/*");
+          return;
+        }
+
+        setEmail(data.email);
+      } catch (err) {
+        toast.error("Failed to fetch verification data");
+        navigate("/*");
+      }
+    })();
+  }, [tokenId, navigate]);
 
   // Handle countdown timer
   useEffect(() => {
@@ -36,104 +65,109 @@ export function VerifyOtpForm() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    
-    const otpCode = otp.join("");
-    if (otpCode.length !== 6) {
-      toast.error("Please enter all 6 digits");
-      return;
-    }
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError("");
 
-    setLoading(true);
-    
-    // Add minimum loading time for better UX
-    const minLoadingTime = new Promise(resolve => setTimeout(resolve, 800));
-    
-    try {
-      const [response] = await Promise.all([
-        fetch(
-          "http://localhost:4000/api/auth/verify-email",
-          {
+      const otpCode = otp.join("");
+      if (otpCode.length !== 6) {
+        toast.error("Please enter all 6 digits");
+        return;
+      }
+
+      setLoading(true);
+
+      // Add minimum loading time for better UX
+      const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 800));
+
+      try {
+        const [response] = await Promise.all([
+          fetch("http://localhost:4000/api/auth/verify-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, token: otpCode }),
-          }
-        ),
-        minLoadingTime
-      ]);
+          }),
+          minLoadingTime,
+        ]);
 
-      const data = await response.json();
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to verify OTP");
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to verify OTP");
+        }
+
+        toast.success("OTP verified successfully! Redirecting to login...");
+        localStorage.removeItem("registerEmail");
+
+        // Call the success callback
+      } catch (err) {
+        const errorMessage = (err as Error).message || "Verification failed";
+        toast.error(errorMessage);
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [email, otp]
+  );
+
+  const handleChange = useCallback(
+    (index: number, value: string) => {
+      if (!/^\d$/.test(value) && value !== "") return;
+
+      const newOtp = [...otp];
+      newOtp[index] = value;
+      setOtp(newOtp);
+
+      // Auto-focus next input on digit entry
+      if (value && index < 5) {
+        const nextInput = inputRefs.current[index + 1];
+        if (nextInput) {
+          nextInput.focus();
+        }
+      }
+    },
+    [otp]
+  );
+
+  const handleKeyDown = useCallback(
+    (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Backspace" && !otp[index] && index > 0) {
+        // Move focus to previous input on backspace
+        const prevInput = inputRefs.current[index - 1];
+        if (prevInput) {
+          prevInput.focus();
+        }
+      }
+    },
+    [otp]
+  );
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      e.preventDefault();
+      const pasteData = e.clipboardData
+        .getData("text/plain")
+        .replace(/\D/g, "")
+        .slice(0, 6);
+      const newOtp = [...otp];
+
+      for (let i = 0; i < 6; i++) {
+        newOtp[i] = pasteData[i] || "";
       }
 
-      toast.success("OTP verified successfully! Redirecting to login...");
-      localStorage.removeItem("registerEmail");
-      
-      // Call the success callback
-     
-    } catch (err) {
-      const errorMessage = (err as Error).message || "Verification failed";
-      toast.error(errorMessage);
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [email, otp]);
+      setOtp(newOtp);
 
-  const handleChange = useCallback((index: number, value: string) => {
-    if (!/^\d$/.test(value) && value !== "") return;
-
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // Auto-focus next input on digit entry
-    if (value && index < 5) {
-      const nextInput = inputRefs.current[index + 1];
-      if (nextInput) {
-        nextInput.focus();
+      // Focus the last input that received a digit
+      const lastIndex = Math.min(5, pasteData.length - 1);
+      const lastInput = inputRefs.current[lastIndex];
+      if (lastInput) {
+        lastInput.focus();
       }
-    }
-  }, [otp]);
-
-  const handleKeyDown = useCallback((
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      // Move focus to previous input on backspace
-      const prevInput = inputRefs.current[index - 1];
-      if (prevInput) {
-        prevInput.focus();
-      }
-    }
-  }, [otp]);
-
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pasteData = e.clipboardData
-      .getData("text/plain")
-      .replace(/\D/g, "")
-      .slice(0, 6);
-    const newOtp = [...otp];
-
-    for (let i = 0; i < 6; i++) {
-      newOtp[i] = pasteData[i] || "";
-    }
-
-    setOtp(newOtp);
-
-    // Focus the last input that received a digit
-    const lastIndex = Math.min(5, pasteData.length - 1);
-    const lastInput = inputRefs.current[lastIndex];
-    if (lastInput) {
-      lastInput.focus();
-    }
-  }, [otp]);
+    },
+    [otp]
+  );
 
   const handleResend = useCallback(async () => {
     setResending(true);
@@ -162,7 +196,10 @@ export function VerifyOtpForm() {
   }, [email]);
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6 w-full max-w-xs">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-6 w-full max-w-xs"
+    >
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-r from-teal-500 to-blue-500 p-2 shadow-lg">
           <ShieldCheck className="h-6 w-6 text-white" />
@@ -173,11 +210,13 @@ export function VerifyOtpForm() {
         <p className="text-muted-foreground text-sm">
           Enter the 6-digit code sent to your email
         </p>
-        
+
         {email && (
           <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full mt-2">
             <Mail className="w-4 h-4 text-blue-600" />
-            <span className="text-sm text-blue-700 font-medium truncate max-w-xs">{email}</span>
+            <span className="text-sm text-blue-700 font-medium truncate max-w-xs">
+              {email}
+            </span>
           </div>
         )}
       </div>
@@ -212,45 +251,24 @@ export function VerifyOtpForm() {
         </div>
 
         {error && (
-          <p className="text-sm text-red-600 text-center mt-2">
-            {error}
-          </p>
+          <p className="text-sm text-red-600 text-center mt-2">{error}</p>
         )}
 
-        <Button
+        <GenericButton
           type="submit"
+          variant="solid"
+          color="primary"
+          size="md"
+          fullwidth
+          shadow="lg"
+          isLoading={loading}
           disabled={loading}
-          className="w-full bg-gradient-to-r from-teal-600 to-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden"
+          loadingText="Verying..."
+          spinnerColor="#ffffff"
+          className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white hover:shadow-teal-500/20"
         >
-          {loading ? (
-            <div className="flex items-center justify-center gap-2">
-              <motion.div
-                className="h-5 w-5 rounded-full border-2 border-white border-t-transparent"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              />
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.1 }}
-              >
-                Verifying...
-              </motion.span>
-            </div>
-          ) : (
-            "Verify Code"
-          )}
-          
-          {/* Animated background */}
-          {loading && (
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-teal-700 to-blue-700"
-              initial={{ width: 0 }}
-              animate={{ width: "100%" }}
-              transition={{ duration: 2, ease: "easeInOut" }}
-            />
-          )}
-        </Button>
+          Verify
+        </GenericButton>
 
         <div className="text-center">
           <Button
@@ -276,9 +294,7 @@ export function VerifyOtpForm() {
             ) : countdown > 0 ? (
               <span className="flex items-center justify-center gap-1">
                 Resend in{" "}
-                <span className="font-mono font-bold">
-                  {countdown}s
-                </span>
+                <span className="font-mono font-bold">{countdown}s</span>
               </span>
             ) : (
               "Resend Code"

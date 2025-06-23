@@ -41,9 +41,9 @@ export const register = async (req, res) => {
   });
 
   const otpCode = generateOtpCode();
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
 
-  await prisma.verificationToken.create({
+  const token = await prisma.verificationToken.create({
     data: {
       userId: user.id,
       code: otpCode,
@@ -60,8 +60,33 @@ export const register = async (req, res) => {
   return res.status(201).json({
     success: true,
     message: "User registered successfully. Please verify your email.",
-    userId: user.id,
-    email: user.email, // helpful for resend + display
+    tokenId: token.id, 
+  });
+};
+
+
+export const verifyToken = async (req, res) => {
+  const { tokenId } = req.body;
+
+  if (!tokenId) {
+    return res.status(400).json({ success: false, message: "Token ID is required." });
+  }
+
+  const token = await prisma.verificationToken.findUnique({
+    where: { id: tokenId },
+    include: { user: true },
   });
 
+  if (!token) {
+    return res.status(404).json({ success: false, message: "Token not found." });
+  }
+
+  if (token.expiresAt < new Date()) {
+    return res.status(410).json({ success: false, message: "Token expired." });
+  }
+
+  return res.json({
+    success: true,
+    email: token.user.email,
+  });
 };

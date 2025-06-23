@@ -151,7 +151,7 @@ export default function LoginForm() {
           variant="solid"
           color="primary"
           size="md"
-          fullWidth
+          fullwidth
           shadow="lg"
           isLoading={isLoading}
           loadingText="Authenticating..."

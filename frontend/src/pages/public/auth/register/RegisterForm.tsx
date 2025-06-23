@@ -58,12 +58,13 @@ export function RegisterForm() {
 
       toast.success("Account created! Please verify your email.");
 
-      // ✅ Store userId and email for verification step
-      localStorage.setItem("registerUserId", data.userId);
-      localStorage.setItem("registerEmail", data.email);
+      // ✅ Pass tokenId via URL, email via state (non-exposed)
+      const queryParams = new URLSearchParams({
+        tokenId: data.tokenId,
+      }).toString();
 
       setTimeout(() => {
-        navigate("/auth/verify-email");
+        navigate(`/auth/verify-email?${queryParams}`);
       }, 2000);
     } catch (error) {
       console.error("Registration error:", error);
@@ -335,7 +336,7 @@ export function RegisterForm() {
             variant="solid"
             color="primary"
             size="md"
-            fullWidth
+            fullwidth
             shadow="lg"
             isLoading={isLoading}
             disabled={isLoading || !passwordsMatch || !acceptedTerms}

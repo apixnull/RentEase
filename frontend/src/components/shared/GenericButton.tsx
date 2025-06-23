@@ -16,7 +16,7 @@ interface GenericButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   gradientTo?: string;
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
-  fullWidth?: boolean;
+  fullwidth?: boolean;
   shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
   spinnerColor?: string;
   disabled?: boolean; // New disabled prop
@@ -32,13 +32,16 @@ export const GenericButton = React.forwardRef<HTMLButtonElement, GenericButtonPr
       isLoading = false,
       loadingText,
       spinnerColor = '#ffffff',
+      icon,
+      iconPosition = 'left',
+      fullwidth = false,
+      shadow = 'none',
       className = '',
-      disabled = false, // Default to false
-      ...props
+      disabled = false,
+      ...restProps
     },
     ref
   ) => {
-    // Size classes
     const sizeClasses = {
       xs: 'text-xs h-7 px-2.5',
       sm: 'text-sm h-8 px-3',
@@ -47,23 +50,24 @@ export const GenericButton = React.forwardRef<HTMLButtonElement, GenericButtonPr
       xl: 'text-base h-11 px-8',
     };
 
-    // Build the class names
-    const baseClasses = 'inline-flex items-center justify-center font-medium rounded-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed';
-    const widthClass = props.fullWidth ? 'w-full' : '';
-    const shadowClass = props.shadow ? `shadow-${props.shadow} hover:shadow-${props.shadow === 'xl' ? '2xl' : 'lg'}` : '';
+    const baseClasses =
+      'inline-flex items-center justify-center font-medium rounded-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed';
+
+    const widthClass = fullwidth ? 'w-full' : '';
+    const shadowClass = shadow !== 'none' ? `shadow-${shadow} hover:shadow-${shadow === 'xl' ? '2xl' : 'lg'}` : '';
 
     return (
       <button
         ref={ref}
         className={`${baseClasses} ${sizeClasses[size]} ${widthClass} ${shadowClass} ${className}`}
-        disabled={isLoading || disabled} // Combine both disabled states
-        {...props}
+        disabled={isLoading || disabled}
+        {...restProps}
       >
         {isLoading ? (
           <div className="flex items-center justify-center gap-2">
             <div className="relative">
               <div className="absolute inset-0 bg-current opacity-20 rounded-full blur-sm" />
-              <Zap 
+              <Zap
                 className={`animate-spin ${sizeClasses[size].includes('xs') ? 'h-3.5 w-3.5' : 'h-4 w-4'}`}
                 style={{ color: spinnerColor }}
               />
@@ -72,9 +76,9 @@ export const GenericButton = React.forwardRef<HTMLButtonElement, GenericButtonPr
           </div>
         ) : (
           <>
-            {props.icon && props.iconPosition === 'left' && props.icon}
+            {icon && iconPosition === 'left' && icon}
             {children}
-            {props.icon && props.iconPosition === 'right' && props.icon}
+            {icon && iconPosition === 'right' && icon}
           </>
         )}
       </button>
@@ -108,7 +112,7 @@ GenericButton.displayName = 'GenericButton';
   variant="solid"
   color="primary"
   size="md"
-  fullWidth
+  fullwidth
   shadow="lg"
   isLoading={isLoading}
   disabled={!isFormValid}

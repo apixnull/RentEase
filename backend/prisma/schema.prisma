@@ -180,16 +180,15 @@ model UserContactInfo {
 }
 
 model VerificationToken {
+  id String @id @default(uuid())
   userId    String
-  id        String   @default(uuid())
   code      String
   expiresAt DateTime // Token expiry timestamp
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([userId, id])
-  @@index([userId, expiresAt])
+  @@index([id, expiresAt, userId])
 }
 
 

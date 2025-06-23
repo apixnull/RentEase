@@ -7,6 +7,7 @@ import { VerifyOtpVisual } from "./VerifyOtpVisual";
 
 
 export default function VerifyOtp() {
+
   return (
     <>
       <div className="grid min-h-svh lg:grid-cols-2">

@@ -5,8 +5,6 @@ import Footer from "@/components/public/Footer";
 import { motion } from "framer-motion";
 import { RegisterForm } from "./RegisterForm";
 
-
-
 export const Register = () => {
   return (
     <>
