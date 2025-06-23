@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { GenericButton } from "@/components/shared/GenericButton";
 
 
 export default function LoginForm() {
@@ -145,21 +145,21 @@ export default function LoginForm() {
           </div>
         </div>
 
-        <div>
-          <Button
-            type="submit"
-            className="w-full bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg hover:shadow-teal-500/20 transition-all relative"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <div className="flex items-center justify-center">
-                <div className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-              </div>
-            ) : (
-              "Login"
-            )}
-          </Button>
-        </div>
+       <div>
+        <GenericButton
+          type="submit"
+          variant="solid"
+          color="primary"
+          size="md"
+          fullWidth
+          shadow="lg"
+          isLoading={isLoading}
+          spinnerColor="#ffffff" // White spinner (default)
+          className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white hover:shadow-teal-500/20"
+        >
+          {!isLoading ? "Login" : "Authenticating..."}
+        </GenericButton>
+      </div>
       </div>
 
       <div className="text-center text-sm">

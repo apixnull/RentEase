@@ -10,11 +10,11 @@ const PublicLayout: React.FC = () => {
         <Navbar />
         <Outlet />
         <Footer />
-        <GlobalLoader isLoading={true} variant="green-blue"
-  
-  text="Loading data..."
-  customColors={["#ec4899", "#8b5cf6"]} 
-  size="sm" />
+        <GlobalLoader
+  isLoading={false}
+  size="lg"
+  variant="blue-green"
+/>
 
     </div>
   );

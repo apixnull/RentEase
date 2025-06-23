@@ -1,106 +1,83 @@
 // src/components/GlobalLoader.tsx
-import React from 'react';
-
-// Simple Zustand-like state management emulation
-const createLoaderStore = () => {
-  let state = { isLoading: false };
-  const subscribers = new Set<() => void>();
-  
-  return {
-    getState: () => state,
-    setState: (newState: Partial<typeof state>) => {
-      state = { ...state, ...newState };
-      subscribers.forEach(cb => cb());
-    },
-    subscribe: (callback: () => void) => {
-      subscribers.add(callback);
-      return () => subscribers.delete(callback);
-    }
-  };
-};
-
-export const loaderStore = createLoaderStore();
-
-// Hook to use the loader store
-export const useLoader = () => {
-  const [state, setState] = React.useState(loaderStore.getState());
-  
-  React.useEffect(() => {
-    return loaderStore.subscribe(() => setState(loaderStore.getState()));
-  }, []);
-  // error here
-  {/* Argument of type '() => () => boolean' is not assignable to parameter of type 'EffectCallback'.
-  Type '() => boolean' is not assignable to type 'void | Destructor'.
-    Type '() => boolean' is not assignable to type 'Destructor'.
-      Type 'boolean' is not assignable to type 'void | { [UNDEFINED_VOID_ONLY]: never; }'.ts(2345) */}
-  return state;
-};
 
 type Size = "sm" | "md" | "lg" | "xl";
+type Variant = "blue-green" | "green-blue" | "custom";
 
 interface GlobalLoaderProps {
-  size?: Size;
+  isLoading: boolean;
   text?: string;
+  size?: Size;
+  variant?: Variant;
+  customColors?: [string, string];
+  spinSpeed?: "slow" | "normal" | "fast";
 }
 
 export const GlobalLoader = ({
+  isLoading,
+  text = "Processing...",
   size = "md",
-  text = "Processing..."
+  variant = "blue-green",
+  customColors = ["#3b82f6", "#10b981"],
+  spinSpeed = "normal",
 }: GlobalLoaderProps) => {
-  const { isLoading } = useLoader();
-  
-  const sizeClasses = {
-    sm: "h-6 w-6",
-    md: "h-8 w-8",
-    lg: "h-10 w-10",
-    xl: "h-12 w-12",
+  // Size configuration
+  const sizeConfig = {
+    sm: { icon: "h-5 w-5", text: "text-xs" },
+    md: { icon: "h-7 w-7", text: "text-sm" },
+    lg: { icon: "h-9 w-9", text: "text-base" },
+    xl: { icon: "h-12 w-12", text: "text-lg" },
   };
-  
-  const textClasses = {
-    sm: "text-xs",
-    md: "text-sm",
-    lg: "text-base",
-    xl: "text-lg",
+
+  // Animation speeds
+  const animationSpeeds = {
+    slow: "animate-[spin_1.8s_ease-in-out_infinite]",
+    normal: "animate-[spin_1.2s_linear_infinite]",
+    fast: "animate-[spin_0.7s_linear_infinite]",
   };
+
+  // Get gradient colors
+  const getGradient = () => {
+    switch (variant) {
+      case "blue-green": return { from: "#3b82f6", to: "#10b981" };
+      case "green-blue": return { from: "#10b981", to: "#3b82f6" };
+      case "custom": return { from: customColors[0], to: customColors[1] };
+      default: return { from: "#3b82f6", to: "#10b981" };
+    }
+  };
+
+  const { from, to } = getGradient();
 
   if (!isLoading) return null;
 
   return (
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none"
+      className="fixed inset-0 z-[999] flex items-center justify-center pointer-events-none"
       aria-live="assertive"
       aria-busy={isLoading}
     >
       <div className="flex flex-col items-center gap-3">
-        <div className="relative">
-          {/* Blurred background */}
-          <div className="absolute inset-0 bg-gradient-to-r from-teal-500/20 to-blue-500/20 rounded-full blur-sm" />
-          
-          {/* Spinning zap icon with gradient */}
-          <div className={`${sizeClasses[size]} animate-spin`}>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-full h-full"
-            >
-              <defs>
-                <linearGradient id="zap-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#0d9488" /> {/* teal-600 */}
-                  <stop offset="50%" stopColor="#2563eb" /> {/* blue-600 */}
-                  <stop offset="100%" stopColor="#0d9488" /> {/* teal-600 */}
-                </linearGradient>
-              </defs>
-              <path
-                d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"
-                fill="url(#zap-gradient)"
-              />
-            </svg>
-          </div>
-        </div>
+        {/* Smooth spinning zap icon */}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className={`${sizeConfig[size].icon} ${animationSpeeds[spinSpeed]}`}
+        >
+          <defs>
+            <linearGradient id="zapGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={from} />
+              <stop offset="100%" stopColor={to} />
+            </linearGradient>
+          </defs>
+          <path
+            d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"
+            fill="url(#zapGradient)"
+          />
+        </svg>
         
+        {/* Clean text display */}
         {text && (
-          <span className={`font-medium text-gray-600 ${textClasses[size]} bg-white/80 px-2 py-1 rounded-md backdrop-blur-sm`}>
+          <span className={`${sizeConfig[size].text} font-medium text-gray-600`}>
             {text}
           </span>
         )}
@@ -109,11 +86,22 @@ export const GlobalLoader = ({
   );
 };
 
-// Utility functions to control the loader globally
-export const showGlobalLoader = () => {
-  loaderStore.setState({ isLoading: true });
-};
+{/*
+  
+  // Basic usage
+<GlobalLoader isLoading={true} />
 
-export const hideGlobalLoader = () => {
-  loaderStore.setState({ isLoading: false });
-};
+// Fast spinning with custom text
+<GlobalLoader
+  isLoading={true}
+  spinSpeed="fast"
+  text="Almost done..."
+/>
+
+// Large with custom colors
+<GlobalLoader
+  isLoading={true}
+  size="lg"
+  variant="custom"
+  customColors={["#ec4899", "#8b5cf6"]} // Pink to purple
+/>*/}
