@@ -7,7 +7,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { GenericButton } from "@/components/shared/GenericButton";
 
-
 export function RegisterForm() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +22,6 @@ export function RegisterForm() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       toast.error("Please enter a valid email address");
@@ -59,10 +57,14 @@ export function RegisterForm() {
       }
 
       toast.success("Account created! Please verify your email.");
-      localStorage.setItem("registerEmail", email);
+
+      // ✅ Store userId and email for verification step
+      localStorage.setItem("registerUserId", data.userId);
+      localStorage.setItem("registerEmail", data.email);
+
       setTimeout(() => {
-        navigate("/auth/verify");
-      }, 2000); // Adjust timing if needed
+        navigate("/auth/verify-email");
+      }, 2000);
     } catch (error) {
       console.error("Registration error:", error);
       toast.error((error as Error).message);
@@ -70,7 +72,7 @@ export function RegisterForm() {
       setIsLoading(false);
     }
   };
-  
+
   const handlePasswordChange = (value: string) => {
     setPassword(value);
     if (confirmPassword && value !== confirmPassword) {
@@ -90,7 +92,7 @@ export function RegisterForm() {
   };
 
   return (
-    <form className={cn("flex flex-col gap-6")} onSubmit={handleSubmit} >
+    <form className={cn("flex flex-col gap-6")} onSubmit={handleSubmit}>
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-r from-teal-500 to-blue-500 p-2 shadow-lg">
           <User className="h-6 w-6 text-white" />
@@ -328,7 +330,7 @@ export function RegisterForm() {
 
         {/* Submit button */}
         <div>
-         <GenericButton
+          <GenericButton
             type="submit"
             variant="solid"
             color="primary"
@@ -336,14 +338,13 @@ export function RegisterForm() {
             fullWidth
             shadow="lg"
             isLoading={isLoading}
-            disabled={(isLoading || !passwordsMatch || !acceptedTerms)}
+            disabled={isLoading || !passwordsMatch || !acceptedTerms}
             loadingText="Processing..."
             spinnerColor="#ffffff"
             className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white hover:shadow-teal-500/20"
           >
             Register
           </GenericButton>
-    
         </div>
       </div>
 

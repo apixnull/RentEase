@@ -1,51 +1,168 @@
-import { useRef, useEffect } from "react";
-import { ShieldCheck } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Mail, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 
-type VerifyOtpFormProps = {
-  loading: boolean;
-  resending: boolean;
-  countdown: number;
-  otp: string[];
-  error: string;
-  onSubmit: (e: React.FormEvent) => void;
-  onChange: (index: number, value: string) => void;
-  onKeyDown: (index: number, e: React.KeyboardEvent<HTMLInputElement>) => void;
-  onPaste: (e: React.ClipboardEvent) => void;
-  onResend: () => void;
-};
 
-export function VerifyOtpForm({
-  loading,
-  resending,
-  countdown,
-  otp,
-  error,
-  onSubmit,
-  onChange,
-  onKeyDown,
-  onPaste,
-  onResend,
-}: VerifyOtpFormProps) {
+export function VerifyOtpForm() {
+  const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [email, setEmail] = useState("");
 
-  // Initialize refs array
+  // Initialize refs array and get email from local storage
   useEffect(() => {
     inputRefs.current = inputRefs.current.slice(0, 6);
-  }, []);
-
-  // Focus first input on mount
-  useEffect(() => {
+    const storedEmail = localStorage.getItem("registerEmail") || "";
+    setEmail(storedEmail);
+    
     if (inputRefs.current[0]) {
       inputRefs.current[0].focus();
     }
   }, []);
 
+  // Handle countdown timer
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    
+    const otpCode = otp.join("");
+    if (otpCode.length !== 6) {
+      toast.error("Please enter all 6 digits");
+      return;
+    }
+
+    setLoading(true);
+    
+    // Add minimum loading time for better UX
+    const minLoadingTime = new Promise(resolve => setTimeout(resolve, 800));
+    
+    try {
+      const [response] = await Promise.all([
+        fetch(
+          "http://localhost:4000/api/auth/verify-email",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, token: otpCode }),
+          }
+        ),
+        minLoadingTime
+      ]);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to verify OTP");
+      }
+
+      toast.success("OTP verified successfully! Redirecting to login...");
+      localStorage.removeItem("registerEmail");
+      
+      // Call the success callback
+     
+    } catch (err) {
+      const errorMessage = (err as Error).message || "Verification failed";
+      toast.error(errorMessage);
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [email, otp]);
+
+  const handleChange = useCallback((index: number, value: string) => {
+    if (!/^\d$/.test(value) && value !== "") return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    // Auto-focus next input on digit entry
+    if (value && index < 5) {
+      const nextInput = inputRefs.current[index + 1];
+      if (nextInput) {
+        nextInput.focus();
+      }
+    }
+  }, [otp]);
+
+  const handleKeyDown = useCallback((
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      // Move focus to previous input on backspace
+      const prevInput = inputRefs.current[index - 1];
+      if (prevInput) {
+        prevInput.focus();
+      }
+    }
+  }, [otp]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData
+      .getData("text/plain")
+      .replace(/\D/g, "")
+      .slice(0, 6);
+    const newOtp = [...otp];
+
+    for (let i = 0; i < 6; i++) {
+      newOtp[i] = pasteData[i] || "";
+    }
+
+    setOtp(newOtp);
+
+    // Focus the last input that received a digit
+    const lastIndex = Math.min(5, pasteData.length - 1);
+    const lastInput = inputRefs.current[lastIndex];
+    if (lastInput) {
+      lastInput.focus();
+    }
+  }, [otp]);
+
+  const handleResend = useCallback(async () => {
+    setResending(true);
+    setCountdown(30);
+
+    try {
+      const response = await fetch(
+        "http://localhost:4000/api/auth/resend-otp",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to resend OTP");
+      }
+
+      toast.success("New verification code sent!");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setResending(false);
+    }
+  }, [email]);
+
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-6 w-full max-w-xs">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6 w-full max-w-xs">
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-r from-teal-500 to-blue-500 p-2 shadow-lg">
           <ShieldCheck className="h-6 w-6 text-white" />
@@ -56,6 +173,13 @@ export function VerifyOtpForm({
         <p className="text-muted-foreground text-sm">
           Enter the 6-digit code sent to your email
         </p>
+        
+        {email && (
+          <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full mt-2">
+            <Mail className="w-4 h-4 text-blue-600" />
+            <span className="text-sm text-blue-700 font-medium truncate max-w-xs">{email}</span>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4">
@@ -76,9 +200,9 @@ export function VerifyOtpForm({
                 inputMode="numeric"
                 maxLength={1}
                 value={digit}
-                onChange={(e) => onChange(index, e.target.value)}
-                onKeyDown={(e) => onKeyDown(index, e)}
-                onPaste={onPaste}
+                onChange={(e) => handleChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                onPaste={handlePaste}
                 className="w-12 h-12 text-center text-xl font-semibold bg-white border border-gray-300 rounded-lg shadow-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-none transition-all"
                 aria-label={`Digit ${index + 1} of verification code`}
                 disabled={loading}
@@ -88,7 +212,9 @@ export function VerifyOtpForm({
         </div>
 
         {error && (
-          <p className="text-sm text-red-600 text-center mt-2">{error}</p>
+          <p className="text-sm text-red-600 text-center mt-2">
+            {error}
+          </p>
         )}
 
         <Button
@@ -130,7 +256,7 @@ export function VerifyOtpForm({
           <Button
             type="button"
             variant="ghost"
-            onClick={onResend}
+            onClick={handleResend}
             disabled={resending || countdown > 0}
             className={`text-sm transition-all ${
               countdown > 0

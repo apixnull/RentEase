@@ -16,7 +16,9 @@ import {
   DollarSign,
   BarChart3,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -35,7 +37,6 @@ export const LandlordLayout = () => {
   
   // Logout function
   const logout = () => {
-    // Logout implementation
     console.log("User logged out");
   };
 
@@ -106,15 +107,16 @@ export const LandlordLayout = () => {
 
   return (
     <div className={cn(
-      "flex h-screen w-full overflow-hidden bg-gray-50 text-gray-900",
+      "flex h-screen w-full bg-gray-50 text-gray-900 overflow-hidden",
       isDarkMode ? "dark" : "",
       isDarkMode ? "dark:bg-gray-900 dark:text-gray-100" : ""
     )}>
       {/* Desktop Sidebar */}
       <aside 
         className={cn(
-          "hidden lg:flex flex-col h-full overflow-y-auto border-r bg-white dark:bg-gray-800 dark:border-gray-700 transition-all duration-300",
-          sidebarCollapsed ? "w-20" : "w-64"
+          "hidden lg:flex flex-col h-full bg-white dark:bg-gray-800 transition-all duration-300",
+          sidebarCollapsed ? "w-20" : "w-64",
+          "border-r dark:border-gray-700"
         )}
       >
         <div className={cn(
@@ -222,7 +224,7 @@ export const LandlordLayout = () => {
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
-              className="fixed left-0 top-0 z-50 h-screen w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 lg:hidden flex flex-col overflow-y-auto"
+              className="fixed left-0 top-0 z-50 h-screen w-64 bg-white dark:bg-gray-800 lg:hidden flex flex-col"
               initial={{ x: -300 }}
               animate={{ x: 0 }}
               exit={{ x: -300 }}
@@ -293,14 +295,24 @@ export const LandlordLayout = () => {
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
+      {/* Main Content Area - Now directly adjacent to sidebar */}
       <div className={cn(
-        "flex-1 flex flex-col overflow-hidden transition-all duration-300",
-        sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
+        "flex-1 flex flex-col h-full w-full overflow-hidden",
+        sidebarCollapsed ? "lg:w-[calc(100%-5rem)]" : "lg:w-[calc(100%-16rem)]"
       )}>
-        <header className="flex items-center justify-between px-4 py-3 sm:px-6 border-b bg-white dark:bg-gray-800 dark:border-gray-700">
-          {/* Left: menu + title */}
+        {/* Topbar - Now perfectly connected to sidebar */}
+        <header className={cn(
+          "flex items-center justify-between px-4 py-3 sm:px-6",
+          "bg-white dark:bg-gray-800",
+          "border-b dark:border-gray-700",
+          // Remove any margin to connect to sidebar
+          "lg:ml-0",
+          // Extend to cover the border
+          "relative"
+        )}>
+          {/* Left section */}
           <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
             <Button
               variant="ghost"
               size="icon"
@@ -329,8 +341,8 @@ export const LandlordLayout = () => {
             </h1>
           </div>
 
-          {/* Right: controls */}
           <div className="flex items-center gap-4">
+            {/* Theme toggle with Sun/Moon icons */}
             <Button
               variant="ghost"
               size="icon"
@@ -338,16 +350,13 @@ export const LandlordLayout = () => {
               aria-label="Toggle theme"
             >
               {isDarkMode ? (
-                <div className="h-5 w-5 flex items-center justify-center">
-                  <span className="text-lg">🌙</span>
-                </div>
+                <Sun className="h-5 w-5" />
               ) : (
-                <div className="h-5 w-5 flex items-center justify-center">
-                  <span className="text-lg">☀️</span>
-                </div>
+                <Moon className="h-5 w-5" />
               )}
             </Button>
 
+            {/* Notifications */}
             <div className="relative">
               <Button
                 variant="ghost"
@@ -372,7 +381,6 @@ export const LandlordLayout = () => {
                   </div>
                   
                   <div className="max-h-80 overflow-y-auto">
-                    {/* Notification 1 */}
                     <Link
                       to="/landlord/applicants"
                       onClick={() => setNotifsOpen(false)}
@@ -392,7 +400,6 @@ export const LandlordLayout = () => {
                       </div>
                     </Link>
                     
-                    {/* Notification 2 */}
                     <Link
                       to="/landlord/maintenance"
                       onClick={() => setNotifsOpen(false)}
@@ -424,7 +431,7 @@ export const LandlordLayout = () => {
               )}
             </div>
 
-            {/* Avatar + name & badge */}
+            {/* User profile */}
             <div className="flex items-center gap-2">
               <Avatar className="ring-2 ring-teal-500">
                 <AvatarImage src={user.avatar} alt={user.name} />
@@ -440,6 +447,7 @@ export const LandlordLayout = () => {
           </div>
         </header>
 
+        {/* Main content */}
         <main className="flex-1 overflow-auto p-4 bg-gray-50 dark:bg-gray-900">
           <Outlet />
         </main>

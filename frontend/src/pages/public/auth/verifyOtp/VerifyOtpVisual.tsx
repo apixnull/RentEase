@@ -1,7 +1,5 @@
-
-import {  LockKeyhole, Check } from "lucide-react";
+import { LockKeyhole, Check } from "lucide-react";
 import { motion } from "framer-motion";
-
 
 export const VerifyOtpVisual = () => {
   return (
@@ -170,4 +168,3 @@ export const VerifyOtpVisual = () => {
         </div>
   )
 }
-

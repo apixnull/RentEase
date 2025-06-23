@@ -4,9 +4,10 @@ import Landing from "./pages/public/landing/Landing";
 import About from "./pages/public/about/About";
 import Login from "./pages/public/auth/login/Login";
 import { Register } from "./pages/public/auth/register/Register";
-import VerifyOtp from "./pages/public/auth/verifyOtp/VerifyOtp";
 import { LandlordLayout } from "./layout/LandlordLayout";
 import LandlordDashboard  from "./pages/private/landlord/dashboard/LandlordDashboard";
+import NotFound from "./pages/NotFound404";
+import VerifyOtp  from "./pages/public/auth/verifyOtp/VerifyOtp";
 
 
 
@@ -50,11 +51,10 @@ function App() {
 
         </Route>
         {/* **************************** NOT FOUND 404 **************************** */}
-        <Route path="*"/>
+        <Route path="*" element={<NotFound />}/>
 
         
         {/* **************************** UNAUTHORIZED ACCESS 401 **************************** */}
-        <Route path="*"/>
 
       </Routes> 
     </>
