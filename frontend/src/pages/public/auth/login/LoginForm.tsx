@@ -154,10 +154,11 @@ export default function LoginForm() {
           fullWidth
           shadow="lg"
           isLoading={isLoading}
+          loadingText="Authenticating..."
           spinnerColor="#ffffff" // White spinner (default)
           className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white hover:shadow-teal-500/20"
         >
-          {!isLoading ? "Login" : "Authenticating..."}
+          Login
         </GenericButton>
       </div>
       </div>

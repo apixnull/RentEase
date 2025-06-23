@@ -11,14 +11,15 @@ interface GenericButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   color?: ButtonColor;
   size?: ButtonSize;
   isLoading?: boolean;
-  loadingText?: string; // Optional custom loading text
+  loadingText?: string;
   gradientFrom?: string;
   gradientTo?: string;
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
   shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
-  spinnerColor?: string; // New prop for spinner color
+  spinnerColor?: string;
+  disabled?: boolean; // New disabled prop
 }
 
 export const GenericButton = React.forwardRef<HTMLButtonElement, GenericButtonProps>(
@@ -30,8 +31,9 @@ export const GenericButton = React.forwardRef<HTMLButtonElement, GenericButtonPr
       size = 'md',
       isLoading = false,
       loadingText,
-      spinnerColor = '#ffffff', // Default white spinner
+      spinnerColor = '#ffffff',
       className = '',
+      disabled = false, // Default to false
       ...props
     },
     ref
@@ -54,7 +56,7 @@ export const GenericButton = React.forwardRef<HTMLButtonElement, GenericButtonPr
       <button
         ref={ref}
         className={`${baseClasses} ${sizeClasses[size]} ${widthClass} ${shadowClass} ${className}`}
-        disabled={isLoading || props.disabled}
+        disabled={isLoading || disabled} // Combine both disabled states
         {...props}
       >
         {isLoading ? (
@@ -66,7 +68,7 @@ export const GenericButton = React.forwardRef<HTMLButtonElement, GenericButtonPr
                 style={{ color: spinnerColor }}
               />
             </div>
-            {loadingText || children}
+            {loadingText}
           </div>
         ) : (
           <>
@@ -82,14 +84,26 @@ export const GenericButton = React.forwardRef<HTMLButtonElement, GenericButtonPr
 
 GenericButton.displayName = 'GenericButton';
 
-
-{/*
-
-    usage
-
-
-
+{/**
     <GenericButton
+  disabled={!acceptedTerms || !passwordsMatch}
+  onClick={handleSubmit}
+>
+  Create Account
+</GenericButton>
+
+
+
+<GenericButton
+  isLoading={isLoading}
+  disabled={isDisabled} // External disabled condition
+  loadingText="Processing..."
+>
+  Submit
+</GenericButton>
+
+
+<GenericButton
   type="submit"
   variant="solid"
   color="primary"
@@ -97,52 +111,11 @@ GenericButton.displayName = 'GenericButton';
   fullWidth
   shadow="lg"
   isLoading={isLoading}
-  spinnerColor="#ffffff" // White spinner (default)
+  disabled={!isFormValid}
+  spinnerColor="#ffffff"
   className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white hover:shadow-teal-500/20"
 >
   Login
 </GenericButton>
-
-
-
-<GenericButton 
-  isLoading={isLoading}
-  onClick={handleSubmit}
->
-  Submit Form
-</GenericButton>
-
-
-
-
-<GenericButton
-  isLoading={isLoading}
-  loadingText="Processing..."
->
-  Save Changes
-</GenericButton>
-
-
-
-
-<GenericButton
-  isLoading={isLoading}
-  spinnerColor="#10b981" // Teal-500
->
-  Download
-</GenericButton>
-
-
-
-
-<GenericButton
-  variant="solid"
-  color="custom"
-  gradientFrom="#8b5cf6"
-  gradientTo="#ec4899"
-  isLoading={isLoading}
-  spinnerColor="#f5f5f5" // Light gray
->
-  Premium Action
-</GenericButton>    
-     */}
+    
+    */}

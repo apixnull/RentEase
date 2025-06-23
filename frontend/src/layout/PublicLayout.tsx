@@ -11,10 +11,10 @@ const PublicLayout: React.FC = () => {
         <Outlet />
         <Footer />
         <GlobalLoader
-  isLoading={false}
-  size="lg"
-  variant="blue-green"
-/>
+          isLoading={false}
+          size="lg"
+          variant="blue-green"
+        />
 
     </div>
   );

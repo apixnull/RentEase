@@ -1,11 +1,11 @@
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail, Lock, Eye, EyeOff, User, Check } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { GenericButton } from "@/components/shared/GenericButton";
 
 
 export function RegisterForm() {
@@ -328,19 +328,22 @@ export function RegisterForm() {
 
         {/* Submit button */}
         <div>
-          <Button
+         <GenericButton
             type="submit"
-            className="w-full bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg hover:shadow-teal-500/20 transition-all relative"
-            disabled={isLoading || !acceptedTerms || !passwordsMatch}
+            variant="solid"
+            color="primary"
+            size="md"
+            fullWidth
+            shadow="lg"
+            isLoading={isLoading}
+            disabled={(isLoading || !passwordsMatch || !acceptedTerms)}
+            loadingText="Processing..."
+            spinnerColor="#ffffff"
+            className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white hover:shadow-teal-500/20"
           >
-            {isLoading ? (
-              <div className="flex items-center justify-center">
-                <div className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-              </div>
-            ) : (
-              "Create Account"
-            )}
-          </Button>
+            Register
+          </GenericButton>
+    
         </div>
       </div>
 

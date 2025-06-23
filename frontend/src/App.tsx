@@ -5,6 +5,8 @@ import About from "./pages/public/about/About";
 import Login from "./pages/public/auth/login/Login";
 import { Register } from "./pages/public/auth/register/Register";
 import VerifyOtp from "./pages/public/auth/verifyOtp/VerifyOtp";
+import { LandlordLayout } from "./layout/LandlordLayout";
+import LandlordDashboard  from "./pages/private/landlord/dashboard/LandlordDashboard";
 
 
 
@@ -36,8 +38,8 @@ function App() {
           </Route>
 
           {/* **************************** level 2 LANDLORD ROUTES **************************** */}
-          <Route>
-
+          <Route path="/landlord" element={<LandlordLayout />}>
+            <Route index element={<LandlordDashboard />}/>
           </Route>
 
 
