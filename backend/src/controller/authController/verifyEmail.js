@@ -4,45 +4,40 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 export const verifyEmail = async (req, res) => {
-  const { email, token } = req.body;
+  const { tokenId, otpCode } = req.body;
 
-  if (!email || !token) {
-    return res.status(400).json({ success: false, message: "Email and OTP are required." });
+  if (!tokenId || !otpCode) {
+    return res.status(400).json({ success: false, message: "Token ID and OTP code are required." });
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found." });
-    }
-
-    const verificationRecord = await prisma.verificationToken.findFirst({
+    // Find the verification token record by tokenId (id) with otpCode and not expired
+    const verificationRecord = await prisma.verificationToken.findUnique({
       where: {
-        userId: user.id,
-        code: token,
-        expiresAt: { gt: new Date() }, // not expired
+        id: tokenId, // the UUID string of the verification token
+      },
+      include: {
+        user: true,
       },
     });
 
-    if (!verificationRecord) {
+    if (
+      !verificationRecord ||
+      verificationRecord.code !== otpCode ||
+      verificationRecord.expiresAt < new Date()
+    ) {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP." });
     }
 
-    // Update user to mark as verified
+    // Update user as verified
     await prisma.user.update({
-      where: { id: user.id },
+      where: { id: verificationRecord.userId },
       data: { isVerified: true },
     });
 
-    // Optionally delete the token after successful verification
+    // Delete the verification token record after successful verification
     await prisma.verificationToken.delete({
-      where: {
-        userId_id: {
-          userId: user.id,
-          id: verificationRecord.id,
-        },
-      },
+        where: { id: tokenId },
     });
 
     return res.status(200).json({ success: true, message: "Email verified successfully." });

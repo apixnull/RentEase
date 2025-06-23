@@ -15,7 +15,6 @@ const PublicLayout: React.FC = () => {
           size="lg"
           variant="blue-green"
         />
-
     </div>
   );
 };

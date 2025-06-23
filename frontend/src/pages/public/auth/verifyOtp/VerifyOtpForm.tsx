@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { GenericButton } from "@/components/shared/GenericButton";
 
-
 export function VerifyOtpForm() {
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [error, setError] = useState("");
@@ -19,10 +18,8 @@ export function VerifyOtpForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const tokenId = searchParams.get("tokenId") || "";
+  const [tokenId, setTokenId] = useState(() => searchParams.get("tokenId") || "");
   const [email, setEmail] = useState("");
-
-
 
   useEffect(() => {
     if (!tokenId) {
@@ -78,7 +75,6 @@ export function VerifyOtpForm() {
 
       setLoading(true);
 
-      // Add minimum loading time for better UX
       const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 800));
 
       try {
@@ -86,7 +82,7 @@ export function VerifyOtpForm() {
           fetch("http://localhost:4000/api/auth/verify-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, token: otpCode }),
+            body: JSON.stringify({ tokenId, otpCode }),
           }),
           minLoadingTime,
         ]);
@@ -98,9 +94,11 @@ export function VerifyOtpForm() {
         }
 
         toast.success("OTP verified successfully! Redirecting to login...");
-        localStorage.removeItem("registerEmail");
 
-        // Call the success callback
+        setTimeout(() => {
+          navigate("/auth/login");
+        }, 2000);
+        
       } catch (err) {
         const errorMessage = (err as Error).message || "Verification failed";
         toast.error(errorMessage);
@@ -109,7 +107,7 @@ export function VerifyOtpForm() {
         setLoading(false);
       }
     },
-    [email, otp]
+    [tokenId, otp]
   );
 
   const handleChange = useCallback(
@@ -170,30 +168,38 @@ export function VerifyOtpForm() {
   );
 
   const handleResend = useCallback(async () => {
-    setResending(true);
-    setCountdown(30);
+  setResending(true);
+  setCountdown(30);
 
-    try {
-      const response = await fetch(
-        "http://localhost:4000/api/auth/resend-otp",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        }
-      );
+  try {
+    const response = await fetch("http://localhost:4000/api/auth/resend-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
 
-      if (!response.ok) {
-        throw new Error("Failed to resend OTP");
-      }
+    const data = await response.json();
 
-      toast.success("New verification code sent!");
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setResending(false);
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to resend OTP");
     }
-  }, [email]);
+
+    // Update the tokenId in state AND URL
+    const newTokenId = data.tokenId;
+    setTokenId(newTokenId); // Update local state
+    
+    const newSearchParams = new URLSearchParams(window.location.search);
+    newSearchParams.set("tokenId", newTokenId);
+    window.history.replaceState(null, "", `?${newSearchParams.toString()}`);
+
+    toast.success("New verification code sent!");
+  } catch (err) {
+    toast.error((err as Error).message);
+  } finally {
+    setResending(false);
+  }
+}, [email]);
+
 
   return (
     <form
