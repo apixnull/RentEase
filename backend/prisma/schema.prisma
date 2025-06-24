@@ -139,7 +139,8 @@ model User {
   isDisabled Boolean  @default(false)  // Account disabled
 
 
-  VerificationToken     VerificationToken[]    // Multi-factor auth tokens
+  VerificationToken     VerificationToken[]    // For Verifying the Email
+  RefreshToken RefreshToken[]                  // Refresh token for access
   UserProfile           UserProfile?           // Personal details
   ContactInfo           UserContactInfo?       // Phone, GCash, social links
 
@@ -158,6 +159,22 @@ model User {
   @@index([email])
   @@index([passwordHash])
   @@index([role])
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  tokenHash  String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  isRevoked  Boolean  @default(false)
+
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+
+  @@map("refresh_tokens")
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
 }
 
 model UserProfile {

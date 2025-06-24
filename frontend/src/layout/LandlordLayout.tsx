@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Home,
@@ -24,8 +24,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "../context/AuthContext";
+import { toast } from "sonner";
 
 export const LandlordLayout = () => {
+  
+  const { logoutUser } = useAuth();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -36,8 +41,10 @@ export const LandlordLayout = () => {
   const user = { name: "Alex Morgan", avatar: "/avatar.jpg" };
   
   // Logout function
-  const logout = () => {
-    console.log("User logged out");
+  const handleLogout = () => {
+    toast.success("You have been logged out.");
+    logoutUser(); 
+    navigate("/", { replace: true }); // Redirect to login page immediately
   };
 
   // Theme toggle
@@ -192,7 +199,7 @@ export const LandlordLayout = () => {
           </Link>
           
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className={cn(
               "flex items-center gap-3 w-full py-3 rounded-lg mx-2 group",
               "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30",
@@ -283,7 +290,7 @@ export const LandlordLayout = () => {
                   <span className="text-sm font-medium">Settings</span>
                 </Link>
                 <button
-                  onClick={() => { logout(); setMobileOpen(false); }}
+                   onClick={() => { handleLogout(); setMobileOpen(false); }}
                   className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
                 >
                   <LogOut className="h-5 w-5" />

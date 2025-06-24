@@ -1,0 +1,118 @@
+🔐 1. Login Flow
+Frontend:
+
+User submits email + password.
+
+Call POST /api/auth/login.
+
+On success: receive access token (in body), refresh token (in httpOnly cookie).
+
+Decode access token → store auth state with:
+
+id, role, isVerified, isDisabled, email
+
+Backend:
+
+Verify credentials.
+
+Check:
+
+user.isVerified === true
+
+user.isDisabled === false
+
+Issue:
+
+Access token (1h) — contains user claims
+
+Refresh token (1d) — stored in:
+
+DB: RefreshTokens table with tokenHash, userId, isRevoked
+
+Cookie: httpOnly, secure, SameSite=Strict
+
+🔁 2. Auto Refresh Token Flow
+Frontend:
+
+On mount or expired access token:
+
+Call POST /api/auth/refresh-token
+
+If successful: update access token + decode, update auth state
+
+Backend:
+
+Read refresh token from cookie.
+
+Check in DB:
+
+Is not expired
+
+Is not revoked
+
+Rotate:
+
+Revoke old token
+
+Issue new access + refresh token
+
+Update cookie + DB
+
+Database:
+
+RefreshTokens:
+
+sql
+Copy
+Edit
+id | userId | tokenHash | createdAt | expiresAt | isRevoked
+🔒 3. Frontend Role-Based Access & Guarding
+Frontend:
+
+Use AuthContext to expose auth globally.
+
+Use ProtectedRoute to enforce:
+
+Logged in
+
+Not disabled
+
+Is verified
+
+Role matches allowed roles
+
+Example:
+
+tsx
+Copy
+Edit
+<ProtectedRoute roles={['ADMIN']}>
+  <AdminPage />
+</ProtectedRoute>
+🚫 4. Logout Flow
+Frontend:
+
+Call POST /api/auth/logout
+
+Clear auth state
+
+Backend:
+
+Revoke refresh token in DB
+
+Clear cookie
+
+🧠 5. On Protected API Calls
+Frontend:
+
+Send Authorization: Bearer <access_token> on protected routes.
+
+Backend:
+
+Auth middleware:
+
+Verify JWT access token
+
+Attach req.user = { id, role, ... }
+
+Check role and user status (isDisabled)

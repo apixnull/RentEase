@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { GenericButton } from "@/components/shared/GenericButton";
+import { useAuth } from "@/context/AuthContext";
 
 
 export default function LoginForm() {
@@ -13,7 +14,10 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+ 
+
   const navigate = useNavigate();
+  const { loginUser } = useAuth();
 
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -30,16 +34,30 @@ export default function LoginForm() {
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || !data.success) {
         throw new Error(data.message || "Login failed");
       }
 
-      // ✅ Store user info in cache
-    
-      toast.success(data.message);
+      const user = data.user;
 
-      // Redirect based on role
-      switch (data.user.role) {
+      if (user.isDisabled) {
+        toast.error("Your account is disabled.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!user.isVerified) {
+        toast.error("Please verify your email first.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Store accessToken and user info globally
+      loginUser(data.accessToken, user);
+
+      toast.success("Login successful!");
+
+      switch (user.role) {
         case "ADMIN":
           navigate("/admin");
           break;
@@ -50,10 +68,10 @@ export default function LoginForm() {
           navigate("/tenant");
           break;
         default:
-          navigate("/404");
+          navigate("/*");
       }
-    } catch (err) {
-      toast.error((err as Error).message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setIsLoading(false);
     }
@@ -145,22 +163,22 @@ export default function LoginForm() {
           </div>
         </div>
 
-       <div>
-        <GenericButton
-          type="submit"
-          variant="solid"
-          color="primary"
-          size="md"
-          fullwidth
-          shadow="lg"
-          isLoading={isLoading}
-          loadingText="Authenticating..."
-          spinnerColor="#ffffff" // White spinner (default)
-          className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white hover:shadow-teal-500/20"
-        >
-          Login
-        </GenericButton>
-      </div>
+        <div>
+          <GenericButton
+            type="submit"
+            variant="solid"
+            color="primary"
+            size="md"
+            fullwidth
+            shadow="lg"
+            isLoading={isLoading}
+            loadingText="Authenticating..."
+            spinnerColor="#ffffff" // White spinner (default)
+            className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white hover:shadow-teal-500/20"
+          >
+            Login
+          </GenericButton>
+        </div>
       </div>
 
       <div className="text-center text-sm">

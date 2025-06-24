@@ -51,7 +51,7 @@ export const GlobalLoader = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[999] flex items-center justify-center pointer-events-none"
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-transparent pointer-events-none"
       aria-live="assertive"
       aria-busy={isLoading}
     >
@@ -85,23 +85,3 @@ export const GlobalLoader = ({
     </div>
   );
 };
-
-{/*
-  
-  // Basic usage
-<GlobalLoader isLoading={true} />
-
-// Fast spinning with custom text
-<GlobalLoader
-  isLoading={true}
-  spinSpeed="fast"
-  text="Almost done..."
-/>
-
-// Large with custom colors
-<GlobalLoader
-  isLoading={true}
-  size="lg"
-  variant="custom"
-  customColors={["#ec4899", "#8b5cf6"]} // Pink to purple
-/>*/}
