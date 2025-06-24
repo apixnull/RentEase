@@ -1,118 +1,81 @@
-🔐 1. Login Flow
-Frontend:
-
-User submits email + password.
-
-Call POST /api/auth/login.
-
-On success: receive access token (in body), refresh token (in httpOnly cookie).
-
-Decode access token → store auth state with:
-
-id, role, isVerified, isDisabled, email
+Typical JWT + Refresh Token Authentication Flow
+1. User Login (frontend -> backend)
+User submits credentials (email + password).
 
 Backend:
 
-Verify credentials.
+Finds user by email.
 
-Check:
+Verifies password (e.g., using bcrypt).
 
-user.isVerified === true
+Checks if user is verified and active.
 
-user.isDisabled === false
+If all good:
 
-Issue:
+Generates an Access Token (short-lived JWT, e.g., 15 min to 1 hour).
 
-Access token (1h) — contains user claims
+Generates a Refresh Token (a random, long-lived string, e.g., 1 day).
 
-Refresh token (1d) — stored in:
+Saves a hashed version of the refresh token in DB with expiry and userId.
 
-DB: RefreshTokens table with tokenHash, userId, isRevoked
+Sends back:
 
-Cookie: httpOnly, secure, SameSite=Strict
+Access token (often in response body).
 
-🔁 2. Auto Refresh Token Flow
-Frontend:
+Refresh token (usually as a secure, httpOnly cookie).
 
-On mount or expired access token:
+2. Frontend stores tokens
+Stores Access Token in memory or localStorage (though localStorage has security tradeoffs).
 
-Call POST /api/auth/refresh-token
+The Refresh Token is stored securely as an httpOnly cookie (prevents JS access, mitigates XSS).
 
-If successful: update access token + decode, update auth state
+3. Using Access Token for Authenticated Requests
+Frontend attaches Access Token (e.g., in Authorization header) for protected API calls.
 
-Backend:
+Backend verifies JWT on each request.
 
-Read refresh token from cookie.
+If token is valid and not expired, backend serves the request.
 
-Check in DB:
+4. When Access Token Expires
+Frontend detects 401 Unauthorized due to expired access token.
 
-Is not expired
-
-Is not revoked
-
-Rotate:
-
-Revoke old token
-
-Issue new access + refresh token
-
-Update cookie + DB
-
-Database:
-
-RefreshTokens:
-
-sql
-Copy
-Edit
-id | userId | tokenHash | createdAt | expiresAt | isRevoked
-🔒 3. Frontend Role-Based Access & Guarding
-Frontend:
-
-Use AuthContext to expose auth globally.
-
-Use ProtectedRoute to enforce:
-
-Logged in
-
-Not disabled
-
-Is verified
-
-Role matches allowed roles
-
-Example:
-
-tsx
-Copy
-Edit
-<ProtectedRoute roles={['ADMIN']}>
-  <AdminPage />
-</ProtectedRoute>
-🚫 4. Logout Flow
-Frontend:
-
-Call POST /api/auth/logout
-
-Clear auth state
+Calls backend /refresh-token endpoint without body, but the refresh token cookie is sent automatically.
 
 Backend:
 
-Revoke refresh token in DB
+Reads refresh token from cookie.
 
-Clear cookie
+Hashes the token and checks DB for valid, unrevoked token for that user.
 
-🧠 5. On Protected API Calls
-Frontend:
+If valid:
 
-Send Authorization: Bearer <access_token> on protected routes.
+Issues new Access Token.
 
-Backend:
+Issues new Refresh Token (rotates refresh tokens).
 
-Auth middleware:
+Updates DB: marks old refresh token revoked or deletes it.
 
-Verify JWT access token
+Sends new refresh token as cookie and new access token in response body.
 
-Attach req.user = { id, role, ... }
+5. Logout
+Frontend calls logout endpoint or deletes tokens locally.
 
-Check role and user status (isDisabled)
+Backend deletes or revokes refresh tokens associated with user.
+
+Frontend clears access token and refresh token cookie (by expiring it).
+
+Why use refresh tokens like this?
+Access tokens are short-lived to limit exposure if compromised.
+
+Refresh tokens allow silent renewal without forcing users to log in again.
+
+Storing refresh tokens hashed in DB allows server-side revocation, preventing stolen refresh tokens from being used indefinitely.
+
+Rotating refresh tokens on each refresh adds security by invalidating the previous token immediately.
+
+Summary of storage locations:
+Token Type	Storage Location (Frontend)	Security Notes
+Access Token	Memory / localStorage	Easily accessible to JS (XSS risk)
+Refresh Token	Secure, httpOnly cookie (recommended)	Not accessible to JS, safer
+
+Would you like me to diagram this flow or help you implement any specific part next?

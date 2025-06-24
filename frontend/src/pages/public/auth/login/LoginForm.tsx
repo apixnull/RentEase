@@ -7,38 +7,39 @@ import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { GenericButton } from "@/components/shared/GenericButton";
 import { useAuth } from "@/context/AuthContext";
-
+import axios from "axios";
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
- 
 
   const navigate = useNavigate();
   const { loginUser } = useAuth();
-
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const res = await fetch("http://localhost:4000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
+      // 1. Call login - tokens saved in httpOnly cookies, no user info returned here
+      const loginRes = await axios.post(
+        "http://localhost:4000/api/auth/login",
+        { email, password },
+        { withCredentials: true } // send & receive cookies
+      );
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Login failed");
+      if (!loginRes.data.success) {
+        throw new Error(loginRes.data.message || "Login failed");
       }
 
-      const user = data.user;
+      // 2. Now fetch user info from /me endpoint
+      const meRes = await axios.get("http://localhost:4000/api/auth/user-info", {
+        withCredentials: true,
+      });
+
+      const user = meRes.data.user;
 
       if (user.isDisabled) {
         toast.error("Your account is disabled.");
@@ -52,8 +53,8 @@ export default function LoginForm() {
         return;
       }
 
-      // Store accessToken and user info globally
-      loginUser(data.accessToken, user);
+      // 3. Store user info in context (no accessToken stored on frontend)
+      loginUser(user);
 
       toast.success("Login successful!");
 
