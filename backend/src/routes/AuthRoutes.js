@@ -18,7 +18,7 @@ router.post("/resend-otp", resendOtp);
 
 router.post("/login", login);
 router.post("/refresh-token", refreshToken);
-router.get('/user-info', requireAuthenticate, getCurrentUserInfo);
+router.get('/user-info', requireAuthenticate(), getCurrentUserInfo);
 router.post('/logout', logout);
 
 export default router;

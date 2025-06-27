@@ -18,65 +18,68 @@ export default function LoginForm() {
   const navigate = useNavigate();
   const { loginUser } = useAuth();
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
+const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      // 1. Call login - tokens saved in httpOnly cookies, no user info returned here
-      const loginRes = await axios.post(
-        "http://localhost:4000/api/auth/login",
-        { email, password },
-        { withCredentials: true } // send & receive cookies
-      );
+  try {
+    // 1. Call login - tokens saved in httpOnly cookies, no user info returned here
+    const loginRes = await axios.post(
+      "http://localhost:4000/api/auth/login",
+      { email, password },
+      { withCredentials: true } // send & receive cookies
+    );
 
-      if (!loginRes.data.success) {
-        throw new Error(loginRes.data.message || "Login failed");
-      }
-
-      // 2. Now fetch user info from /me endpoint
-      const meRes = await axios.get("http://localhost:4000/api/auth/user-info", {
-        withCredentials: true,
-      });
-
-      const user = meRes.data.user;
-
-      if (user.isDisabled) {
-        toast.error("Your account is disabled.");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!user.isVerified) {
-        toast.error("Please verify your email first.");
-        setIsLoading(false);
-        return;
-      }
-
-      // 3. Store user info in context (no accessToken stored on frontend)
-      loginUser(user);
-
-      toast.success("Login successful!");
-
-      switch (user.role) {
-        case "ADMIN":
-          navigate("/admin");
-          break;
-        case "LANDLORD":
-          navigate("/landlord");
-          break;
-        case "TENANT":
-          navigate("/tenant");
-          break;
-        default:
-          navigate("/*");
-      }
-    } catch (error) {
-      toast.error((error as Error).message);
-    } finally {
-      setIsLoading(false);
+    if (!loginRes.data.success) {
+      throw new Error(loginRes.data.message || "Login failed");
     }
-  };
+
+    // 2. Now fetch user info from /me endpoint
+    const meRes = await axios.get("http://localhost:4000/api/auth/user-info", {
+      withCredentials: true,
+    });
+
+    const user = meRes.data.user;
+
+    if (user.isDisabled) {
+      toast.error("Your account is disabled.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!user.isVerified) {
+      toast.error("Please verify your email first.");
+      setIsLoading(false);
+      return;
+    }
+
+    // 3. Store user info in context (no accessToken stored on frontend)
+    loginUser(user);
+
+    toast.success("Login successful!");
+
+    switch (user.role) {
+      case "ADMIN":
+        navigate("/admin");
+        break;
+      case "LANDLORD":
+        navigate("/landlord");
+        break;
+      case "TENANT":
+        navigate("/tenant");
+        break;
+      default:
+        navigate("/*");
+    }
+  } catch (error: any) {
+    // Show backend message if available, else fallback to generic
+    const backendMessage = error.response?.data?.message;
+    toast.error(backendMessage || "Something went wrong. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   return (
     <form className={cn("flex flex-col gap-6")} onSubmit={handleSubmit}>

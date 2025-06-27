@@ -23,7 +23,7 @@ export const ProtectedRoute = ({
     return <Navigate to="/auth/login" replace />;
   }
   // If not authenticated, redirect to login
-  else if (!isAuthenticated) {
+  if (!isAuthenticated) {
     return <Navigate to="/unauthorized" replace />;
   }
 

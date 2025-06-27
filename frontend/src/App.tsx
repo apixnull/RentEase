@@ -10,6 +10,11 @@ import NotFound from "./pages/NotFound404";
 import VerifyOtp from "./pages/public/auth/verifyOtp/VerifyOtp";
 import Unauthorized from "./pages/UnAuthorized";
 import { ProtectedRoute } from "./guards/PrivateRoute";
+import { TenantLayout } from "./layout/TenantLayout";
+import TenantDashboard from "./pages/private/tenant/dashboard/TenantDashboard";
+import { Properties } from "./pages/private/landlord/properties/Properties";
+import { ViewProperty } from "./pages/private/landlord/properties/ViewProperty";
+import { AddProperty } from "./pages/private/landlord/properties/AddProperty";
 
 
 
@@ -26,7 +31,7 @@ function App() {
         </Route>
 
         {/* **************************** AUTH ROUTES **************************** */}
-        <Route path="/auth">
+        <Route path="auth">
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           <Route path="verify-email" element={<VerifyOtp />} />
@@ -37,25 +42,26 @@ function App() {
         {/* ****************************  ADMIN ROUTES **************************** */}
         {/* ****************************  LANDLORD ROUTES **************************** */}
         
-    <Route
-        path="landlord"
-        element={
-          <ProtectedRoute allowedRoles={["LANDLORD"]}>
-            <LandlordLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<LandlordDashboard />} />
-      </Route>
+        <Route path="landlord" element={ <ProtectedRoute allowedRoles={["LANDLORD"]}> <LandlordLayout /> </ProtectedRoute> }>
+          <Route index element={<LandlordDashboard />} />
+
+          <Route path="property/properties" element={<Properties />} />
+          <Route path="property/view-property" element={<ViewProperty />} />
+          <Route path="property/add-property" element={<AddProperty />} />
+          
+        </Route>
 
         {/* ****************************  TENANT ROUTES **************************** */}
 
-
+        <Route path="tenant" element={ <ProtectedRoute allowedRoles={["TENANT"]}> <TenantLayout /> </ProtectedRoute> }>
+          <Route index element={<TenantDashboard />} />
+      
+        </Route>
 
         {/* **************************** NOT FOUND 404 **************************** */}
         <Route path="*" element={<NotFound />} />
         {/* **************************** UNAUTHORIZED ACCESS 401 **************************** */}
-        <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route path="unauthorized" element={<Unauthorized />} />
 
       </Routes>
     </>

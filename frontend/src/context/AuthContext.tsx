@@ -17,7 +17,7 @@ interface AuthContextType {
   initialized: boolean;
   isLoggingOut: boolean;
   loginUser: (user: User) => void;
-  logoutUser: () => void;
+  logoutUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -123,16 +123,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logoutUser = async () => {
-    setIsLoggingOut(true);
+    setIsLoggingOut(true); // set logging out true before API call
     setUser(null);
     localStorage.removeItem("hasRefreshToken"); // clear flag on logout
+
     try {
       await api.post("/auth/logout");
       console.log("[AuthProvider] User logged out");
     } catch (error) {
-      console.error("Logout error:", error);
-    }
-    setIsLoggingOut(false);
+      console.error("[AuthProvider] Logout error:", error);
+    } 
   };
 
   useEffect(() => {

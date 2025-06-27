@@ -55,7 +55,7 @@ export const LandlordLayout = () => {
   useEffect(() => {
     const pathTitles: Record<string, string> = {
       "/landlord": "Dashboard",
-      "/landlord/properties": "Properties",
+      "/landlord/property/properties": "Properties",
       "/landlord/leases": "Leases",
       "/landlord/maintenance": "Maintenance",
       "/landlord/applicants": "Applicants",
@@ -90,7 +90,7 @@ export const LandlordLayout = () => {
       category: "Management",
       items: [
         { path: "/landlord", icon: LayoutDashboard, label: "Dashboard" },
-        { path: "/landlord/properties", icon: Home, label: "Properties" },
+        { path: "/landlord/property/properties", icon: Home, label: "Properties" },
         { path: "/landlord/leases", icon: FileText, label: "Leases" },
         { path: "/landlord/maintenance", icon: Wrench, label: "Maintenance" },
       ]

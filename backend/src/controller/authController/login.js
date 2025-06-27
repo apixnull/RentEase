@@ -29,47 +29,36 @@ export const login = async (req, res) => {
     const accessToken = signAccessToken(user);
     const { token: refreshToken, hash: refreshTokenHash } = generateRefreshToken();
 
-    // 5. Store hashed refresh token in DB
+    // 5. Store hashed refresh token in DB with 1 day expiry
     await prisma.refreshToken.create({
       data: {
         userId: user.id,
         tokenHash: refreshTokenHash,
-        // expiresAt: new Date(Date.now() + 90 * 1000), // 90 seconds (1.5 minutes)
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day expiry
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
       },
     });
 
     // 6. Cookie options shared between access and refresh tokens
     const cookieOptions = {
-      httpOnly: true,               // Not accessible via JS (mitigates XSS)
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
-      sameSite: 'strict',           // CSRF protection by restricting cross-site cookie sending
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
     };
 
-    // 7. Set access token cookie - sent on ALL requests
+    // 7. Set access token cookie - expires in 1 hour
     res.cookie('accessToken', accessToken, {
       ...cookieOptions,
-      maxAge: 60 * 1000, // 1 minute
-      // maxAge: 60 * 60 * 1000, // 1 hour
-      path: '/',              // Sent on all routes
+      maxAge: 60 * 60 * 1000, // 1 hour in ms
     });
 
-    // 8. Set refresh token cookie - sent ONLY on refresh token route
-    // res.cookie('refreshToken', refreshToken, {
-    //   ...cookieOptions,
-       
-    //   // maxAge: 90 * 1000, // 1.5 minutes
-    //   maxAge: 24 * 60 * 60 * 1000, // 1 day
-    //   path: '/',  // Only sent on refresh token endpoint
-    // });
-
+    // 8. Set refresh token cookie - expires in 1 day
     res.cookie('refreshToken', refreshToken, {
       ...cookieOptions,
-      maxAge: 2 * 60 * 1000, // 2 minutes
-      path: '/', // Sent on all routes
+      maxAge: 24 * 60 * 60 * 1000, // 1 day in ms
     });
 
-    // 9. Respond with success only — tokens are in cookies now
+    // 9. Send response without tokens in body (in cookies now)
     return res.json({
       success: true,
       message: 'Logged in successfully',
@@ -80,7 +69,7 @@ export const login = async (req, res) => {
   }
 };
 
-// Helper to sign JWT access token
+// Helper to sign JWT access token with 1 hour expiry
 function signAccessToken(user) {
   return jwt.sign(
     {
@@ -91,7 +80,7 @@ function signAccessToken(user) {
       isDisabled: user.isDisabled,
     },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: '1m' } // 1h
+    { expiresIn: '1h' } // 1 hour
   );
 }
 
