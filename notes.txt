@@ -1,0 +1,105 @@
+Common HTTP Status Codes & Their Meaning
+1xx: Informational
+100 Continue – Initial part of request received; client should continue.
+
+101 Switching Protocols – Server switching protocols as requested.
+
+2xx: Success
+200 OK – Request succeeded; response contains requested data.
+
+201 Created – Request succeeded; new resource created.
+
+204 No Content – Request succeeded; no content to send back.
+
+3xx: Redirection
+301 Moved Permanently – Resource permanently moved to a new URL.
+
+302 Found – Resource temporarily resides under a different URL.
+
+304 Not Modified – Cached resource has not changed.
+
+4xx: Client Errors
+400 Bad Request – Server cannot process request due to client error (e.g., malformed syntax).
+
+401 Unauthorized – Authentication required or failed (e.g., login failure).
+
+402 Payment Required – Reserved for future use, rarely used.
+
+403 Forbidden – Authenticated but not permitted to access resource.
+
+404 Not Found – Requested resource does not exist.
+
+405 Method Not Allowed – HTTP method not allowed on resource.
+
+409 Conflict – Request conflicts with current state (e.g., duplicate resource).
+
+422 Unprocessable Entity – Well-formed request but semantic errors (e.g., validation failure).
+
+5xx: Server Errors
+500 Internal Server Error – Unexpected server condition.
+
+501 Not Implemented – Server lacks functionality to fulfill request.
+
+502 Bad Gateway – Invalid response received from upstream server.
+
+503 Service Unavailable – Server currently unavailable (overloaded/down).
+
+504 Gateway Timeout – Server timed out waiting for upstream response.
+
+What matters most for your Login API?
+Status Code	Meaning
+200 OK	Successful login; returns user data
+401 Unauthorized	Invalid credentials (wrong email/password)
+403 Forbidden	Authenticated but blocked/disabled or not allowed
+422 Unprocessable Entity	Input validation failed (e.g., bad email format)
+500 Internal Server Error	Server issue; try again later
+
+
+
+
+
+
+
+
+
+npx shadcn@latest add button
+
+
+
+
+
+
+
+
+📘 React Lazy Loading & Code Splitting – Notes
+✅ Definition
+Lazy Loading: Technique to delay loading parts of your app until they're actually needed (e.g., a route or modal).
+
+Code Splitting: Breaking the app into smaller bundles instead of one large file to optimize performance.
+
+💭 Why It Matters
+Reduces initial load time.
+
+Improves Time to Interactive (TTI).
+
+Only loads essential code first; the rest loads on demand.
+
+🧩 How It Works
+Uses dynamic imports behind the scenes.
+
+React will defer loading non-critical UI until the user navigates or triggers an action.
+
+🔁 Use Cases
+Routes that aren’t needed on first render (admin pages, dashboards).
+
+Feature-heavy components (charts, maps, editors).
+
+Conditional components (modals, dropdowns, settings panes).
+
+⚠️ Things to Watch
+Lazy loading too many small pieces can lead to too many HTTP requests.
+
+Always provide fallback UI during the loading state.
+
+Use wisely; don’t lazy-load components needed above the fold.
+

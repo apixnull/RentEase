@@ -1,0 +1,89 @@
+/frontend
+├── .env                      # Environment variables for development (auto-loaded by Vite)
+├── .env.production           # Production environment variables
+├── public
+│   └── index.html            # Static HTML entrypoint served by Vite
+│
+├── src
+│   ├── assets                # Images, fonts, icons, SVGs, etc.
+│   │
+│   ├── components            # Reusable UI components (Buttons, Cards, Inputs)
+│   │
+│   ├── context               # React Context providers + custom hooks (Auth, Theme, etc.)
+│   │   ├── AuthContext.tsx
+│   │   ├── ThemeContext.tsx
+│   │   └── index.ts         # Export all contexts/hooks for easy imports
+│   │
+│   ├── layouts               # Layout components (Header, Footer, Sidebar, Wrappers)
+│   │
+│   ├── pages                # Route components/screens (LoginPage, Dashboard, Profile)
+│   │
+│   ├── routes               # React Router setup & route constants
+│   │   ├── AppRoutes.tsx     # Routes declaration with <Routes> and <Route>
+│   │   └── routePaths.ts     # Centralized route path constants ("/login", "/dashboard")
+│   │
+│   ├── guards               # Route guard components (ProtectedRoute, RoleRoute)
+│   │   ├── ProtectedRoute.tsx  # Redirect unauthenticated users
+│   │   └── RoleRoute.tsx       # Restricts route access based on user roles
+│   │
+│   ├── services             # API client setup (Axios/fetch) and data-fetching logic
+│   │   └── api.ts
+│   │
+│   ├── validations          # Zod validation schemas for forms and inputs
+│   │   ├── auth.ts          # Auth-related schemas (login, signup)
+│   │   ├── user.ts          # User-related validation schemas
+│   │   └── index.ts         # Central exports for validation schemas
+│   │
+│   ├── constants            # App-wide constants (enums, fixed strings, config values)
+│   │   └── index.ts
+│   │
+│   ├── hooks                # Custom React hooks for reusable logic (e.g., useAuth)
+│   │
+│   ├── lib                  # Helper wrappers & typed env access
+│   │   └── env.ts           # Centralized and typed Vite env variables access
+│   │
+│   ├── styles               # Global CSS/SCSS, theme variables, resets
+│   │   ├── global.css
+│   │   └── theme.css
+│   │
+│   ├── types                # TypeScript interfaces and types shared app-wide
+│   │   └── index.d.ts
+│   │
+│   ├── utils                # Generic utility functions (formatters, debounce, validators)
+│   │   └── helpers.ts
+│   │
+│   ├── App.tsx              # Root React component: sets up providers and routing
+│   └── main.tsx             # React entry point: mounts App to the DOM
+│
+├── vite.config.ts           # Vite build and dev server configuration
+├── tsconfig.json            # TypeScript configuration file
+└── package.json             # Dependencies and frontend scripts
+
+
+
+
+
+
+backend/
+├── src/
+│   ├── controllers/          # Business logic and route handlers
+│   │   └── authController.js
+│   ├── routes/               # API route definitions
+│   │   └── authRoutes.js
+│   ├── middlewares/          # Express middlewares (auth, error handlers, etc.)
+│   │   └── authMiddleware.js
+│   ├── services/             # Services like DB access, token generation
+│   │   └── tokenService.js
+│   ├── validations/          # Request validations, schemas, etc.
+│   │   └── authValidation.js
+│   ├── jobs/                 # Background jobs, cron tasks, queues
+│   │   └── emailJob.js
+│   ├── lib/                  # Utilities, email sender, helpers (no models)
+│   │   ├── emailSender.js
+│   │   
+│   ├── app.js                # Express app initialization and middleware setup
+│   └── server.js             # Server start / entry point
+├── .env                      # Environment variables (gitignored)
+├── .gitignore
+├── package.json
+└── README.md
