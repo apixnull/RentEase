@@ -1,7 +1,10 @@
 // controllers/auth/forgotPasswordController.js
 import crypto from 'crypto';
 import { sendResetEmail } from '../../services/email/auth/sendResetEmail.js';
-import prisma from "../../libs/prismaClient.js";
+import prisma from '../../libs/prismaClient.js';
+import redis from '../../libs/redisClient.js';
+
+const RESET_TOKEN_EXPIRATION_SECONDS = 60 * 60; // 1 hour
 
 const forgotPasswordController = async (req, res) => {
   try {
@@ -11,29 +14,23 @@ const forgotPasswordController = async (req, res) => {
     // Find user by email (lowercase for consistency)
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
-      select: { id: true, isVerified: true },
+      select: { id: true, isVerified: true, isDisabled: true },
     });
 
-    // Don't reveal if user exists or not for security reasons
-    if (!user || !user.isVerified) {
+    // Don't reveal if user exists or not or is disabled for security reasons
+    if (!user || !user.isVerified || user.isDisabled) {
       return res.status(200).json({ message: "A reset password link has been sent to your email." });
     }
 
     // Generate a secure random token (64 hex chars)
     const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry
 
-    // Delete any existing tokens for user to keep only one valid token
-    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
-
-    // Save the new token
-    await prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        token,
-        expiresAt,
-      },
-    });
+    // Save token in Redis with expiry (key format: resetPasswordToken:<token>)
+    await redis.set(
+      `resetPasswordToken:${token}`,
+      user.id,
+      { ex: RESET_TOKEN_EXPIRATION_SECONDS }
+    );
 
     // Compose the reset URL for email
     const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password?token=${token}`;

@@ -1,6 +1,7 @@
 // src/controllers/auth/resetPasswordController.js
 import bcrypt from "bcrypt";
 import prisma from "../../libs/prismaClient.js";
+import redis from '../../libs/redisClient.js';
 
 const resetPasswordController = async (req, res) => {
   try {
@@ -25,13 +26,10 @@ const resetPasswordController = async (req, res) => {
       return res.status(400).json({ message: "Passwords do not match" });
     }
 
-    // Find token record by exact match
-    const resetRecord = await prisma.passwordResetToken.findUnique({
-      where: { token },
-      include: { user: true },
-    });
+    // Lookup userId by token from Redis
+    const userId = await redis.get(`resetPasswordToken:${token}`);
 
-    if (!resetRecord || resetRecord.expiresAt < new Date()) {
+    if (!userId) {
       return res.status(400).json({ message: "Reset token is invalid or expired" });
     }
 
@@ -40,16 +38,14 @@ const resetPasswordController = async (req, res) => {
 
     // Update user password
     await prisma.user.update({
-      where: { id: resetRecord.userId },
+      where: { id: userId },
       data: {
         passwordHash: hashedPassword,
       },
     });
 
-    // Delete the used reset token
-    await prisma.passwordResetToken.delete({
-      where: { token },
-    });
+    // Delete the used reset token from Redis
+    await redis.del(`resetPasswordToken:${token}`);
 
     return res.status(200).json({ message: "Password reset successful" });
   } catch (error) {

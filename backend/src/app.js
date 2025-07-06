@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import authRoutes from './routes/authRoutes.js';
+import landlordPropertyRoutes from './routes/landlord/propertyRoutes.js';  // <--- import here
 import { globalLimiter } from './middlewares/rateLimiter.js';
 
 const app = express();
@@ -28,6 +29,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/landlord', landlordPropertyRoutes);
 
 // Global error handler (must come after all routes and middleware)
 app.use((err, req, res, next) => {
