@@ -34,7 +34,7 @@ const resetPasswordController = async (req, res) => {
     }
 
     // Hash the new password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     // Update user password
     await prisma.user.update({

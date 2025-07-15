@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { GenericButton } from "@/components/shared/GenericButton";
 import { loginValidation } from "@/validations/auth/loginValidation";
 import { loginRequest, resendOtpRequest } from "@/services/api/auth.api";
-import { useAuth } from "@/hooks/useAuth";
+import useAuth  from "@/hooks/useAuth";
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);

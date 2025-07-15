@@ -21,7 +21,7 @@ export const globalLimiter = rateLimit({
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // limit each IP to 10 requests per windowMs
+  max: 100, // limit each IP to 10 requests per windowMs
   handler: (req, res) => {
     res.status(429).json({
       message: 'Too many requests, please try again later.',

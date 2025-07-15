@@ -1,13 +1,11 @@
-import { BrowserRouter } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
 import { Toaster } from "sonner";
-import { AuthProvider } from "./pages/context/AuthContext";
+import { AuthProvider } from "./context/AuthContext";
 
 const App = () => {
 
   return (
     <AuthProvider>
-      <BrowserRouter>
         <AppRoutes />
         <Toaster
           position="top-center"
@@ -19,7 +17,6 @@ const App = () => {
           visibleToasts={2}
           richColors
         />
-      </BrowserRouter>
     </AuthProvider>
   );
 };

@@ -1,7 +1,7 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 import { GlobalLoader } from "@/components/shared/GlobalLoader";
-import { useAuth } from "@/hooks/useAuth";
+import useAuth  from "@/hooks/useAuth";
 
 interface ProtectedRouteProps {
   allowedRoles: string[];

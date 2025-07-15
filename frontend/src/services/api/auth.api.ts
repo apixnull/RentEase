@@ -1,4 +1,4 @@
-// services/auth.ts
+// services/auth.api.ts
 
 import axios from "axios";
 import authApiClient from "../authApiClient";

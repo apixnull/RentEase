@@ -1,3 +1,4 @@
+// controllers/auth/refreshTokenControler.js
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import prisma from "../../libs/prismaClient.js";
@@ -30,7 +31,7 @@ const refreshTokenController = async (req, res) => {
       return res.status(403).json({ message: "Invalid refresh token." });
     }
 
-    // ❌ Fix starts here: remove 'exp' and 'iat' from payload
+    // ✅ Extract clean payload
     const { id, email, role, isVerified, isDisabled } = payload;
     const newPayload = { id, email, role, isVerified, isDisabled };
 
@@ -40,9 +41,9 @@ const refreshTokenController = async (req, res) => {
       data: { isRevoked: true },
     });
 
-    // 🔐 Sign new refresh token (90s)
+    // 🔐 Generate new refresh token (1 day)
     const newRefreshToken = jwt.sign(newPayload, process.env.REFRESH_TOKEN_SECRET, {
-      expiresIn: "90s",
+      expiresIn: "1d", // 1 day
     });
 
     const hashedRefreshToken = await bcrypt.hash(newRefreshToken, 10);
@@ -50,29 +51,29 @@ const refreshTokenController = async (req, res) => {
       data: {
         userId,
         tokenHash: hashedRefreshToken,
-        expiresAt: new Date(Date.now() + 90 * 1000),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
       },
     });
 
-    // 🔐 Sign new access token (60s)
+    // 🔐 Generate new access token (30 minutes)
     const newAccessToken = jwt.sign(newPayload, process.env.ACCESS_TOKEN_SECRET, {
-      expiresIn: "60s",
+      expiresIn: "30m", // 30 minutes
     });
 
-    // 🍪 Set new cookies
     const isProd = process.env.NODE_ENV === "production";
 
+    // 🍪 Set cookies
     res.cookie("accessToken", newAccessToken, {
       httpOnly: true,
       secure: isProd,
-      maxAge: 60 * 1000,
+      maxAge: 30 * 60 * 1000, // 30 minutes
       sameSite: isProd ? "None" : "Lax",
     });
 
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: isProd,
-      maxAge: 90 * 1000,
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
       sameSite: isProd ? "None" : "Lax",
     });
 

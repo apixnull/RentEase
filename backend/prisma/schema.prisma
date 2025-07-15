@@ -236,15 +236,32 @@ model Property {
   MaintenanceRequest   MaintenanceRequest[]
   Income               Income[]
   Expense              Expense[]
-  tags                 PropertyTag[]
   PropertyPhoto        PropertyPhoto[]
   FraudAlert           FraudAlert[]
   Listing              Listing[]
   Application          Application[]
 
   @@map("properties")
+  PropertyAmenity PropertyAmenity[]
 }
 
+model Amenity {
+  id    String  @id @default(uuid())
+  name  String  @unique     // e.g., "Air Conditioning", "Pet Friendly"
+
+  properties PropertyAmenity[] // All properties that have this amenity
+}
+
+model PropertyAmenity {
+  id         String   @id @default(uuid())
+  propertyId String
+  amenityId  String
+
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, amenityId]) // Prevent duplicate entries
+}
 
 model PropertyPhoto {
   id         String   @id @default(uuid())
@@ -254,26 +271,6 @@ model PropertyPhoto {
 
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
-
-model Tag {
-  id         String         @id @default(uuid())
-  name       String         @unique  // e.g. “Pet-friendly”
-
-  properties PropertyTag[]               // Join to properties
-}
-
-model PropertyTag {
-  id         String   @id @default(uuid())
-  propertyId String
-  tagId      String
-
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@unique([propertyId, tagId])           // No duplicate tags per property
-}
-
-
 
 /* **************************************** **************************************** ****************************************  */
 // ========================

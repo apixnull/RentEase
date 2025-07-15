@@ -1,5 +1,4 @@
 // controllers/auth/loginController.js
-
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../../libs/prismaClient.js";
@@ -46,14 +45,21 @@ const loginController = async (req, res) => {
       });
     }
 
-    const payload = { id: user.id, email: user.email, role: user.role, isVerified: user.isVerified, isDisabled: user.isDisabled };
+    const payload = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+      isDisabled: user.isDisabled,
+    };
 
+    // Updated token durations
     const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
-      expiresIn: "60s",
+      expiresIn: "30m", // 30 minutes
     });
 
     const refreshToken = jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, {
-      expiresIn: "90s",
+      expiresIn: "1d", // 1 day
     });
 
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
@@ -61,25 +67,23 @@ const loginController = async (req, res) => {
       data: {
         userId: user.id,
         tokenHash: hashedRefreshToken,
-        expiresAt: new Date(Date.now() + 90 * 1000),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
       },
     });
 
-
+    // Set cookies
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
       secure: false,
-      maxAge: 60 * 1000,
+      maxAge: 30 * 60 * 1000, // 30 minutes
       sameSite: "Lax",
     });
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: false,
-      maxAge: 90 * 1000,
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
       sameSite: "Lax",
     });
-
-
 
     return res.status(200).json({
       message: "Login successful.",

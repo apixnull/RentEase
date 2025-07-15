@@ -21,13 +21,15 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
+import useAuth  from "@/hooks/useAuth";
 
 export const LandlordLayout = () => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const location = useLocation();
+
+  // properties
 
   // User data
   const user = { name: "Alex Morgan", avatar: "/avatar.jpg" };
@@ -48,7 +50,7 @@ export const LandlordLayout = () => {
   useEffect(() => {
     const pathTitles: Record<string, string> = {
       "/landlord": "Dashboard",
-      "/landlord/property/properties": "Properties",
+      "/landlord/property/my-properties": "Properties",
       "/landlord/leases": "Leases",
       "/landlord/maintenance": "Maintenance",
       "/landlord/applicants": "Applicants",
@@ -123,10 +125,10 @@ export const LandlordLayout = () => {
               </li>
               <li>
                 <Link
-                  to="/landlord/property/properties"
+                  to="/landlord/property/my-properties"
                   className={cn(
                     "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/property/properties"
+                    location.pathname === "/landlord/property/my-properties"
                       ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
                       : "text-gray-600 hover:bg-gray-100"
                   )}
@@ -334,10 +336,10 @@ export const LandlordLayout = () => {
                     </li>
                     <li>
                       <Link
-                        to="/landlord/property/properties"
+                        to="/landlord/property/my-properties"
                         className={cn(
                           "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord/property/properties"
+                          location.pathname === "/landlord/property/my-properties"
                             ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
                             : "text-gray-600 hover:bg-gray-100"
                         )}
@@ -609,9 +611,6 @@ export const LandlordLayout = () => {
                     AM
                   </AvatarFallback>
                 </Avatar>
-                <span className="absolute -bottom-1 -right-1 bg-teal-500 text-white text-[0.6rem] px-1 py-0.5 rounded-full">
-                  LL
-                </span>
               </div>
               <div className="hidden sm:flex flex-col leading-tight">
                 <span className="text-xs font-medium">{user.name}</span>
