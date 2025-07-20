@@ -11,6 +11,7 @@ import {
 // Guards & Layouts
 import ProtectedRoute from "@/guards/ProtectedRoutes";
 import { LandlordLayout } from "@/layouts/LandlordLayout";
+import { TenantLayout } from "@/layouts/TenantLayout";
 import PublicLayout from "@/layouts/PublicLayout";
 
 // Auth Pages
@@ -23,6 +24,10 @@ import VerifyEmail from "@/pages/authentication/verifyEmail/VerifyEmail";
 // Landlord Pages
 import LandlordDashboard from "@/pages/landlord/dashboard/LandlordDashboard";
 import Properties from "@/pages/landlord/property/Properties";
+
+//Tenant Pages
+import TenantDashboard from "@/pages/tenant/dashboard/TenantDashboard";
+import DeepseekChat from "@/layouts/publicComponents/OpenAI";
 
 // Public Pages
 import About from "@/pages/public/about/About";
@@ -142,6 +147,20 @@ const router = createBrowserRouter([
       }
     ],
   },
+
+  // Tenant Portal (Testing)
+  {
+    path: '/tenant',
+    element : <TenantLayout/>,
+    children : [
+      // Dashboard (default child)
+      { index: true, element: <TenantDashboard /> },
+
+        // Chat route inside Tenant layout
+      { path: 'chat', element: <DeepseekChat /> },
+    ],
+  },
+
 
   // 🚫 System & Error Routes
   { path: "/unauthorized", element: <Unauthorized /> },
