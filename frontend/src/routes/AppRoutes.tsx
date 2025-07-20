@@ -157,7 +157,7 @@ const router = createBrowserRouter([
       { index: true, element: <TenantDashboard /> },
 
         // Chat route inside Tenant layout
-      { path: 'chat', element: <DeepseekChat /> },
+      { path: 'chat', element: <DeepseekChat /> }, //CHANGE THIS SOON IF WE ARE GOING TO DECIDE TO HAVE A PAGE FOR CHATBOT
     ],
   },
 
