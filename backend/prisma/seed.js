@@ -1,62 +1,97 @@
 // prisma/seed.js
-import { PrismaClient, Role, PropertyType, UnitStatus, PriorityLevel, RequestStatus } from "@prisma/client";
+import {
+  PrismaClient,
+  PropertyType,
+  UnitStatus,
+  ApplicationStatus,
+} from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Use the existing landlord user ID directly
-  const userId = "d3399287-91c8-4085-a0f2-b75a2f3bdad8";
+  const userId = "233ea753-3ab7-4474-81ef-3c0c25dc55bc";
+  const sharedImage =
+    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80";
 
-  // Master list of amenities
-  const amenityNames = [
-    "WiFi",
-    "Parking",
-    "Laundry",
-    "Swimming Pool",
-    "Gym",
-    "Pet-friendly",
-    "Gated Community",
-    "Furnished"
+  const propertyTypes = [
+    PropertyType.APARTMENT,
+    PropertyType.CONDOMINIUM,
+    PropertyType.BOARDING_HOUSE,
   ];
 
-  // Upsert amenities
-  const amenities = await Promise.all(
-    amenityNames.map(name =>
-      prisma.amenity.upsert({
-        where: { name },
-        update: {},
-        create: { name }
-      })
-    )
-  );
-
-  // Image URLs for properties and units
-  const propertyImages = {
-    CONDOMINIUM: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
-    APARTMENT:   "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
-    HOUSE:       "https://images.unsplash.com/photo-1572120360610-d971b9d7767c",
-    STUDIO:      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
-  };
-  const unitImages = [
-    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
-    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
-  ];
-
-  const propertyTypes = [PropertyType.CONDOMINIUM, PropertyType.APARTMENT, PropertyType.HOUSE, PropertyType.STUDIO];
   const cities = ["Metro Manila", "Batangas", "Rizal", "Cavite"];
   const barangays = [
     "Barangay Fort Bonifacio",
     "Barangay San Antonio",
     "Barangay University Belt",
-    "Barangay Matabungkay"
+    "Barangay Matabungkay",
   ];
 
-  for (let i = 1; i <= 20; i++) {
+  const amenityTagsPool = [
+    "near school",
+    "near market",
+    "with parking",
+    "public transport accessible",
+    "guarded gate",
+    "flood-free",
+    "quiet neighborhood",
+  ];
+
+  const propertySharedFeaturesPool = [
+    "kitchen",
+    "living room",
+    "laundry area",
+    "dining area",
+    "bathroom",
+    "parking",
+    "wifi piso net",
+  ];
+
+  const propertyRulesPool = [
+    "No pets allowed",
+    "No smoking inside the unit",
+    "Quiet hours from 10PM to 7AM",
+    "Visitors allowed until 10PM only",
+    "No overnight guests",
+    "Cooking allowed in designated kitchen areas",
+    "Keep shared areas clean",
+    "Report maintenance issues within 24 hours",
+  ];
+
+  const unitFeatureTagsPool = [
+    "Electric Fan",
+    "Air Conditioning",
+    "Mini Fridge",
+    "Ceiling Fan",
+    "Own Bathroom",
+    "Rice Cooker",
+    "5 Beds",
+    "With Balcony",
+  ];
+
+  const leaseRulesPool = [
+    "Deposit of 500 required",
+    "No pets allowed",
+    "Minimum lease duration: 6 months (Long-term only) and must pay in advance",
+    "Smoking prohibited inside the unit",
+    "Rent payable monthly in advance",
+  ];
+
+  const properties = [];
+
+  for (let i = 1; i <= 12; i++) {
     const type = propertyTypes[i % propertyTypes.length];
     const city = cities[i % cities.length];
     const barangay = barangays[i % barangays.length];
 
-    // Create property with 5 photos
+    const propertyImages = Array.from({ length: 5 }).map(() => sharedImage);
+    const mainImageUrl = propertyImages[0];
+
+    // Randomly select some tags and rules
+    const selectedAmenityTags = amenityTagsPool.filter(() => Math.random() > 0.5);
+    const selectedPropertySharedFeatures = propertySharedFeaturesPool.filter(() => Math.random() > 0.5);
+    const selectedPropertyRules = propertyRulesPool.filter(() => Math.random() > 0.5);
+
     const property = await prisma.property.create({
       data: {
         title: `Property ${i} - ${type}`,
@@ -71,74 +106,88 @@ async function main() {
         zipCode: "1000",
         requiresScreening: Math.random() > 0.5,
         isListed: true,
-        PropertyPhoto: {
-          create: Array.from({ length: 5 }).map(() => ({ url: propertyImages[type] }))
-        }
-      }
+        mainImageUrl,
+        propertyImageUrls: propertyImages,
+        amenityTags: selectedAmenityTags,
+        propertySharedFeatures: selectedPropertySharedFeatures,
+        propertyRules: selectedPropertyRules,
+      },
     });
 
-    // Assign random amenities to property
-    const selectedAmenities = amenities.filter(() => Math.random() > 0.5);
-    await Promise.all(selectedAmenities.map(am =>
-      prisma.propertyAmenity.create({ data: { propertyId: property.id, amenityId: am.id } })
-    ));
+    properties.push(property);
 
-    // Create units with 2 photos and maintenance
-    const unitCount = Math.floor(Math.random() * 20) + 1;
+    // Units
+    const unitCount = Math.floor(Math.random() * 11) + 10; // 10-20 units
     for (let u = 1; u <= unitCount; u++) {
-      const chargePerHead = Math.random() > 0.6;
-      const unit = await prisma.unit.create({
+      // Select random features and lease rules for unit
+      const selectedUnitFeatureTags = unitFeatureTagsPool.filter(() => Math.random() > 0.5);
+      const selectedLeaseRules = leaseRulesPool.filter(() => Math.random() > 0.5);
+
+      await prisma.unit.create({
         data: {
           propertyId: property.id,
           label: `Unit ${u}`,
           description: `Spacious layout for Unit ${u}`,
-          status: UnitStatus[Object.keys(UnitStatus)[Math.floor(Math.random() * Object.keys(UnitStatus).length)]],
+          status:
+            UnitStatus[
+              Object.keys(UnitStatus)[
+                Math.floor(Math.random() * Object.keys(UnitStatus).length)
+              ]
+            ],
           maxOccupancy: Math.floor(Math.random() * 5) + 1,
-          chargePerHead,
-          pricePerHead: chargePerHead ? Math.floor(Math.random() * 3000) + 2000 : null,
-          pricePerUnit: !chargePerHead ? Math.floor(Math.random() * 10000) + 8000 : null,
+          unitFeatureTags: selectedUnitFeatureTags,
+          unitImageUrls: Array.from({ length: 3 }).map(() => sharedImage),
+          targetPrice: Math.floor(Math.random() * 15000) + 5000,
           isNegotiable: Math.random() > 0.5,
-          UnitPhoto: { create: unitImages.map(url => ({ url })) }
-        }
+          leaseRules: selectedLeaseRules,
+        },
       });
-
-      // 1-2 maintenance requests
-      const requestCount = Math.floor(Math.random() * 2) + 1;
-      await Promise.all(
-        Array.from({ length: requestCount }).map((_, r) =>
-          prisma.maintenanceRequest.create({
-            data: {
-              propertyId: property.id,
-              unitId: unit.id,
-              reporterId: userId,
-              description: `Maintenance issue #${r + 1} for Unit ${u}`,
-              priority: PriorityLevel.MEDIUM,
-              status: RequestStatus.OPEN
-            }
-          })
-        )
-      );
     }
+  }
 
-    // Income and expenses
-    const incomeCount = Math.floor(Math.random() * 2) + 1;
-    await Promise.all(
-      Array.from({ length: incomeCount }).map((_, j) =>
-        prisma.income.create({ data: { propertyId: property.id, amount: Math.floor(Math.random() * 5000) + 2000, description: `Rent income #${j + 1}` } })
-      )
-    );
+  // Applications for first property
+  const tenantApplications = [
+    {
+      tenantId: "c7570364-14a0-41ce-8734-bd7f055ead7e",
+      fullName: "Alice Johnson",
+      contactEmail: "alice@example.com",
+      contactPhone: "09171234567",
+      contactFacebook: "https://facebook.com/alicejohnson",
+      contactMessenger: "https://m.me/alicejohnson",
+      occupants: 2,
+      moveInDate: new Date("2025-09-01"),
+      lengthOfStay: "1 year",
+      message: "Looking forward to staying in your property.",
+      questions: JSON.stringify(["Is the lease renewable?", "Are pets allowed?"]),
+      status: ApplicationStatus.PENDING,
+      propertyId: properties[0].id,
+      unitId: null,
+    },
+    {
+      tenantId: "dbfd6e54-38fe-4b69-9d48-37dbcc5e0947",
+      fullName: "Bob Smith",
+      contactEmail: "bob@example.com",
+      contactPhone: "09179876543",
+      contactFacebook: "https://facebook.com/bobsmith",
+      contactMessenger: "https://m.me/bobsmith",
+      occupants: 1,
+      moveInDate: new Date("2025-10-15"),
+      lengthOfStay: "6 months",
+      message: "Please consider my application.",
+      questions: JSON.stringify(["Is parking available?", "Is there 24/7 security?"]),
+      status: ApplicationStatus.PENDING,
+      propertyId: properties[0].id,
+      unitId: null,
+    },
+  ];
 
-    const expenseCount = Math.floor(Math.random() * 2) + 1;
-    await Promise.all(
-      Array.from({ length: expenseCount }).map((_, k) =>
-        prisma.expense.create({ data: { propertyId: property.id, amount: Math.floor(Math.random() * 3000) + 1000, description: `Expense #${k + 1}` } })
-      )
-    );
+  for (const app of tenantApplications) {
+    await prisma.application.create({ data: app });
   }
 }
 
 main()
-  .catch(e => {
+  .catch((e) => {
     console.error("Seeding error:", e);
     process.exit(1);
   })

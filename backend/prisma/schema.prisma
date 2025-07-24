@@ -1,16 +1,11 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-// ========================
+// =============================================================================
 // GENERATOR & DATASOURCE
-// ========================
+// =============================================================================
 
 generator client {
   provider = "prisma-client-js"
 }
+
 
 datasource db {
   provider = "postgresql"
@@ -18,42 +13,53 @@ datasource db {
   directUrl = env("DIRECT_URL")       // Used for migrations and introspection
 }
 
-// ========================
+// =============================================================================
 // ENUM DEFINITIONS
-// ========================
+// =============================================================================
 
-/// Roles in the system (defines user permissions)
+
+// ==================== USER enums ====================  
 enum Role {
-  ADMIN      // Full access
-  LANDLORD   // Manage own properties and listings
-  TENANT     // Apply for leases, view own data
+  ADMIN      
+  LANDLORD   
+  TENANT     
 }
 
-/// Types of property for filtering and search
+
+// ==================== PROPERTY enums ====================  
 enum PropertyType {
-  HOUSE       // Single-family home
-  APARTMENT   // Multi-unit building
-  CONDOMINIUM // Condominium unit
-  STUDIO      // Studio apartment
+  APARTMENT   
+  CONDOMINIUM 
+  BOARDING_HOUSE
 }
 
-/// Rent billing frequency options for leases
+
+// ==================== UNIT enums ====================  
+enum UnitStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+}
+
+
+// ==================== LEASE enums ====================  
 enum RentInterval {
-  DAILY       // Billed every day
-  WEEKLY      // Billed every week
-  MONTHLY     // Billed every month (default)
-  ANNUALLY    // Billed once a year
+  DAILY       
+  WEEKLY      
+  MONTHLY     
+  ANNUALLY    
 }
 
-/// Current state of a lease agreement
+
 enum LeaseStatus {
-  PENDING     // Created but not yet active
-  ACTIVE      // Currently in effect
-  TERMINATED  // Ended early
-  COMPLETED   // Fully served
+  PENDING     
+  ACTIVE      
+  TERMINATED  
+  COMPLETED   
 }
 
-/// Methods used for payment transactions
+
+// ==================== PAYMENT enums ====================  
 enum PaymentMethod {
   CASH
   GCASH
@@ -62,114 +68,78 @@ enum PaymentMethod {
   OTHER
 }
 
-/// Progress state of a maintenance request
+
+// ==================== MAINTENANCE enums ====================  
 enum RequestStatus {
-  OPEN         // Newly reported
-  IN_PROGRESS  // Being worked on
-  RESOLVED     // Issue has been fixed
+  OPEN         
+  IN_PROGRESS  
+  RESOLVED     
 }
 
-/// Priority levels for maintenance
-enum PriorityLevel {
-  LOW          // Minor issue
-  MEDIUM       // Standard priority
-  HIGH         // Urgent attention needed
-  URGENT       // Immediate response required
-}
 
-/// Types of in-app notifications
+// ==================== NOTIFICATION enums ====================  
 enum NotificationType {
-  GENERAL       // System updates
-  PAYMENT       // Payment due/received alerts
-  MAINTENANCE   // Maintenance status updates
-  INVITATION    // Lease or listing invitations
+  GENERAL       
+  PAYMENT       
+  MAINTENANCE   
+  INVITATION    
 }
 
-/// Screening status for tenant applications
-enum ScreeningStatus {
-  PENDING    // Screening requested
-  APPROVED   // Tenant meets criteria
-  REJECTED   // Tenant did not qualify
-}
 
-/// Current state of a listing
-enum ListingStatus {
-  PENDING     // Awaiting payment/approval
-  APPROVED    // Visible to tenants
-  DISAPPROVED // Not allowed to list
-}
-
-/// Availability status of a unit
-enum UnitStatus {
-  AVAILABLE
-  OCCUPIED
-  MAINTENANCE
-}
-
+// ==================== APPLICATION enums ====================  
 enum ApplicationStatus {
-  PENDING     // Submitted but not yet reviewed
-  REVIEWED    // Landlord has seen it
-  APPROVED    // Landlord approved this applicant
-  REJECTED    // Landlord rejected the application
-  WITHDRAWN   // Tenant voluntarily canceled
+  PENDING     
+  REVIEWED    
+  APPROVED    
+  REJECTED    
+  WITHDRAWN   
 }
 
+// ======================================================================================================
+// MODELS
+// ======================================================================================================
 
-
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// USER-RELATED MODELS
-// ========================
-
+// ==================== User Models ====================  
 model User {
-  // Primary identity
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String
+  role         Role     
 
-  // Authorization
-  role         Role     // ADMIN, LANDLORD, or TENANT
-
-  // Account status flags
-  isVerified   Boolean  @default(false)  // Has confirmed email?
-  isDisabled   Boolean  @default(false)  // Manually disabled account?
+  // Account status 
+  isVerified   Boolean  @default(false)    // email verification
+  isDisabled   Boolean  @default(false)    
 
   // Timestamps & tokens
-  RefreshToken      RefreshToken[]         // Rotating refresh tokens
+  RefreshToken      RefreshToken[]         
+  createdAt    DateTime @default(now())
+  
+  // Other User Information
+  UserProfile      UserProfile?            
+  ContactInfo      UserContactInfo?        
 
-  // Optional one-to-one extensions
-  UserProfile      UserProfile?            // Personal details
-  ContactInfo      UserContactInfo?        // Phone, GCash, social links
+  // Relations
+  Property            Property[]           
+  Lease               Lease[]              
+  MaintenanceRequest  MaintenanceRequest[] 
+  Notification        Notification[]       
 
-  // Relations (depends on role)
-  Property            Property[]           // Owned properties (landlords)
-  Lease               Lease[]              // Leases (tenants)
-  MaintenanceRequest  MaintenanceRequest[] // Filed maintenance tickets
-  Notification        Notification[]       // In-app alerts
-  TenantScreening     TenantScreening[]    // Screening data
-  TenantBehaviorStats TenantBehaviorStats[]// Usage metrics
-  LandlordPreference  LandlordPreference[] // Screening criteria settings
-  FraudAlert          FraudAlert[]         // Fraud flags
-  Listing             Listing[]            // Created listings
 
   @@map("users")
   @@index([email])
   @@index([role])
-  ChatbotSession ChatbotSession[]
   Application Application[]
 }
 
 
-
 model RefreshToken {
-  // Primary key & rotation info
   id         String   @id @default(uuid())
   tokenHash  String   @unique  // Hashed token
   createdAt  DateTime @default(now())
   expiresAt  DateTime              // Expiration timestamp
   isRevoked  Boolean  @default(false)
 
-  // Relation back to User
+  // Relation 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String
 
@@ -179,10 +149,7 @@ model RefreshToken {
 }
 
 
-
-
 model UserProfile {
-  // One-to-one extension of User
   userId    String   @id
   firstName String
   lastName  String
@@ -191,136 +158,164 @@ model UserProfile {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+
 model UserContactInfo {
-  // One-to-one extension of User
   userId       String @id
-  phoneNumber  String? // Contact phone
-  messengerUrl String? // Chat link
-  facebookUrl  String? // FB profile link
+  phoneNumber  String? 
+  messengerUrl String? 
+  facebookUrl  String? 
 
   user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 
 
-
-
-
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// PROPERTY-RELATED MODELS
-// ========================  
 model Property {
-  id            String         @id @default(uuid())
-  title         String
-  description   String
-  ownerId       String
-  type          PropertyType  @default(HOUSE)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  // ======================
+  // Identifiers
+  // ======================
+  id            String      @id @default(uuid())   // Unique property ID (UUID)
+  ownerId       String                        // Owner (landlord) user ID (foreign key)
 
-  // Denormalized address
-  street        String
-  barangay      String
-  municipality  String
-  city          String
-  province      String
-  zipCode       String
+  // ======================
+  // Basic Info
+  // ======================
+  title         String                        // Property title/name
+  description   String                        // Detailed description of the property
+  type          PropertyType  @default(APARTMENT)  // Enum: APARTMENT, CONDOMINIUM, BOARDING_HOUSE, etc.
+  createdAt     DateTime    @default(now())   // Timestamp when property was created
+  updatedAt     DateTime    @updatedAt         // Timestamp when property was last updated
 
-  requiresScreening Boolean   @default(false)
-  isListed          Boolean   @default(false)  // <-- new field here
-  owner             User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // ======================
+  // Address Details
+  // ======================
+  street        String                        // Street address (required)
+  barangay      String                        // Local district or neighborhood
+  municipality  String?                       // Municipality or town (optional)
+  city          String?                       // City (optional)
+  province      String                        // Province or state (required)
+  zipCode       String                        // Postal/ZIP code
 
-  // Collections
-  Unit                 Unit[]
-  MaintenanceRequest   MaintenanceRequest[]
-  Income               Income[]
-  Expense              Expense[]
-  PropertyPhoto        PropertyPhoto[]
-  FraudAlert           FraudAlert[]
-  Listing              Listing[]
-  Application          Application[]
+  // ======================
+  // Features & Amenities
+  // ======================
+  propertySharedFeatures Json?                 // JSON array of tangible/shared property features || limit 3 words per field in this
+                                                // e.g. ["kitchen", "livingRoom", "laundryArea", "diningArea", "bathroom", "parking", "wifi piso net"]
+                                                // These are physical spaces or utilities within the property
+  amenityTags            Json?                 // JSON array of intangible advantages or nearby amenities || limit 3 words per field in this
+                                                // e.g. ["near uc main", "near act", "near colon", "near school", "with security"]
+                                                // These describe benefits around or related to the property location or services
 
-  @@map("properties")
-  PropertyAmenity PropertyAmenity[]
+  // ======================
+  // Rules / House Policies
+  // ======================
+  propertyRules          Json?                 // JSON array of property-specific rules (restrictions, allowed behaviors) || limit 20 words per field in this
+                                                // Example numbered list:
+                                                // [
+                                                //   "1. No pets allowed",
+                                                //   "2. No smoking inside the unit",
+                                                //   "3. Quiet hours from 10PM to 7AM",
+                                                //   "4. Visitors allowed until 10PM only",
+                                                //   "5. No overnight guests",
+                                                //   "6. Cooking allowed in designated kitchen areas",
+                                                //   "7. Keep shared areas clean"
+                                                // ]
+
+  // ======================
+  // Media
+  // ======================
+  propertyImageUrls    Json?                   // JSON array of image URLs showcasing the property
+                                                  // e.g. ["https://cdn.example.com/property1.jpg", "url2"]
+  mainImageUrl         String?                 // Main or featured image URL for quick display
+
+  // ======================
+  // Listing & Screening
+  // ======================
+  requiresScreening    Boolean @default(false) // Indicates if tenant screening is required for this property
+  isListed             Boolean @default(false) // Flag to mark if the property is currently listed/publicly visible
+
+  // ======================
+  // Relations
+  // ======================
+  owner             User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)  // Relation to landlord User
+  Unit              Unit[]                                                      // Units/rooms belonging to this property
+  MaintenanceRequest MaintenanceRequest[]                                      // Maintenance requests reported for this property
+  Income            Income[]                                                    // Income records associated with this property
+  Expense           Expense[]                                                   // Expense records associated with this property
+  Application       Application[]                                              // Rental applications for this property
+
+  // ======================
+  // Indexes & Mappings
+  // ======================
+  @@map("properties")          // Maps model to "properties" table in DB
+  @@index([id])                // Index on id for performance
 }
 
-model Amenity {
-  id    String  @id @default(uuid())
-  name  String  @unique     // e.g., "Air Conditioning", "Pet Friendly"
 
-  properties PropertyAmenity[] // All properties that have this amenity
-}
-
-model PropertyAmenity {
-  id         String   @id @default(uuid())
-  propertyId String
-  amenityId  String
-
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
-
-  @@unique([propertyId, amenityId]) // Prevent duplicate entries
-}
-
-model PropertyPhoto {
-  id         String   @id @default(uuid())
-  propertyId String
-  url        String   // Photo URL
-  uploadedAt DateTime @default(now())
-
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-}
-
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// UNIT-RELATED MODELS
-// ========================
 model Unit {
-  id             String      @default(uuid()) @unique
+  // Identifiers
+  id             String   @default(uuid()) @unique
   propertyId     String
+
+  // Basic Info
   label          String
   description    String
-  status         UnitStatus  @default(AVAILABLE)
+  status         UnitStatus @default(AVAILABLE)
+  floorNumber    Int?
   createdAt      DateTime    @default(now())
-  maxOccupancy   Int         @default(1)
+  updatedAt      DateTime    @updatedAt
+
+  // Capacity & Layout
+  maxOccupancy   Int     @default(1)
+
+  // Features & Media
+  unitFeatureTags  Json?    // JSON array of unit features/appliances, numbered for clarity || limit 3 words per field in this
+                            // Example:
+                            // [
+                            //   "1. Electric Fan",
+                            //   "2. Air Conditioning",
+                            //   "3. Mini Fridge",
+                            //   "4. Ceiling Fan",
+                            //   "5. Own Bathroom",
+                            //   "6. Rice Cooker",
+                            //   "7. 5 Beds",
+                            //   "8. With Balcony"
+                            // ]
+
+  unitImageUrls    Json?    // URLs of unit photos
+                            // Example: ["https://cdn.example.com/unit1.jpg", "https://cdn.example.com/unit2.jpg"]
 
   // Pricing & Negotiation
-  chargePerHead  Boolean     @default(false)
-  pricePerHead   Float?
-  pricePerUnit   Float?
-  isNegotiable   Boolean     @default(false)
+  targetPrice    Float
+  isNegotiable   Boolean @default(false)
+
+  // Lease Rules / Policies specific to this unit (numbered for clarity)
+  leaseRules     Json?    // JSON array of lease rules/restrictions || limit 20 words per field in this
+                            // Example:
+                            // [
+                            //   "1. Deposit of 500 required",
+                            //   "2. No pets allowed",
+                            //   "3. Minimum lease duration: 6 months (Long-term only) and must pay in advance",
+                            //   "4. Smoking prohibited inside the unit",
+                            //   "5. Rent payable monthly in advance"
+                            // ]
 
   // Relations
   property           Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   Lease              Lease[]
   MaintenanceRequest MaintenanceRequest[]
-  UnitPhoto          UnitPhoto[]
   Application        Application[]
 
-  @@id([propertyId, id])
-  @@unique([propertyId, label])
+  // Constraints & Indexes
   @@map("units")
-}
-
-model UnitPhoto {
-  id         String   @id @default(uuid())
-  unitId     String
-  url        String
-  uploadedAt DateTime @default(now())
-
-  unit       Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  @@id([propertyId, id])
+  @@index([id])
+  @@unique([propertyId, label])
 }
 
 
 
-
-
-
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// LEASE & PAYMENT MODELS
-// ========================
+// ==================== Lease Models ==================== 
 model Lease {
   // Primary identity
   id         String       @id @default(uuid())
@@ -356,6 +351,7 @@ model Lease {
   @@map("scheduled_payments")
 }
 
+// ==================== Payment Models ==================== 
 model Payment {
   // Primary key & monetary info
   id       String   @id @default(uuid())
@@ -401,10 +397,7 @@ model ScheduledPayment {
 
 
 
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// MAINTENANCE & FINANCE
-// ========================
+// ==================== Maintenance Models ==================== 
 model MaintenanceRequest {
   // Identity & description
   id          String        @id @default(uuid())
@@ -415,7 +408,6 @@ model MaintenanceRequest {
   photoUrl    String?
 
   // Priority & status
-  priority PriorityLevel @default(MEDIUM)
   status   RequestStatus @default(OPEN)
 
   // Auditing
@@ -429,6 +421,8 @@ model MaintenanceRequest {
 
   @@map("maintenance_requests")
 }
+
+
 model Income {
   id         String   @id @default(uuid())
   propertyId String   // FK → Property.id
@@ -439,6 +433,7 @@ model Income {
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   @@map("incomes")
 }
+
 
 model Expense {
   id         String   @id @default(uuid())
@@ -453,13 +448,7 @@ model Expense {
 
 
 
-
-
-
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// NOTIFICATIONS & SCREENING
-// ========================
+// ==================== Notification Models ==================== 
 model Notification {
   id        String           @id @default(uuid())
   userId    String
@@ -472,180 +461,47 @@ model Notification {
   @@map("notifications")
 }
 
-model TenantScreening {
-  // One screening record per tenant
-  tenantId String @id
 
-  // Application responses
-  monthlyIncome        String
-  employmentStatus     String
-  creditScore          String
-  hasDebt              String
-  debtAmount           String?
-  debtType             String?
-  yearsRented          String
-  rentalExperience     String
-  previousEvictions    String
-  rentalPaymentHistory String
-  hasPets              String
-  petDescription       String?
-  smoker               String
-  numberOfOccupants    String
-  plannedMoveInDate    String
-  criminalRecord       String
-  photoIdUrl           String?
-  specialRequests      String?
-  reasonForMoving      String?
-
-  // AI & scoring results
-  aiScore           Float?
-  aiRiskLevel       String?
-  aiRecommendation  String?
-  incomeScore       Float?
-  creditScoreValue  Float?
-  stabilityScore    Float?
-  backgroundScore   Float?
-
-  status      ScreeningStatus @default(PENDING)
-  submittedAt DateTime        @default(now())
-  reviewedAt  DateTime?
-
-  tenant   User @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  @@map("tenant_screenings")
-}
-
-model LandlordPreference {
-  // One preference per landlord
-  userId String @id
-
-  // Screening thresholds & weights
-  minCreditScore         Float?
-  minMonthlyIncome       Float?
-  maxDebtToIncome        Float?
-  allowPets              Boolean? @default(true)
-  allowSmokers           Boolean? @default(true)
-  requireBackgroundCheck Boolean? @default(true)
-  minRentalYears         Int?
-  weightCreditScore      Int?
-  weightIncome           Int?
-  weightRentalHistory    Int?
-  weightBackground       Int?
-  weightEmployment       Int?
-  weightPets             Int?
-  weightSmoker           Int?
-  weightPaymentHistory   Int?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  @@map("landlord_preferences")
-}
-
-model TenantBehaviorStats {
-  tenantId                 String   @id
-  totalPayments            Int      @default(0)
-  onTimePayments           Int      @default(0)
-  latePayments             Int      @default(0)
-  maintenanceRequests      Int      @default(0)
-  avgResponseTime          Float    // in hours
-  tenantBehaviorScore      Float?   // Composite metric
-  lastPaymentDate          DateTime?
-  lastMaintenanceRequestDate DateTime?
-
-  tenant User @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  @@map("tenant_behavior_stats")
-}
-
-
-
-
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// FRAUD & LISTINGS
-// ========================
-model FraudAlert {
-  id          String   @id @default(uuid())
-  userId      String
-  propertyId  String?  // If tied to a listing
-  type        String   // e.g. “Fake Listing”
-  description String
-  severity    Int      // 1–10 scale
-  resolved    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  reviewedAt  DateTime?
-
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  Listing  Listing[]
-
-  @@map("fraud_alerts")
-}
-
-model Listing {
-  id          String         @id @default(uuid())
-  propertyId  String
-  landlordId  String
-
-  title       String
-  description String
-  status      ListingStatus  @default(PENDING)
-  startDate   DateTime?      // When listing goes live
-  endDate     DateTime?      // Expiry date
-  submittedAt DateTime       @default(now())
-
-  property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  landlord  User     @relation(fields: [landlordId], references: [id], onDelete: Cascade)
-  payments  ListingPayment[]
-  fraudAlerts FraudAlert[]
-
-  @@index([propertyId])
-  @@index([landlordId])
-  @@map("listings")
-}
-
-model ListingPayment {
-  id        String         @id @default(uuid())
-  listingId String
-  amount    Float
-  method    PaymentMethod
-  paidAt    DateTime       @default(now())
-  proofUrl  String?        // Receipt or screenshot
-
-  listing   Listing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
-
-  @@index([listingId])
-  @@map("listing_payments")
-}
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// CHATBOT SESSION
-// ========================
-model ChatbotSession {
-  id           String   @id @default(uuid())
-  userId       String
-  startedAt    DateTime @default(now())
-  endedAt      DateTime?
-  transcript   String   // or JSON field with message array
-  user         User     @relation(fields: [userId], references: [id])
-}
-
-
-/* **************************************** **************************************** ****************************************  */
-// ========================
-// Application
-// ========================
+// ==================== Application Models ==================== 
 model Application {
-  id           String   @id @default(uuid())
-  tenantId     String
-  propertyId   String
-  unitId       String? // specific unit, if applicable
+  id            String             @id @default(uuid())
+  tenantId      String
+  propertyId    String
+  unitId        String?            // Optional: Tenant-selected unit
+  status        ApplicationStatus  @default(PENDING)
 
-  status       ApplicationStatus @default(PENDING)
-  message      String?
-  submittedAt  DateTime @default(now())
-  supportingDocUrl String?
+  // Tenant info (explicit capture)
+  fullName      String             // tenant full name for this application
+  contactEmail  String             // tenant contact email (can differ from account)
+  contactPhone  String?            // optional phone number
+  contactFacebook String?          // optional Facebook URL or ID
+  contactMessenger String?         // optional Messenger URL or ID
 
-  // Relations
-  tenant     User     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  unit       Unit?    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  // Inquiry Details
+  occupants     Int                @default(1)
+  moveInDate    DateTime?         
+  lengthOfStay  String?            // e.g. "6 months", "1 year" 
+  message       String?            // Custom message or cover letter 
+
+  // Specific questions tenant wants to ask landlord or info tenant needs
+  questions     Json?              // Store flexible question-answer pairs
+
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  tenant        User     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit          Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@map("applications")
 }
+
+
+
+
+
+
+
+
+
 

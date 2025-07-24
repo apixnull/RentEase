@@ -1,4 +1,4 @@
-// services/auth.api.ts
+// services/api/auth.api.ts
 
 import axios from "axios";
 import authApiClient from "../authApiClient";
@@ -95,6 +95,6 @@ export const logoutRequest = () => {
 /**
  * Get current authenticated user info (only if accessToken is valid).
  */
-export const getUserInfo = () => {
+export const getUserInfoRequest = () => {
   return authApiClient.get("/auth/get-user-info");
 };

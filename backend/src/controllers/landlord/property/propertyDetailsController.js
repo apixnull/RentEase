@@ -1,4 +1,6 @@
+// src/controllers/landlord/property/propertyDetailsController.js
 import prisma from "../../../libs/prismaClient.js";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 /**
  * Controller: Get detailed info for a specific property.
@@ -10,69 +12,68 @@ const propertyDetailsController = async (req, res) => {
     const propertyId = req.params.id;
 
     if (!propertyId) {
-      return res.status(400).json({ error: "Missing property ID." });
+      return res.status(400).json({ message: "Missing property ID." });
     }
 
-    // Fetch property with nested units and related entities
+    // Fetch property and its units
     const property = await prisma.property.findFirst({
       where: {
         id: propertyId,
         ownerId: landlordId,
       },
       include: {
-        PropertyPhoto: true,
-        tags: { include: { tag: true } },
-        Unit: {
-          include: {
-            UnitPhoto: true,
-            Application: true,
-            MaintenanceRequest: true,
-          },
-        },
-        Income: true,
-        Expense: true,
-        MaintenanceRequest: true,
-        Listing: {
-          include: {
-            payments: true,
-          },
-        },
-        Application: {
-          include: {
-            tenant: {
-              include: {
-                UserProfile: true,
-                ContactInfo: true,
-              },
-            },
-          },
-        },
+        Unit: true,
       },
     });
 
     if (!property) {
-      return res.status(404).json({ error: "Property not found." });
+      return res.status(404).json({ message: "Property not found." });
     }
 
-    // Compute unit status + price ranges
+    // Group applications by status (for this property, current month only)
+    const applicationGroups = await prisma.application.groupBy({
+      by: ["status"],
+      where: {
+        propertyId,
+        createdAt: {
+          gte: startOfMonth(new Date()),
+          lte: endOfMonth(new Date()),
+        },
+      },
+      _count: { status: true },
+    });
+
+    // Normalize application counts
+    const applicationStatusCount = {
+      PENDING: 0,
+      REVIEWED: 0,
+      APPROVED: 0,
+      REJECTED: 0,
+      WITHDRAWN: 0,
+    };
+
+    applicationGroups.forEach(({ status, _count }) => {
+      if (applicationStatusCount.hasOwnProperty(status)) {
+        applicationStatusCount[status] = _count.status;
+      }
+    });
+
+    // Count unit statuses and gather price points
     const unitStatusCount = {
       AVAILABLE: 0,
       OCCUPIED: 0,
       MAINTENANCE: 0,
     };
 
-    const perUnitPrices = [];
-    const perHeadPrices = [];
+    const pricePoints = [];
 
     property.Unit.forEach((unit) => {
-      if (unit.status in unitStatusCount) {
-        unitStatusCount[unit.status]++;
+      const { status, targetPrice } = unit;
+      if (status in unitStatusCount) {
+        unitStatusCount[status]++;
       }
-
-      if (unit.chargePerHead && unit.pricePerHead != null) {
-        perHeadPrices.push(unit.pricePerHead);
-      } else if (!unit.chargePerHead && unit.pricePerUnit != null) {
-        perUnitPrices.push(unit.pricePerUnit);
+      if (typeof targetPrice === "number") {
+        pricePoints.push(targetPrice);
       }
     });
 
@@ -83,60 +84,44 @@ const propertyDetailsController = async (req, res) => {
       return min === max ? min : [min, max];
     };
 
-    // Aggregate counts
-    const [
-      unitAppCount,
-      unitMaintCount,
-      propertyAppCount,
-      propertyMaintCount,
-    ] = await Promise.all([
-      prisma.application.aggregate({
-        _count: true,
-        where: {
-          unit: {
-            propertyId,
-          },
-        },
-      }),
-      prisma.maintenanceRequest.aggregate({
-        _count: true,
-        where: {
-          unit: {
-            propertyId,
-          },
-        },
-      }),
-      prisma.application.aggregate({
-        _count: true,
-        where: {
-          propertyId,
-        },
-      }),
-      prisma.maintenanceRequest.aggregate({
-        _count: true,
-        where: {
-          propertyId,
-        },
-      }),
-    ]);
+    // Final structured response
+    return res.status(200).json({
+      property: {
+        id: property.id,
+        title: property.title,
+        description: property.description,
+        type: property.type,
+        createdAt: property.createdAt,
+        updatedAt: property.updatedAt,
 
-    const formatted = {
-      ...property,
-      unitCount: property.Unit.length,
-      unitStatusCount,
-      priceRangePerUnit: getPriceRange(perUnitPrices),
-      priceRangePerHead: getPriceRange(perHeadPrices),
-      stats: {
-        totalApplicants: unitAppCount._count + propertyAppCount._count,
-        totalMaintenanceRequests:
-          unitMaintCount._count + propertyMaintCount._count,
+        address: {
+          street: property.street,
+          barangay: property.barangay,
+          municipality: property.municipality,
+          city: property.city,
+          province: property.province,
+          zipCode: property.zipCode,
+        },
+
+        propertySharedFeatures: property.propertySharedFeatures ?? [],
+        amenityTags: property.amenityTags ?? [],
+        propertyRules: property.propertyRules ?? [],
+        propertyImageUrls: property.propertyImageUrls ?? [],
+        mainImageUrl: property.mainImageUrl ?? null,
+
+        requiresScreening: property.requiresScreening,
+        isListed: property.isListed,
+
+        unitCount: property.Unit.length,
+        unitStatusCount,
+        priceRange: getPriceRange(pricePoints),
+        applicationStatusCount,
+
+        units: property.Unit,
       },
-    };
-
-    res.status(200).json({ property: formatted });
+    });
   } catch (error) {
-    console.error("[propertyDetailsController] Error:", error);
-    res.status(500).json({ error: "Failed to fetch property details." });
+    return res.status(500).json({ message: "Failed to fetch property details." });
   }
 };
 

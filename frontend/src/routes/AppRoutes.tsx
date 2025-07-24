@@ -3,9 +3,7 @@
 // Import core routing tools from React Router v6.4+
 import {
   createBrowserRouter,
-  RouterProvider,
-  redirect,
-  type LoaderFunctionArgs,
+  RouterProvider
 } from "react-router-dom";
 
 // Guards & Layouts
@@ -22,7 +20,7 @@ import VerifyEmail from "@/pages/authentication/verifyEmail/VerifyEmail";
 
 // Landlord Pages
 import LandlordDashboard from "@/pages/landlord/dashboard/LandlordDashboard";
-import Properties from "@/pages/landlord/property/Properties";
+import Properties from "@/pages/landlord/property/properties/Properties";
 
 // Public Pages
 import About from "@/pages/public/about/About";
@@ -34,72 +32,23 @@ import NotFound from "@/pages/NotFound";
 import Unauthorized from "@/pages/Unauthorized";
 import DisabledAccount from "@/pages/DisabledAccount";
 import InvalidAction from "@/pages/InvalidAction";
-import axios from "axios";
-import PropertyDetails from "@/pages/landlord/property/PropertyDetails";
+import PropertyDetails from "@/pages/landlord/property/property-details/PropertyDetails";
+import TenantLayout  from "@/layouts/TenantLayout";
+import TenantDashboard from "@/pages/tenant/dashboard/TenantDashboard";
+import BrowseProperty from "@/pages/tenant/browse-property/BrowseProperty";
+import Maintenances from "@/pages/landlord/maintenance/Maintenances";
+import AddProperty from "@/pages/landlord/property/add-property/AddProperty";
+import ManageUnit from "@/pages/landlord/property/property-details/ManageUnit";
 
-// -------------------------------------------------------------------
-// ⏳ Loader: Pre-fetch landlord properties data before rendering page
-// -------------------------------------------------------------------
-const fetchLandlordProperties = async () => {
-  try {
-    const res = await axios.get("http://localhost:4000/api/landlord/property/properties", {
-      withCredentials: true,
-    });
 
-    // ✅ The actual properties array is under res.data.properties
-    const properties = res.data?.properties;
 
-    if (!Array.isArray(properties)) {
-      throw new Error("Invalid response format: expected properties to be an array.");
-    }
-
-    return { properties }; // loader data must match the expected structure
-  } catch (err: any) {
-    if (err.response?.status === 401) {
-      throw redirect("/unauthorized");
-    }
-
-    throw new Response("Failed to load properties", {
-      status: err.response?.status || 500,
-      statusText: err.message || "Unknown error",
-    });
-  }
-};
-
-const propertyDetailsLoader = async ({ params }: LoaderFunctionArgs) => {
-  const id = params?.id;
-
-  if (!id) {
-    throw new Response("Missing property ID", { status: 400 });
-  }
-
-  try {
-    const { data } = await axios.get(`http://localhost:4000/api/landlord/property/${id}`, {
-      withCredentials: true,
-    });
-
-    if (!data?.property) {
-      throw new Response("Property not found", { status: 404 });
-    }
-
-    return { property: data.property };
-  } catch (error: any) {
-    const status = error?.response?.status;
-
-    if (status === 401) throw redirect("/unauthorized");
-
-    throw new Response("Error fetching property details", {
-      status: status || 500,
-      statusText: error?.message || "Unexpected error",
-    });
-  }
-};
 
 // -------------------------------------------------------------------
 // 🌐 Main Application Router Configuration
 // -------------------------------------------------------------------
 const router = createBrowserRouter([
-  // 🔓 Public Routes
+
+  /* **************************************************** PUBLIC ROUTES **************************************************** */
   {
     path: "/",
     element: <PublicLayout />,
@@ -109,15 +58,14 @@ const router = createBrowserRouter([
       { path: "features", element: <Features /> },
     ],
   },
-
-  // 🔐 Authentication Routes
   { path: "auth/login", element: <Login /> },
   { path: "auth/register", element: <Register /> },
   { path: "auth/verify-email", element: <VerifyEmail /> },
   { path: "auth/forget-password", element: <ForgotPassword /> },
   { path: "auth/reset-password", element: <ResetPassword /> },
 
-  // 🏠 Landlord Portal (Protected)
+  /* **************************************************** LANDLORD ROUTES **************************************************** */
+
   {
     path: "/landlord",
     element: (
@@ -126,31 +74,76 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      // Dashboard (default child)
       { index: true, element: <LandlordDashboard /> },
 
-      // Properties page with loader (server-side data fetch)
+      // property
       {
         path: "property/my-properties",
         element: <Properties />,
-        loader: fetchLandlordProperties,
       },
       {
         path: "property/:id",
         element: <PropertyDetails />,
-        loader: propertyDetailsLoader, // <- add loader here
+      },
+      {
+        path: "property/add-property",
+        element: <AddProperty/>,
+      },
+      {
+        path: "property/:propertyId/unit/:unitId",
+        element: <ManageUnit />, 
+      },
+
+      // maintenances
+      {
+        path: "maintenance/maintenances",
+        element: <Maintenances />
       }
     ],
   },
 
-  // 🚫 System & Error Routes
+  /* **************************************************** TENANT ROUTES **************************************************** */
+  {
+    path: "/tenant",
+    element: (
+      <ProtectedRoute allowedRoles={["TENANT"]}>
+        <TenantLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <TenantDashboard /> },
+      {
+        path: "listing/my-properties",
+        element: <Properties />,
+      },
+      {
+        path: "property/:id",
+        element: <PropertyDetails />,
+      },
+    ],
+  },
+
+  // Standalone route without TenantLayout
+  {
+    path: "/tenant/browse-property",
+    element: (
+      <ProtectedRoute allowedRoles={["TENANT"]}>
+        <BrowseProperty />
+      </ProtectedRoute>
+    ),
+  },
+
+
+
+
+
+
+  /* **************************************************** STATUS ROUTES **************************************************** */
   { path: "/unauthorized", element: <Unauthorized /> },
   { path: "/disabled", element: <DisabledAccount /> },
   { path: "/invalid-action", element: <InvalidAction /> },
-  { path: "*", element: <NotFound /> }, // 404 fallback
+  { path: "*", element: <NotFound /> },
 ]);
 
-// Export the RouterProvider to be used in main.tsx
 const AppRoutes = () => <RouterProvider router={router} />;
-
 export default AppRoutes;

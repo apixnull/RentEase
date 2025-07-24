@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import {
   LayoutDashboard,
   Home,
@@ -21,47 +27,193 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import useAuth  from "@/hooks/useAuth";
+import useAuth from "@/hooks/useAuth";
+
+// Sidebar configuration
+const sidebarConfig = [
+  {
+    section: "Management",
+    items: [
+      {
+        path: "/landlord",
+        name: "Dashboard",
+        icon: LayoutDashboard,
+      },
+      {
+        path: "/landlord/property/my-properties",
+        name: "Properties",
+        icon: Home,
+      },
+      {
+        path: "/landlord/leases",
+        name: "Leases",
+        icon: FileText,
+      },
+      {
+        path: "/landlord/maintenance/maintenances",
+        name: "Maintenance",
+        icon: Wrench,
+      },
+    ],
+  },
+  {
+    section: "People",
+    items: [
+      {
+        path: "/landlord/applicants",
+        name: "Applicants",
+        icon: User,
+      },
+      {
+        path: "/landlord/tenants",
+        name: "Tenants",
+        icon: Users,
+      },
+    ],
+  },
+  {
+    section: "Financials",
+    items: [
+      {
+        path: "/landlord/payments",
+        name: "Payments",
+        icon: DollarSign,
+      },
+      {
+        path: "/landlord/financials",
+        name: "Financials",
+        icon: CreditCard,
+      },
+      {
+        path: "/landlord/reports",
+        name: "Reports",
+        icon: BarChart3,
+      },
+    ],
+  },
+];
+
+// Breadcrumb configuration
+const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
+  "/landlord": { name: "Dashboard" },
+  "/landlord/property/my-properties": { name: "Properties" },
+  "/landlord/property/add-property": {
+    name: "Add Property",
+    parent: "/landlord/property/my-properties",
+  },
+  "/landlord/property/:id": {
+    name: "Details",
+    parent: "/landlord/property/my-properties",
+  },
+  "/landlord/property/:id/unit/:unitId": {
+    name: "Unit Details",
+    parent: "/landlord/property/:id",
+  },
+  "/landlord/leases": { name: "Leases" },
+  "/landlord/maintenance/maintenances": { name: "Maintenance" },
+  "/landlord/applicants": { name: "Applicants" },
+  "/landlord/tenants": { name: "Tenants" },
+  "/landlord/payments": { name: "Payments" },
+  "/landlord/financials": { name: "Financials" },
+  "/landlord/reports": { name: "Reports" },
+  "/landlord/settings": { name: "Settings" },
+};
 
 export const LandlordLayout = () => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const location = useLocation();
-
-  // properties
+  const params = useParams();
 
   // User data
   const user = { name: "Alex Morgan", avatar: "/avatar.jpg" };
   const { logout } = useAuth();
 
-   const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
-      const message = await logout(); // await the logout promise
-      toast.success(message); // show message from backend or default
+      const message = await logout();
+      toast.success(message);
       navigate("/", { replace: true });
     } catch (error) {
       toast.error("Logout failed. Please try again.");
     }
   };
 
-  // Title logic
-  const [title, setTitle] = useState("");
-  useEffect(() => {
-    const pathTitles: Record<string, string> = {
-      "/landlord": "Dashboard",
-      "/landlord/property/my-properties": "Properties",
-      "/landlord/leases": "Leases",
-      "/landlord/maintenance": "Maintenance",
-      "/landlord/applicants": "Applicants",
-      "/landlord/tenants": "Tenants",
-      "/landlord/payments": "Payments",
-      "/landlord/financials": "Financials",
-      "/landlord/reports": "Reports",
-      "/landlord/settings": "Settings",
+  // Breadcrumb logic
+  const [breadcrumbs, setBreadcrumbs] = useState<
+    { name: string; path?: string }[]
+  >([]);
+// Updated breadcrumb generation logic in useEffect
+useEffect(() => {
+  const generateBreadcrumbs = () => {
+    const currentPath = location.pathname;
+    const crumbs: { name: string; path?: string }[] = [];
+    const paramCache = new Map<string, string>();
+
+    // Helper to replace params in paths
+    const resolvePath = (pattern: string) => {
+      let resolved = pattern;
+      for (const [key, value] of paramCache.entries()) {
+        resolved = resolved.replace(`:${key}`, value);
+      }
+      return resolved;
     };
-    setTitle(pathTitles[location.pathname] || "");
-  }, [location.pathname]);
+
+    // Find matching pattern with extracted params
+    const findMatch = (path: string) => {
+      for (const pattern of Object.keys(breadcrumbConfig)) {
+        const paramNames: string[] = [];
+        const regexPattern = pattern.replace(/:\w+/g, (param) => {
+          paramNames.push(param.substring(1));
+          return '([^/]+)';
+        });
+        
+        const regex = new RegExp(`^${regexPattern}$`);
+        const match = path.match(regex);
+        
+        if (match) {
+          paramNames.forEach((key, idx) => {
+            paramCache.set(key, match[idx + 1]);
+          });
+          return pattern;
+        }
+      }
+      return null;
+    };
+
+    // Recursive function to build crumbs
+    const buildCrumbs = (path: string) => {
+      const pattern = findMatch(path);
+      if (!pattern) return;
+
+      const config = breadcrumbConfig[pattern];
+      const resolvedPath = resolvePath(pattern);
+      
+      crumbs.push({
+        name: config.name,
+        path: resolvedPath
+      });
+
+      if (config.parent) {
+        buildCrumbs(resolvePath(config.parent));
+      }
+    };
+
+    // Start building from current path
+    buildCrumbs(currentPath);
+
+    // Reverse to get root-first order and remove current page link
+    const reversed = crumbs.reverse();
+    if (reversed.length > 0) {
+      reversed[reversed.length - 1].path = undefined;
+    }
+
+    setBreadcrumbs(reversed);
+  };
+
+  generateBreadcrumbs();
+}, [location.pathname]);
 
   // Notifications data
   const notifications = [
@@ -103,158 +255,31 @@ export const LandlordLayout = () => {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2 px-2">
-          {/* Management Section */}
-          <div className="mb-3">
-            <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-              Management
-            </h3>
-            <ul className="space-y-0.5">
-              <li>
-                <Link
-                  to="/landlord"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <LayoutDashboard className="h-4 w-4" />
-                  <span className="text-xs font-medium">Dashboard</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/landlord/property/my-properties"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/property/my-properties"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <Home className="h-4 w-4" />
-                  <span className="text-xs font-medium">Properties</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/landlord/leases"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/leases"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <FileText className="h-4 w-4" />
-                  <span className="text-xs font-medium">Leases</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/landlord/maintenance/maintenances"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/maintenance/maintenances"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <Wrench className="h-4 w-4" />
-                  <span className="text-xs font-medium">Maintenance</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* People Section */}
-          <div className="mb-3">
-            <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-              People
-            </h3>
-            <ul className="space-y-0.5">
-              <li>
-                <Link
-                  to="/landlord/applicants"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/applicants"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <User className="h-4 w-4" />
-                  <span className="text-xs font-medium">Applicants</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/landlord/tenants"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/tenants"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <Users className="h-4 w-4" />
-                  <span className="text-xs font-medium">Tenants</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Financials Section */}
-          <div className="mb-3">
-            <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-              Financials
-            </h3>
-            <ul className="space-y-0.5">
-              <li>
-                <Link
-                  to="/landlord/payments"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/payments"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <DollarSign className="h-4 w-4" />
-                  <span className="text-xs font-medium">Payments</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/landlord/financials"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/financials"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <CreditCard className="h-4 w-4" />
-                  <span className="text-xs font-medium">Financials</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/landlord/reports"
-                  className={cn(
-                    "flex items-center gap-3 py-2 px-3 rounded transition-colors",
-                    location.pathname === "/landlord/reports"
-                      ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                      : "text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  <span className="text-xs font-medium">Reports</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {sidebarConfig.map((section, index) => (
+            <div key={index} className="mb-3">
+              <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                {section.section}
+              </h3>
+              <ul className="space-y-0.5">
+                {section.items.map((item) => (
+                  <li key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={cn(
+                        "flex items-center gap-3 py-2 px-3 rounded transition-colors",
+                        location.pathname === item.path
+                          ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
+                          : "text-gray-600 hover:bg-gray-100"
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span className="text-xs font-medium">{item.name}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
 
         <div className="mt-auto px-2 py-3 border-t border-gray-200 space-y-0.5">
@@ -313,168 +338,34 @@ export const LandlordLayout = () => {
               </div>
 
               <nav className="flex-1 overflow-y-auto py-3 px-2">
-                {/* Management Section */}
-                <div className="mb-3">
-                  <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-                    Management
-                  </h3>
-                  <ul className="space-y-0.5">
-                    <li>
-                      <Link
-                        to="/landlord"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <LayoutDashboard className="h-4 w-4" />
-                        <span className="text-xs font-medium">Dashboard</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        to="/landlord/property/my-properties"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord/property/my-properties"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <Home className="h-4 w-4" />
-                        <span className="text-xs font-medium">Properties</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        to="/landlord/leases"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord/leases"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <FileText className="h-4 w-4" />
-                        <span className="text-xs font-medium">Leases</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        to="/landlord/maintenance/maintenances"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname ===
-                            "/landlord/maintenance/maintenances"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <Wrench className="h-4 w-4" />
-                        <span className="text-xs font-medium">Maintenance</span>
-                      </Link>
-                    </li>
-                  </ul>
-                </div>
-
-                {/* People Section */}
-                <div className="mb-3">
-                  <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-                    People
-                  </h3>
-                  <ul className="space-y-0.5">
-                    <li>
-                      <Link
-                        to="/landlord/applicants"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord/applicants"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <User className="h-4 w-4" />
-                        <span className="text-xs font-medium">Applicants</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        to="/landlord/tenants"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord/tenants"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <Users className="h-4 w-4" />
-                        <span className="text-xs font-medium">Tenants</span>
-                      </Link>
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Financials Section */}
-                <div className="mb-3">
-                  <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-                    Financials
-                  </h3>
-                  <ul className="space-y-0.5">
-                    <li>
-                      <Link
-                        to="/landlord/payments"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord/payments"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <DollarSign className="h-4 w-4" />
-                        <span className="text-xs font-medium">Payments</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        to="/landlord/financials"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord/financials"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <CreditCard className="h-4 w-4" />
-                        <span className="text-xs font-medium">Financials</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        to="/landlord/reports"
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded transition-colors",
-                          location.pathname === "/landlord/reports"
-                            ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
-                            : "text-gray-600 hover:bg-gray-100"
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <BarChart3 className="h-4 w-4" />
-                        <span className="text-xs font-medium">Reports</span>
-                      </Link>
-                    </li>
-                  </ul>
-                </div>
+                {sidebarConfig.map((section, index) => (
+                  <div key={index} className="mb-3">
+                    <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                      {section.section}
+                    </h3>
+                    <ul className="space-y-0.5">
+                      {section.items.map((item) => (
+                        <li key={item.path}>
+                          <Link
+                            to={item.path}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2 rounded transition-colors",
+                              location.pathname === item.path
+                                ? "bg-gradient-to-r from-teal-50/70 to-blue-50/70 text-teal-600"
+                                : "text-gray-600 hover:bg-gray-100"
+                            )}
+                            onClick={() => setMobileOpen(false)}
+                          >
+                            <item.icon className="h-4 w-4" />
+                            <span className="text-xs font-medium">
+                              {item.name}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </nav>
 
               <div className="mt-auto px-2 py-3 border-t border-gray-200 space-y-0.5">
@@ -516,9 +407,33 @@ export const LandlordLayout = () => {
               <Menu className="h-5 w-5" />
             </Button>
 
-            <h1 className="text-base font-bold whitespace-nowrap bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent">
-              {title}
-            </h1>
+            {/* Breadcrumbs */}
+            <div className="flex items-center">
+              <nav className="flex items-center text-sm text-gray-600">
+                {breadcrumbs.map((crumb, index) => (
+                  <div key={index} className="flex items-center">
+                    {index > 0 && <span className="mx-2 text-gray-400">/</span>}
+                    {crumb.path ? (
+                      <Link
+                        to={crumb.path}
+                        className={cn(
+                          "font-medium transition-colors duration-200",
+                          "hover:bg-gradient-to-r hover:from-teal-600 hover:to-blue-600 hover:bg-clip-text hover:text-transparent",
+                          "hover:underline underline-offset-4 decoration-1",
+                          "truncate max-w-[100px] sm:max-w-[140px]"
+                        )}
+                      >
+                        {crumb.name}
+                      </Link>
+                    ) : (
+                      <span className="font-bold bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent truncate max-w-[120px] sm:max-w-[160px]">
+                        {crumb.name}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </nav>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

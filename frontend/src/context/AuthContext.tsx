@@ -1,7 +1,6 @@
 // src/context/AuthContext.tsx
 import { createContext, useState, useEffect, type ReactNode } from "react";
-import authApiClient from "@/services/authApiClient";
-import { logoutRequest } from "@/services/api/auth.api";
+import { getUserInfoRequest, logoutRequest } from "@/services/api/auth.api";
 
 interface User {
   id: string;
@@ -61,7 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
 
     try {
-      const { data } = await authApiClient.get("/auth/get-user-info");
+      const { data } = await getUserInfoRequest();
       console.log("[AuthContext] API returned user:", data.user);
       setUser(data.user);
     } catch (err: unknown) {

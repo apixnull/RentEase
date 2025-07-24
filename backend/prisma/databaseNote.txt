@@ -1,0 +1,68 @@
+
+model TenantScreening {
+  // One screening record per tenant
+  tenantId String @id
+
+  // Application responses
+  monthlyIncome        String
+  employmentStatus     String
+  creditScore          String
+  hasDebt              String
+  debtAmount           String?
+  debtType             String?
+  yearsRented          String
+  rentalExperience     String
+  previousEvictions    String
+  rentalPaymentHistory String
+  hasPets              String
+  petDescription       String?
+  smoker               String
+  numberOfOccupants    String
+  plannedMoveInDate    String
+  criminalRecord       String
+  photoIdUrl           String?
+  specialRequests      String?
+  reasonForMoving      String?
+
+  // AI & scoring results
+  aiScore           Float?
+  aiRiskLevel       String?
+  aiRecommendation  String?
+  incomeScore       Float?
+  creditScoreValue  Float?
+  stabilityScore    Float?
+  backgroundScore   Float?
+
+  status      ScreeningStatus @default(PENDING)
+  submittedAt DateTime        @default(now())
+  reviewedAt  DateTime?
+
+  tenant   User @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@map("tenant_screenings")
+}
+
+
+model LandlordPreference {
+  // One preference per landlord
+  userId String @id
+
+  // Screening thresholds & weights
+  minCreditScore         Float?
+  minMonthlyIncome       Float?
+  maxDebtToIncome        Float?
+  allowPets              Boolean? @default(true)
+  allowSmokers           Boolean? @default(true)
+  requireBackgroundCheck Boolean? @default(true)
+  minRentalYears         Int?
+  weightCreditScore      Int?
+  weightIncome           Int?
+  weightRentalHistory    Int?
+  weightBackground       Int?
+  weightEmployment       Int?
+  weightPets             Int?
+  weightSmoker           Int?
+  weightPaymentHistory   Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("landlord_preferences")
+}
