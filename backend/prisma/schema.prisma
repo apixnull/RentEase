@@ -31,6 +31,7 @@ enum PropertyType {
   APARTMENT   
   CONDOMINIUM 
   BOARDING_HOUSE
+  SINGLE_HOUSE
 }
 
 
@@ -136,7 +137,7 @@ model RefreshToken {
   id         String   @id @default(uuid())
   tokenHash  String   @unique  // Hashed token
   createdAt  DateTime @default(now())
-  expiresAt  DateTime              // Expiration timestamp
+  expiresAt  DateTime          // Expiration timestamp
   isRevoked  Boolean  @default(false)
 
   // Relation 
@@ -164,149 +165,90 @@ model UserContactInfo {
   phoneNumber  String? 
   messengerUrl String? 
   facebookUrl  String? 
+  
 
   user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 
-
+// ==================== PROPERTY & UNIT MODELS ====================  
 model Property {
-  // ======================
-  // Identifiers
-  // ======================
-  id            String      @id @default(uuid())   // Unique property ID (UUID)
-  ownerId       String                        // Owner (landlord) user ID (foreign key)
+  id               String   @id @default(uuid())        // Unique ID for the property
+  ownerId          String                               // Reference to landlord (User)
 
-  // ======================
-  // Basic Info
-  // ======================
-  title         String                        // Property title/name
-  description   String                        // Detailed description of the property
-  type          PropertyType  @default(APARTMENT)  // Enum: APARTMENT, CONDOMINIUM, BOARDING_HOUSE, etc.
-  createdAt     DateTime    @default(now())   // Timestamp when property was created
-  updatedAt     DateTime    @updatedAt         // Timestamp when property was last updated
+  title            String                               // Property title or name
+  description      String                               // Short description of the property
+  type             PropertyType @default(APARTMENT)     // Type of property (APARTMENT, BOARDING_HOUSE, SINGLE_HOUSE, CONDOMINIUM.)
+  createdAt        DateTime @default(now())             // Timestamp when record was created
+  updatedAt        DateTime @updatedAt                  // Timestamp when record was last updated
 
-  // ======================
-  // Address Details
-  // ======================
-  street        String                        // Street address (required)
-  barangay      String                        // Local district or neighborhood
-  municipality  String?                       // Municipality or town (optional)
-  city          String?                       // City (optional)
-  province      String                        // Province or state (required)
-  zipCode       String                        // Postal/ZIP code
+  // --- Address (shared by all units in this property) ---
+  street           String                               // Street address
+  barangay         String                               // Barangay/district
+  municipality     String?                              // Municipality (optional)
+  city             String?                              // City (optional)
+  province         String                               // Province
+  zipCode          String                               // Postal code
 
-  // ======================
-  // Features & Amenities
-  // ======================
-  propertySharedFeatures Json?                 // JSON array of tangible/shared property features || limit 3 words per field in this
-                                                // e.g. ["kitchen", "livingRoom", "laundryArea", "diningArea", "bathroom", "parking", "wifi piso net"]
-                                                // These are physical spaces or utilities within the property
-  amenityTags            Json?                 // JSON array of intangible advantages or nearby amenities || limit 3 words per field in this
-                                                // e.g. ["near uc main", "near act", "near colon", "near school", "with security"]
-                                                // These describe benefits around or related to the property location or services
+  // --- Features & Rules (apply to entire property) ---
+  amenityTags      Json?                                // Nearby/area perks (≤4 words each) e.g. “Near UC Main”
+  propertyFeatures Json?                                // Shared features (2 words each) e.g. “with sofa”, “piso wifi”
+  leaseRules       Json?                                // Property-wide rules e.g. “No smoking”, “Quiet after 10PM” 
 
-  // ======================
-  // Rules / House Policies
-  // ======================
-  propertyRules          Json?                 // JSON array of property-specific rules (restrictions, allowed behaviors) || limit 20 words per field in this
-                                                // Example numbered list:
-                                                // [
-                                                //   "1. No pets allowed",
-                                                //   "2. No smoking inside the unit",
-                                                //   "3. Quiet hours from 10PM to 7AM",
-                                                //   "4. Visitors allowed until 10PM only",
-                                                //   "5. No overnight guests",
-                                                //   "6. Cooking allowed in designated kitchen areas",
-                                                //   "7. Keep shared areas clean"
-                                                // ]
+  // --- Media ---
+  propertyImageUrls Json?                               // Up to 5 images (main image included, same folder)
+  mainImageUrl     String?                              // Featured image for quick display 
 
-  // ======================
-  // Media
-  // ======================
-  propertyImageUrls    Json?                   // JSON array of image URLs showcasing the property
-                                                  // e.g. ["https://cdn.example.com/property1.jpg", "url2"]
-  mainImageUrl         String?                 // Main or featured image URL for quick display
+  // --- Listing Settings ---
+  requiresScreening Boolean @default(false)             // If tenant screening is required
 
-  // ======================
-  // Listing & Screening
-  // ======================
-  requiresScreening    Boolean @default(false) // Indicates if tenant screening is required for this property
-  isListed             Boolean @default(false) // Flag to mark if the property is currently listed/publicly visible
+  // --- Relations ---
+  owner              User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Unit               Unit[]                              // All units/rooms in this property
+  MaintenanceRequest MaintenanceRequest[]
+  Income             Income[]
+  Expense            Expense[]
+  Application        Application[]
 
-  // ======================
-  // Relations
-  // ======================
-  owner             User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)  // Relation to landlord User
-  Unit              Unit[]                                                      // Units/rooms belonging to this property
-  MaintenanceRequest MaintenanceRequest[]                                      // Maintenance requests reported for this property
-  Income            Income[]                                                    // Income records associated with this property
-  Expense           Expense[]                                                   // Expense records associated with this property
-  Application       Application[]                                              // Rental applications for this property
-
-  // ======================
-  // Indexes & Mappings
-  // ======================
-  @@map("properties")          // Maps model to "properties" table in DB
-  @@index([id])                // Index on id for performance
+  // --- DB Mapping ---
+  @@map("properties")
+  @@index([id])
 }
 
-
 model Unit {
-  // Identifiers
-  id             String   @default(uuid()) @unique
-  propertyId     String
+  id             String   @default(uuid()) @unique      // Unique ID for the unit
+  propertyId     String                                 // Links back to parent property
 
-  // Basic Info
-  label          String
-  description    String
-  status         UnitStatus @default(AVAILABLE)
-  floorNumber    Int?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  // --- Info ---
+  label          String                                 // Unit name/label (e.g. “Room A”, “Unit 201”)
+  description    String                                 // Short description of the unit
+  status         UnitStatus @default(AVAILABLE)         // Availability status (e.g. AVAILABLE, OCCUPIED, MAINTENANCE)
+  floorNumber    Int?                                   // Which floor this unit is on
+  createdAt      DateTime @default(now())               // Created timestamp
+  updatedAt      DateTime @updatedAt                    // Updated timestamp
 
-  // Capacity & Layout
-  maxOccupancy   Int     @default(1)
+  // --- Unit Layout ---
+  maxOccupancy   Int @default(1)                        // How many people the unit can accommodate
 
-  // Features & Media
-  unitFeatureTags  Json?    // JSON array of unit features/appliances, numbered for clarity || limit 3 words per field in this
-                            // Example:
-                            // [
-                            //   "1. Electric Fan",
-                            //   "2. Air Conditioning",
-                            //   "3. Mini Fridge",
-                            //   "4. Ceiling Fan",
-                            //   "5. Own Bathroom",
-                            //   "6. Rice Cooker",
-                            //   "7. 5 Beds",
-                            //   "8. With Balcony"
-                            // ]
+  // --- Unit-Specific Features ---
+  unitFeatureTags Json?                                 // Room-only features (1 word each) e.g. “aircon”, “wifi”
+  unitImageUrls   Json?                                 // Photos specific to this unit (max 3)
+  unitLeaseRules  Json?                                 // Unit-specific lease policies: "6 months term only", "Need Downpayment", "1 year minimum stay", 20 words limit only
 
-  unitImageUrls    Json?    // URLs of unit photos
-                            // Example: ["https://cdn.example.com/unit1.jpg", "https://cdn.example.com/unit2.jpg"]
+  // --- Pricing ---
+  targetPrice    Float                                  // Target monthly rent
+  isNegotiable   Boolean @default(false)                // Can price be negotiated?
 
-  // Pricing & Negotiation
-  targetPrice    Float
-  isNegotiable   Boolean @default(false)
+  // -- Listing ---
+  isListed          Boolean @default(false)             // Whether unit is visible/active
 
-  // Lease Rules / Policies specific to this unit (numbered for clarity)
-  leaseRules     Json?    // JSON array of lease rules/restrictions || limit 20 words per field in this
-                            // Example:
-                            // [
-                            //   "1. Deposit of 500 required",
-                            //   "2. No pets allowed",
-                            //   "3. Minimum lease duration: 6 months (Long-term only) and must pay in advance",
-                            //   "4. Smoking prohibited inside the unit",
-                            //   "5. Rent payable monthly in advance"
-                            // ]
-
-  // Relations
+  // --- Relations ---
   property           Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   Lease              Lease[]
   MaintenanceRequest MaintenanceRequest[]
   Application        Application[]
-
-  // Constraints & Indexes
+  
+  // --- DB Mapping ---
   @@map("units")
   @@id([propertyId, id])
   @@index([id])
@@ -350,6 +292,7 @@ model Lease {
 
   @@map("scheduled_payments")
 }
+
 
 // ==================== Payment Models ==================== 
 model Payment {
@@ -467,7 +410,7 @@ model Application {
   id            String             @id @default(uuid())
   tenantId      String
   propertyId    String
-  unitId        String?            // Optional: Tenant-selected unit
+  unitId        String            
   status        ApplicationStatus  @default(PENDING)
 
   // Tenant info (explicit capture)
@@ -491,7 +434,7 @@ model Application {
 
   tenant        User     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  unit          Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  unit       Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
   @@map("applications")
 }

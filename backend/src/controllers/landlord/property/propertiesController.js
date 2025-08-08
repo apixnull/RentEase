@@ -1,108 +1,76 @@
-// src/controllers/landlord/property/propertiesController.js
 import prisma from "../../../libs/prismaClient.js";
 
 /**
- * GET /landlord/properties
- * Returns a summary of each property owned by the authenticated landlord.
+ * Controller: getUserPropertiesNativeController
+ * ---------------------------------------------
+ * Retrieves all property data (excluding leaseRules & propertyFeatures) 
+ * for the authenticated user, along with:
+ * - total unit count
+ * - count of AVAILABLE, OCCUPIED, and MAINTENANCE units
  */
 const propertiesController = async (req, res) => {
   try {
-    const landlordId = req.user.id;
+    const ownerId = req.user.id;
 
-    // 1) Fetch core property info including JSON arrays for features and amenities
     const properties = await prisma.property.findMany({
-      where: { ownerId: landlordId },
+      where: { ownerId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
+        ownerId: true,
         title: true,
         description: true,
         type: true,
         createdAt: true,
         updatedAt: true,
         street: true,
-        barangay: true,
-        municipality: true,
-        city: true,
+        barangay: true, 
+        municipality: true, // optional 
+        city: true, // optional 
         province: true,
         zipCode: true,
+        amenityTags: true, // json ex: "Near UC Main", "Near UC ACT"
+        propertyFeatures: true, // json ex: "PisoNet", "Parking", "Pool"
+        mainImageUrl: true, // image url
         requiresScreening: true,
-        isListed: true,
-        mainImageUrl: true,
-        amenityTags: true,              // JSON array of strings, intangible amenities
-        propertySharedFeatures: true,   // JSON array of strings, tangible/shared features
+
+        // Related units (status only for aggregation)
+        Unit: {
+          select: {
+            status: true,
+          },
+        },
       },
     });
 
-    // 2) Enrich each property with aggregated data
-    const enrichedProperties = await Promise.all(
-      properties.map(async (property) => {
-        // Fetch count of pending applications for this property
-        const pendingApplicationsCount = await prisma.application.count({
-          where: {
-            propertyId: property.id,
-            status: "PENDING",
-          },
-        });
+    const processedProperties = properties.map((property) => {
+      const statusCounts = property.Unit.reduce(
+        (acc, unit) => {
+          acc.total += 1;
+          acc[unit.status] += 1;
+          return acc;
+        },
+        { total: 0, AVAILABLE: 0, OCCUPIED: 0, MAINTENANCE: 0 }
+      );
 
-        // Group units by their status for this property
-        const unitStatusGroups = await prisma.unit.groupBy({
-          by: ["status"],
-          where: { propertyId: property.id },
-          _count: { status: true },
-        });
+      // Destructure leaseRules and propertyFeatures out (excluded from select)
+      const {
+        Unit, // we already used this for counts
+        ...rest
+      } = property;
 
-        // Fetch all units to get their targetPrice for price range calculation
-        const units = await prisma.unit.findMany({
-          where: { propertyId: property.id },
-          select: { targetPrice: true },
-        });
+      return {
+        ...rest,
+        ...statusCounts,
+      };
+    });
 
-        // Map unit statuses to counts, with default 0
-        const unitCounts = { AVAILABLE: 0, OCCUPIED: 0, MAINTENANCE: 0 };
-        unitStatusGroups.forEach(({ status, _count }) => {
-          unitCounts[status] = _count.status;
-        });
-
-        // Calculate total units from counts
-        const totalUnits = Object.values(unitCounts).reduce((acc, val) => acc + val, 0);
-
-        // Calculate min and max targetPrice for price range
-        const prices = units.map((u) => u.targetPrice).filter((v) => v != null);
-        const priceRange = prices.length
-          ? { min: Math.min(...prices), max: Math.max(...prices) }
-          : null;
-
-        return {
-          id: property.id,
-          title: property.title,
-          description: property.description,
-          type: property.type,
-          createdAt: property.createdAt,
-          updatedAt: property.updatedAt,
-          street: property.street,
-          barangay: property.barangay,
-          municipality: property.municipality,
-          city: property.city,
-          province: property.province,
-          zipCode: property.zipCode,
-          requiresScreening: property.requiresScreening,
-          isListed: property.isListed,
-          mainImageUrl: property.mainImageUrl,
-          amenities: property.amenityTags || [],            // intangible advantages nearby
-          sharedFeatures: property.propertySharedFeatures || [], // tangible property features
-          unitCount: totalUnits,
-          unitCounts,
-          pendingApplicationCount: pendingApplicationsCount,
-          priceRange,
-        };
-      })
-    );
-
-    res.status(200).json({ properties: enrichedProperties });
+    return res.status(200).json(processedProperties);
   } catch (error) {
-    console.error("[propertiesController] Error:", error);
-    res.status(500).json({ error: "Failed to retrieve properties." });
+    console.error("Error fetching native property data:", error);
+    return res.status(500).json({
+      message: "Failed to retrieve property data: " + error.message,
+    });
   }
 };
 

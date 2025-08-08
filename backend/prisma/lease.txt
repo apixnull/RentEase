@@ -1,0 +1,134 @@
+// lease 
+
+first step 
+    - Basic Lease Information 
+        - Lease Details
+            - property 
+            - room / unit
+            - lease nickname 
+            - start and end date
+            - when lease ends there should be: 
+                - renewal option 
+                - or just end 
+
+
+second step 
+
+    - Lease Specifics
+        - Property Address
+            - street 
+            - city (optional)
+            - municipality (optional) 
+            - zip code
+            - barangay
+        - Room Specifics
+            - Rooms don't have addresses. As an alternative please describe the location of the room rental in as much detail as possible so it is 
+            indisputably clear which room in the rental this lease agreement is for. e.g. "The 3rd floor North West Bedroom with the 2 windows and attached bathroom” 2000 character maximum
+
+        - Lease Term
+            1. Fixed-Term Lease
+            2. Month-to-Month Lease (Rolling Lease)
+            3. Short-Term Lease
+            4. Long-Term Lease
+
+            - When the lease ends on the date above, which of these should occur?
+                a. Renew on a month-to-month basis automatically
+                b. Terminate automatically on the end date 
+    
+
+3rds step 
+
+    - Rent, Deposit, & Fees
+        - Monthly Rent || your monthly rent amount (not including prorated rent, security deposits, pet rent, or move-in fees).
+        - Security Deposit  || A security deposit is a refundable amount paid upfront by a tenant to cover potential damages, unpaid rent, or lease violations during the rental period. 2 months rent
+            - Allowable deductions to be made to the security deposit include:
+                - Are there any allowable deductions to be made to the Security Deposit?
+                    Alaska law requires that you disclose and list any allowable deductions to be made to the security deposit in the lease agreement. 
+                    Examples would include unpaid rent, cost of repairing damages beyond normal wear and tear and cleaning fees.?
+            - Landlords are required to provide the location of the financial institution where the security deposit is held: 
+                - Financial Institution Trust Acct. Name
+                - Financial Institution Address:
+        - One Time Fees || One-time fees are upfront charges for services like application processing, cleaning, or move-in costs that aren't part of the regular rent.
+    
+    - Payment Accepted || How will you collect rent?
+        1. Cash 
+        2. Gcash
+        3. Paypal
+        4. Other Specify
+
+
+        
+
+
+4th step 
+
+    - People on the Lease
+        What's the difference between tenants and additional occupants?
+            1. Tenants live at the property, sign the lease, and are financially responsible—typically anyone 18 years of age or older.
+            2. Additional occupants live at the property, either full-time or part-time, but do not sign the lease—typically dependents like children or elderly relatives. For room rentals, do not include occupants that will not be staying in the room.
+
+        - Tenants
+            - Search Existing Renters (functionality add tenant to the lease) 
+                - First Name
+                - Last Name
+                - Email
+                - Phone(Optional)
+
+        - Additional Occupants
+            Will there be any additional occupants? Additional occupants live at the property but are not responsible for the lease and therefore do not sign it (usually children or other dependents). For room rentals, do not include occupants that will not be staying in the room.
+                - Full Name
+                - Relationship 
+                - Age
+
+        - Landlordc
+            - Landlord
+            - First Name
+            - Last Name 
+            - Landlord mailing address
+
+5th step 
+
+    - Pets, Smoking, & Other
+
+        - Pets
+            Will there be pet(s) on this lease?
+                1. yes 
+                2. no 
+
+                - type || cat, dog etc  
+
+        - Smoking
+            - Do you allow smoking at this property?
+                1. yes 
+                2. no 
+                3. outside only
+
+        - Parking
+            - Do you want to include parking rules?
+                1. yes 
+                2. no 
+
+                - What type of parking is available? 
+                    - description of it . specify 
+
+        
+6th step 
+
+    - Utilities, Services, & Keys 
+
+        - Utilities & Services
+            - Indicate who is responsible for the following: 
+                1. Electricity
+                2. Internet 
+                3. Phone 
+                4. Cable / Satellite
+                5. Gas
+                6. Water
+                7. Trash
+                8. HOA / Condo Fee	
+
+                choices: Tenant	Landlord	N/A 
+
+        - Keys 
+            - Which keys will your tenant(s) receive?
+                Your tenant(s) is required to return copies of these keys and/or garage door openers when the lease ends.

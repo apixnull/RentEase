@@ -4,7 +4,6 @@ import {
   Outlet,
   useLocation,
   useNavigate,
-  useParams,
 } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -40,7 +39,7 @@ const sidebarConfig = [
         icon: LayoutDashboard,
       },
       {
-        path: "/landlord/property/my-properties",
+        path: "/landlord/property/properties",
         name: "Properties",
         icon: Home,
       },
@@ -96,18 +95,18 @@ const sidebarConfig = [
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/landlord": { name: "Dashboard" },
-  "/landlord/property/my-properties": { name: "Properties" },
+  "/landlord/property/properties": { name: "Properties" },
   "/landlord/property/add-property": {
     name: "Add Property",
-    parent: "/landlord/property/my-properties",
+    parent: "/landlord/property/properties",
   },
-  "/landlord/property/:id": {
+  "/landlord/property/:propertyId/details": {
     name: "Details",
-    parent: "/landlord/property/my-properties",
-  },
-  "/landlord/property/:id/unit/:unitId": {
-    name: "Unit Details",
-    parent: "/landlord/property/:id",
+    parent: "/landlord/property/properties",
+  }, 
+  "/landlord/property/:propertyId/add-unit": {
+    name: "Add Unit",
+    parent: "/landlord/property/:propertyId/details",
   },
   "/landlord/leases": { name: "Leases" },
   "/landlord/maintenance/maintenances": { name: "Maintenance" },
@@ -124,7 +123,6 @@ export const LandlordLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const location = useLocation();
-  const params = useParams();
 
   // User data
   const user = { name: "Alex Morgan", avatar: "/avatar.jpg" };
@@ -394,7 +392,7 @@ useEffect(() => {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full w-full overflow-hidden lg:w-[calc(100%-12rem)]">
+      <div className="flex-1 flex flex-col h-full w-full overflow-hidden">
         {/* Topbar */}
         <header className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 lg:border-l lg:border-l-gray-200">
           <div className="flex items-center gap-3">
@@ -538,8 +536,8 @@ useEffect(() => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 min-h-0 overflow-hidden bg-gradient-to-b from-blue-50/30 to-green-50/30">
-          <main className="h-full overflow-auto">
+        <div className="flex-1 flex flex-col min-h-0">
+          <main className="flex-1 min-h-0 overflow-y-auto">
             <Outlet />
           </main>
         </div>

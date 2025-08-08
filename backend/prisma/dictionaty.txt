@@ -1,0 +1,61 @@
+1. Fixed-Term Lease
+Definition: A lease with a specific start and end date (e.g., August 1, 2025 – July 31, 2026).
+
+Key Details:
+
+Rent amount is usually locked.
+
+Early termination may result in penalties.
+
+✅ Best for: predictable occupancy, long-term tenants.
+
+🔧 You already support this with startDate and endDate.
+
+
+
+2. Month-to-Month Lease (Rolling Lease)
+Definition: Automatically renews each month until either party gives notice (often 30 days).
+
+How it works:
+
+Usually begins after a fixed-term lease ends, unless explicitly set from the start.
+
+✅ Best for: short-term flexibility.
+
+💡 Could be handled with:
+
+A isRolling: Boolean or termType: ROLLING | FIXED
+
+
+
+
+
+
+🧾 3. Short-Term Lease
+Definition: Lease shorter than 6 months.
+
+Examples: Weekly, monthly rentals.
+
+✅ Best for: vacation units, temporary housing.
+
+You already support this using your RentInterval + short dates.
+
+
+
+🔐 4. Long-Term Lease
+Definition: Lease of 1 year or longer.
+
+✅ Best for: stability, especially in residential areas.
+
+Already covered with your current schema.
+
+
+
+📆 5. Lease with Renewal Option
+Definition: Tenant has the option to renew the lease before it ends.
+
+Often includes:
+
+Renewal deadline (e.g., “Notify us 60 days before end”)
+
+New rent terms in advance

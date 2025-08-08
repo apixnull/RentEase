@@ -20,7 +20,7 @@ import VerifyEmail from "@/pages/authentication/verifyEmail/VerifyEmail";
 
 // Landlord Pages
 import LandlordDashboard from "@/pages/landlord/dashboard/LandlordDashboard";
-import Properties from "@/pages/landlord/property/properties/Properties";
+import Properties from "@/pages/landlord/property/Properties";
 
 // Public Pages
 import About from "@/pages/public/about/About";
@@ -32,13 +32,15 @@ import NotFound from "@/pages/NotFound";
 import Unauthorized from "@/pages/Unauthorized";
 import DisabledAccount from "@/pages/DisabledAccount";
 import InvalidAction from "@/pages/InvalidAction";
-import PropertyDetails from "@/pages/landlord/property/property-details/PropertyDetails";
 import TenantLayout  from "@/layouts/TenantLayout";
 import TenantDashboard from "@/pages/tenant/dashboard/TenantDashboard";
 import BrowseProperty from "@/pages/tenant/browse-property/BrowseProperty";
 import Maintenances from "@/pages/landlord/maintenance/Maintenances";
-import AddProperty from "@/pages/landlord/property/add-property/AddProperty";
-import ManageUnit from "@/pages/landlord/property/property-details/ManageUnit";
+import AddProperty from "@/pages/landlord/property/AddProperty";
+import PropertyDetails from "@/pages/landlord/property/PropertyDetails";
+import AddUnit from "@/pages/landlord/property/AddUnit";
+import Settings from "@/pages/landlord/settings/Settings";
+import Leases from "@/pages/landlord/lease/Leases";
 
 
 
@@ -65,9 +67,8 @@ const router = createBrowserRouter([
   { path: "auth/reset-password", element: <ResetPassword /> },
 
   /* **************************************************** LANDLORD ROUTES **************************************************** */
-
   {
-    path: "/landlord",
+    path: "landlord",
     element: (
       <ProtectedRoute allowedRoles={["LANDLORD"]}>
         <LandlordLayout />
@@ -78,26 +79,41 @@ const router = createBrowserRouter([
 
       // property
       {
-        path: "property/my-properties",
+        path: "property/properties",
         element: <Properties />,
       },
       {
-        path: "property/:id",
-        element: <PropertyDetails />,
-      },
-      {
         path: "property/add-property",
-        element: <AddProperty/>,
+        element: <AddProperty />,
       },
       {
-        path: "property/:propertyId/unit/:unitId",
-        element: <ManageUnit />, 
+        path: "property/:propertyId/details",
+        element: <PropertyDetails />
       },
+      {
+        path: "property/:propertyId/add-unit",
+        element: <AddUnit />,
+      },
+
+  
+      
+      // leases
+      {
+        path: "leases",
+        element: <Leases />
+      },
+
 
       // maintenances
       {
         path: "maintenance/maintenances",
         element: <Maintenances />
+      },
+
+      // settings
+      {
+        path: "settings",
+        element: <Settings />
       }
     ],
   },
@@ -112,14 +128,8 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <TenantDashboard /> },
-      {
-        path: "listing/my-properties",
-        element: <Properties />,
-      },
-      {
-        path: "property/:id",
-        element: <PropertyDetails />,
-      },
+
+
     ],
   },
 
@@ -133,8 +143,7 @@ const router = createBrowserRouter([
     ),
   },
 
-
-
+  
 
 
 
