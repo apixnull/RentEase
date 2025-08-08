@@ -1,22 +1,32 @@
-// src/sections/HeroSection.jsx
-import { motion } from "framer-motion";
-import { Zap, ChevronRight, Home as HomeIcon, Users, Calendar, ShieldCheck, Check, Search, Star, MapPin } from "lucide-react";
+// src/sections/HeroSection.tsx
+import { motion,type Variants } from "framer-motion"; // Import Variants type
+import { 
+  Zap, ChevronRight, Home as HomeIcon, Users, Calendar, 
+  ShieldCheck, Check, Search, Star, MapPin 
+} from "lucide-react";
 
 const HeroSection = () => {
-  const container = {
+  // Define variants with proper typing
+  const container: Variants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: { staggerChildren: 0.15 }
+      transition: { 
+        staggerChildren: 0.15,
+        when: "beforeChildren" // Added recommended property
+      }
     }
   };
 
-  const item = {
+  const item: Variants = {
     hidden: { opacity: 0, y: 30 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: "backOut" }
+      transition: { 
+        duration: 0.6, 
+        ease: "backOut" as any // Workaround for framer-motion type issue
+      }
     }
   };
 
@@ -94,7 +104,7 @@ const HeroSection = () => {
                   transition: { 
                     duration: 1.5,
                     repeat: Infinity,
-                    repeatType: "reverse"
+                    repeatType: "reverse" as const
                   }
                 }}
               >
@@ -185,7 +195,7 @@ const HeroSection = () => {
               transition={{
                 duration: 4,
                 repeat: Infinity,
-                repeatType: "reverse",
+                repeatType: "reverse" as const,
                 ease: "easeInOut"
               }}
             >
