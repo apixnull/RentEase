@@ -336,11 +336,6 @@ const PropertyDetails: React.FC = () => {
     }
   };
 
-  const handleToggleListing = () => {
-    console.log("Toggling listing status...");
-    // Implement actual listing status toggle API call here
-  };
-
   const handleAddUnit = () => {
     navigate(`/landlord/property/${propertyId}/add-unit`);
   };
@@ -486,18 +481,6 @@ const PropertyDetails: React.FC = () => {
             className="flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
           >
             <FaEdit className="mr-1.5" size={14} /> Edit
-          </button>
-          <button
-            onClick={handleToggleListing}
-            className={`flex items-center px-3 py-2 rounded-lg transition-colors text-sm ${
-              propertyData.propertyInfo.requiresScreening
-                ? "bg-green-600 hover:bg-green-700 text-white"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-            }`}
-          >
-            {propertyData.propertyInfo.requiresScreening
-              ? "Listed"
-              : "Unlisted"}
           </button>
           <button
             onClick={handleDelete}

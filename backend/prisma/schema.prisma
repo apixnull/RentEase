@@ -215,6 +215,7 @@ model Property {
   @@index([id])
 }
 
+
 model Unit {
   id             String   @default(uuid()) @unique      // Unique ID for the unit
   propertyId     String                                 // Links back to parent property
@@ -240,7 +241,7 @@ model Unit {
   isNegotiable   Boolean @default(false)                // Can price be negotiated?
 
   // -- Listing ---
-  isListed          Boolean @default(false)             // Whether unit is visible/active
+  isListed          Boolean @default(false)             // Whether unit is visible/active 
 
   // --- Relations ---
   property           Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -277,8 +278,8 @@ model Lease {
   status          LeaseStatus  @default(PENDING)
   inviteToken     String?      // For sharing invite link
   inviteExpiresAt DateTime?
-  agreementUrl    String?      // Signed contract
-  conditionReportUrl String?   // Move-in report
+
+  pdfUrl        String?   // URL to generated lease PDF
 
   // Auditing
   createdAt DateTime @default(now())

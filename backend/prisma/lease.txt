@@ -129,6 +129,91 @@ second step
 
                 choices: Tenant	Landlord	N/A 
 
+                Are there any shared utilities for the property?
+                    Please list all shared utilities and how they are divided.
+                    2000 characters limit 
+
+
         - Keys 
             - Which keys will your tenant(s) receive?
                 Your tenant(s) is required to return copies of these keys and/or garage door openers when the lease ends.
+                - Lost Key: The tenant(s) are responsible for the full cost of rekeying if any keys are lost.
+                Unit Room key = or other 
+                Cabinet Room key = or other 
+                
+            
+        - Maintenance
+            - Tenants will be encouraged to submit maintenance requests with descriptions and photos. For free, you can manage statuses, track requests, and send work orders to pros.
+            Habitability standards & tenant's right for repairs
+
+            - The implied warranty of habitability is a policy enforced throughout the U.S. which requires landlords to provide a generally safe premise fit for human habitation. Tenants have legal rights to demand that timely repairs are done to fix structural, electrical, plumbing, pest infestation, locks/windows and lead paint removal issues.            
+
+
+        - Provisions & Attachments
+            - Early Termination
+                Would you like to include an early termination clause? 
+                Early termination clauses allow you and/or the tenant to terminate the lease ahead of the scheduled end date.
+                        - yes 
+                        - no    
+
+            - Additional Terms
+                - Are there any additional terms you’d like to add to this agreement?
+                    Room rentals typically include extra terms. Some examples include:
+                        Definition of shared spaces (bathrooms, kitchen, outdoor space, etc.)
+                        Which entrance to use
+                        Furnishing details
+                        Laundry rules, cleaning and maintenance
+                        Quiet hours
+                    ADDITIONAL TERMS(Optional)
+                        10000 characters limit
+
+        
+
+
+
+// conditioned Report 
+    - What should we call this report?
+        name: Peleaz st cebu city 12
+
+    - Add rooms and other spaces
+        spaces: Living Room: 1 
+                Kitchen: 1
+                Dining Rooms: 1 
+                Bedroom: 1  
+                Bathroom: 1 
+                Mechanical Systems: 1 
+                Other: 1
+                room area or name: +add (input field)
+
+        Add items to each space
+        items: Living Room 
+                    Floor and Floor Covering
+                    Walls and Ceiling
+                    Doors
+                    etc. 
+
+                Kitchen 
+                    Microwave
+                    Window Coverings
+                    Light Fixtures
+                    Cabinets
+
+        etc.. 
+
+
+    - What type of report is this?
+        Move in (this is used the moment when the tenant is moving in)
+        In Move out this will also be used to ensure all the stuff is there  
+ 
+        put some date when this report is 
+        
+
+    - Home Guide 
+        Provide your tenants with everything they need to feel at home with a comprehensive and easy-to-share property guide. 
+        sections: 
+        - Welcome Note ( with Upload Image Here)
+        - Access and Security 
+        - House Rules 
+        - Communitcation 
+        - Lease Information 
+

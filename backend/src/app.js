@@ -6,9 +6,13 @@ import helmet from 'helmet';
 
 import authRoutes from './routes/authRoutes.js';
 import landlordRoutes from './routes/landlordRoutes.js';
+import tenantRoutes from './routes/tenantRoutes.js';
 import { globalLimiter } from './middlewares/rateLimiter.js';
 
 const app = express();
+
+// Trust the first proxy (e.g. Render's proxy/load balancer)
+app.set('trust proxy', 1);
 
 app.use(
   cors({
@@ -34,6 +38,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/landlord', landlordRoutes);
+app.use('/api/tenant', tenantRoutes);
 
 // Global error handler (must come after all routes and middleware)
 app.use((err, req, res, next) => {
