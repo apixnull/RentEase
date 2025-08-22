@@ -130,6 +130,7 @@ model User {
   @@index([email])
   @@index([role])
   Application Application[]
+  UnitReview UnitReview[]
 }
 
 
@@ -170,90 +171,107 @@ model UserContactInfo {
   user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-
-// ==================== PROPERTY & UNIT MODELS ====================  
+// -------------------- City / Municipality --------------------
+model CityMunicipality {
+  id         String     @id @default(uuid())
+  name       String     @unique                  // e.g., "Cebu City", "Toledo", "Mandaue"
+  properties Property[]                           // All properties in this city
+}
+// ==================== PROPERTY ====================
 model Property {
-  id               String   @id @default(uuid())        // Unique ID for the property
-  ownerId          String                               // Reference to landlord (User)
+  id        String   @id @default(uuid())
+  ownerId   String
 
-  title            String                               // Property title or name
-  description      String                               // Short description of the property
-  type             PropertyType @default(APARTMENT)     // Type of property (APARTMENT, BOARDING_HOUSE, SINGLE_HOUSE, CONDOMINIUM.)
-  createdAt        DateTime @default(now())             // Timestamp when record was created
-  updatedAt        DateTime @updatedAt                  // Timestamp when record was last updated
+  title       String
+  description String
+  type        PropertyType @default(APARTMENT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // --- Address (shared by all units in this property) ---
-  street           String                               // Street address
-  barangay         String                               // Barangay/district
-  municipality     String?                              // Municipality (optional)
-  city             String?                              // City (optional)
-  province         String                               // Province
-  zipCode          String                               // Postal code
+  // --- Address ---
+  street      String
+  barangay    String
+  province    String
+  zipCode     String?
 
-  // --- Features & Rules (apply to entire property) ---
-  amenityTags      Json?                                // Nearby/area perks (≤4 words each) e.g. “Near UC Main”
-  propertyFeatures Json?                                // Shared features (2 words each) e.g. “with sofa”, “piso wifi”
-  leaseRules       Json?                                // Property-wide rules e.g. “No smoking”, “Quiet after 10PM” 
+  cityId      String
+  city        CityMunicipality @relation(fields: [cityId], references: [id])
 
-  // --- Media ---
-  propertyImageUrls Json?                               // Up to 5 images (main image included, same folder)
-  mainImageUrl     String?                              // Featured image for quick display 
+  // --- Amenities & Media ---
+  amenityTags      Json?              // General nearby perks (e.g., "Near UC Main")
+  leaseRules       Json?              // Property-wide rules
+  propertyImageUrls Json?
+  mainImageUrl     String?
 
-  // --- Listing Settings ---
-  requiresScreening Boolean @default(false)             // If tenant screening is required
+  requiresScreening Boolean @default(false)
 
   // --- Relations ---
-  owner              User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  Unit               Unit[]                              // All units/rooms in this property
+  owner              User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Unit               Unit[]
   MaintenanceRequest MaintenanceRequest[]
   Income             Income[]
   Expense            Expense[]
   Application        Application[]
 
-  // --- DB Mapping ---
   @@map("properties")
   @@index([id])
+  @@index([cityId])
 }
 
-
+// ==================== UNIT ====================
 model Unit {
-  id             String   @default(uuid()) @unique      // Unique ID for the unit
-  propertyId     String                                 // Links back to parent property
+  id             String   @default(uuid()) @unique
+  propertyId     String
 
   // --- Info ---
-  label          String                                 // Unit name/label (e.g. “Room A”, “Unit 201”)
-  description    String                                 // Short description of the unit
-  status         UnitStatus @default(AVAILABLE)         // Availability status (e.g. AVAILABLE, OCCUPIED, MAINTENANCE)
-  floorNumber    Int?                                   // Which floor this unit is on
-  createdAt      DateTime @default(now())               // Created timestamp
-  updatedAt      DateTime @updatedAt                    // Updated timestamp
+  label          String
+  description    String
+  status         UnitStatus @default(AVAILABLE)
+  floorNumber    Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  // --- Unit Layout ---
-  maxOccupancy   Int @default(1)                        // How many people the unit can accommodate
+  // --- Layout & Features ---
+  maxOccupancy   Int @default(1)
+  unitFeatureTags Json?           // Room-specific features (e.g., "wifi", "aircon")
+  unitImageUrls   Json?           // Photos specific to this unit
+  unitLeaseRules  Json?           // Lease-specific rules
 
-  // --- Unit-Specific Features ---
-  unitFeatureTags Json?                                 // Room-only features (1 word each) e.g. “aircon”, “wifi”
-  unitImageUrls   Json?                                 // Photos specific to this unit (max 3)
-  unitLeaseRules  Json?                                 // Unit-specific lease policies: "6 months term only", "Need Downpayment", "1 year minimum stay", 20 words limit only
-
-  // --- Pricing ---
-  targetPrice    Float                                  // Target monthly rent
-  isNegotiable   Boolean @default(false)                // Can price be negotiated?
-
-  // -- Listing ---
-  isListed          Boolean @default(false)             // Whether unit is visible/active 
+  // --- Pricing & Listing ---
+  targetPrice    Float
+  isListed       Boolean @default(false)
 
   // --- Relations ---
   property           Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   Lease              Lease[]
   MaintenanceRequest MaintenanceRequest[]
   Application        Application[]
-  
-  // --- DB Mapping ---
+  UnitReview         UnitReview[]
+
   @@map("units")
   @@id([propertyId, id])
   @@index([id])
   @@unique([propertyId, label])
+}
+
+// ==================== UNIT REVIEW ====================
+model UnitReview {
+  id        String   @id @default(uuid())
+  tenantId  String
+  unitId    String
+  leaseId   String
+
+  rating    Float               // 1.0 - 5.0 rating, e.g., 2.8
+  comment   String?             // Optional review comment
+  createdAt DateTime @default(now())
+
+  // --- Relations ---
+  tenant User @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unit   Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  lease  Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, unitId, leaseId])
+  @@map("unit_reviews")
 }
 
 
@@ -292,6 +310,7 @@ model Lease {
   ScheduledPayment ScheduledPayment[]
 
   @@map("scheduled_payments")
+  UnitReview UnitReview[]
 }
 
 

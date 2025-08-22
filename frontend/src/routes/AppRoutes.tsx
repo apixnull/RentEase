@@ -41,6 +41,8 @@ import PropertyDetails from "@/pages/landlord/property/PropertyDetails";
 import AddUnit from "@/pages/landlord/property/AddUnit";
 import Settings from "@/pages/landlord/settings/Settings";
 import Leases from "@/pages/landlord/lease/Leases";
+import Applicants from "@/pages/landlord/applicants/Applicants";
+import Tenants from "@/pages/landlord/tenants/Tenants";
 
 
 
@@ -109,6 +111,19 @@ const router = createBrowserRouter([
         path: "maintenance/maintenances",
         element: <Maintenances />
       },
+
+      // applicants
+      {
+        path: "applicants",
+        element: <Applicants />
+      },
+
+      // tenants
+      {
+        path: "tenants",
+        element: <Tenants />
+      },
+
 
       // settings
       {
