@@ -13,7 +13,6 @@
 
 
 
-
 🟡 Redirection (3xx)
 
 301 Moved Permanently → Resource permanently moved.
@@ -21,10 +20,6 @@
 302 Found → Temporary redirect.
 
 304 Not Modified → Use cached version (common with ETags / caching).
-
-
-
-
 
 
 
