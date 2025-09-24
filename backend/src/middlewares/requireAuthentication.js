@@ -8,6 +8,9 @@ import redis from "../libs/redisClient.js";
 export const requireAuthentication = (allowedRoles = ["ANY_ROLE"]) => {
   return async (req, res, next) => {
     try {
+      // Debug: log cookies
+      console.log("Incoming cookies:", req.cookies);
+      
       // 1. Read JWT from cookie
       const token = req.cookies?.accessToken;
       if (!token) {
@@ -37,10 +40,6 @@ export const requireAuthentication = (allowedRoles = ["ANY_ROLE"]) => {
         where: { id: userId },
         select: { id: true, role: true }
       });
-
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
 
       // 5. Role-based access
       if (!(allowedRoles.includes("ANY_ROLE") || allowedRoles.includes(user.role))) {

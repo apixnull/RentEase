@@ -7,6 +7,7 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import authRoutes from './routes/authRoutes.js'
+import landlordRoutes from './routes/landlordRoutes.js'
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
 
@@ -16,11 +17,13 @@ const app = express();
 // Middlewares
 // ------------------------------
 
+app.set('trust proxy', 1);
 
 app.use(cors({
-  origin: "http://localhost:3000", // your frontend origin
-  credentials: true,               // allow cookies
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173', // use value from .env
+  credentials: true,                // allow cookies (important for JWT)
 }));
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json()); // Parse incoming JSON requests automatically
 app.use(morgan("dev")); // HTTP request logger (dev = concise colorful logs)
@@ -31,6 +34,7 @@ app.use(cookieParser()); // Parse cookies
 // ------------------------------
 
 app.use("/api/auth", authRoutes); // Auth routes
+app.use("/api/landlord/", landlordRoutes); // Auth routes
 
 
 // Default route (health check / welcome route)

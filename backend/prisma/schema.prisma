@@ -76,9 +76,6 @@ model User {
   // Onboarding
   hasSeenOnboarding Boolean @default(false)
 
-  // Tokens
-  RefreshToken RefreshToken[]
-
   // Relations (user roles/actions)
   Property            Property[]
   MaintenanceRequest  MaintenanceRequest[]
@@ -103,23 +100,6 @@ model User {
 }
 
 
-// Refresh tokens for persistent sessions
-model RefreshToken {
-  id         String   @id @default(uuid())
-  tokenHash  String   @unique  // Hashed token - store only hashed representation
-  createdAt  DateTime @default(now()) // token issue time
-  expiresAt  DateTime          // Expiration timestamp - use this to purge expired tokens
-  isRevoked  Boolean  @default(false) // manual revocation flag
-
-  // Relation 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     String   // FK to users.id
-
-  @@map("refresh_tokens")
-  @@index([userId])
-  @@index([expiresAt])
-}
-
 
 // --------------------
 // Amenity & Location (lookup) Models
@@ -128,6 +108,7 @@ model RefreshToken {
 model Amenity {
   id       String   @id @default(uuid())
   name     String   @unique   // e.g., "wifi", "pool", "aircon"
+  category String              // e.g., "Utility", "Facility", "Security"
 
   // Many-to-many relation with Unit
   units    Unit[]   @relation("UnitAmenities")
@@ -185,7 +166,7 @@ model Property {
 
   // --- Media & nearby institutions ---
   mainImageUrl      String?                        // Featured image for the property
-  nearInstitutions  Json?                          // JSON array of nearby institutions (format at app layer)
+  nearInstitutions  Json?                          // JSON array of nearby institutions (format at app layer) { "name": "Ayala Mall", "type": "Mall" },
 
   // --- Relations ---
   owner              User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -194,6 +175,7 @@ model Property {
   Income             Income[]
   Expense            Expense[]
 
+  @@unique([ownerId, title])
   @@map("properties")
   @@index([id])
   @@index([cityId])
@@ -223,16 +205,19 @@ model Unit {
   maxOccupancy   Int @default(1)
   amenities      Amenity[] @relation("UnitAmenities")
   mainImageUrl   String? // main image of the unit
-  otherImages    Json?    // other images of the unit at 4 images
-  unitLeaseRules Json?
+  otherImages    Json?    // other images of the unit at 6 images
+  unitLeaseRules Json?    
   viewCount Int @default(0)
 
   // --- Pricing ---
   targetPrice     Float     
-  securityDeposit Float?
+  securityDeposit Float? 
 
-   // --- Screening Settings ---
+  // --- Screening Settings ---
   requiresScreening Boolean @default(false) // true = landlord requires tenant screening
+
+  // --- Listing Status
+  isListed Boolean @default(false)
 
   // --- Relations ---
   property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)

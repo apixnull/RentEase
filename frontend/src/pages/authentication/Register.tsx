@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Zap, Mail, Lock, Eye, EyeOff, User, Check, Key } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Zap, Mail, Lock, Eye, EyeOff, User, Check, Key, AlertCircle } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
+import { registerRequest } from "@/api/authApi"; 
+import { toast } from "sonner";
 
 const Register = () => {
   // Background animation variants
@@ -67,7 +69,7 @@ const Register = () => {
       </div>
 
       <motion.div
-        className="max-w-5xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row items-stretch z-10"
+        className="max-w-5xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row items-stretch z-10 min-h-[650px]"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -126,7 +128,7 @@ const Register = () => {
         </div>
 
         {/* Right Panel - Form Section */}
-        <div className="md:w-[55%] p-6 md:p-8 flex flex-col justify-between">
+        <div className="md:w-[55%] p-6 md:p-8 flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <Link
               to="/"
@@ -148,7 +150,7 @@ const Register = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
-            className="max-w-md mx-auto"
+            className="flex-1 flex flex-col justify-center"
           >
             <div className="text-center mb-6">
               <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-teal-100 to-blue-100 rounded-2xl mb-4 shadow-md">
@@ -175,177 +177,243 @@ const Register = () => {
 const RegisterForm = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [userRole, setUserRole] = useState<"tenant" | "landlord">("tenant");
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate required fields
+    if (!email || !password || !confirmPassword) {
+      setError("All fields are required");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await registerRequest({
+        email,
+        password,
+        confirmPassword,
+        role: userRole.toUpperCase(),
+      });
+
+      // success toast
+      toast.success(res.data.message);
+
+      // redirect to verification page, passing the token in url
+      navigate(`/auth/verify-email/${res.data.token}`);
+      
+    } catch (err: any) {
+      console.error("Register error:", err);
+      const errorMessage = err.response?.data?.message || "Registration failed";
+      setError(errorMessage);
+      toast.error("Registration Failed, review the form!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <form className="space-y-4">
-      {/* Role Selection */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          I am a
-        </label>
-        <div className="flex gap-3">
+    <div className="max-w-md mx-auto w-full">
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        {/* Role Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            I am a <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-3">
+            <motion.button
+              type="button"
+              onClick={() => setUserRole("tenant")}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className={`flex-1 py-2 px-3 rounded-lg border transition-colors flex items-center justify-center gap-2 text-sm ${
+                userRole === "tenant"
+                  ? "border-teal-500 bg-teal-50 text-teal-700"
+                  : "border-gray-300 text-gray-500 hover:border-teal-300"
+              }`}
+            >
+              <User className="h-4 w-4" />
+              Tenant
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => setUserRole("landlord")}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className={`flex-1 py-2 px-3 rounded-lg border transition-colors flex items-center justify-center gap-2 text-sm ${
+                userRole === "landlord"
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-gray-300 text-gray-500 hover:border-blue-300"
+              }`}
+            >
+              <Key className="h-4 w-4" />
+              Landlord
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Email field */}
+        <div>
+          <label
+            htmlFor="email"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
+            Email Address <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Mail className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              name="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@example.com"
+              required
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
+              focus:outline-none focus:border-teal-400 focus:ring-0 
+              transition-colors text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Password field */}
+        <div>
+          <label
+            htmlFor="password"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
+            Password <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Lock className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              name="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
+              focus:outline-none focus:border-teal-400 focus:ring-0 
+              transition-colors text-sm"
+            />
+          </div>
+          <div className="mt-1 text-xs text-gray-500">
+            Password must include uppercase, lowercase, number, and symbol
+          </div>
+        </div>
+
+        {/* Confirm Password field */}
+        <div>
+          <label
+            htmlFor="confirmPassword"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
+            Confirm Password <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Lock className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              name="confirmPassword"
+              type={showConfirmPassword ? "text" : "password"}
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
+              focus:outline-none focus:border-teal-400 focus:ring-0 
+              transition-colors text-sm"
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            >
+              {showConfirmPassword ? (
+                <EyeOff className="h-4 w-4 text-gray-400" />
+              ) : (
+                <Eye className="h-4 w-4 text-gray-400" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Terms and Conditions */}
+        <div className="flex items-start gap-3">
           <motion.button
             type="button"
-            onClick={() => setUserRole("tenant")}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={`flex-1 py-2 px-3 rounded-lg border transition-colors flex items-center justify-center gap-2 text-sm ${
-              userRole === "tenant"
-                ? "border-teal-500 bg-teal-50 text-teal-700"
-                : "border-gray-300 text-gray-500 hover:border-teal-300"
+            onClick={() => setAcceptedTerms(!acceptedTerms)}
+            whileTap={{ scale: 0.9 }}
+            className={`mt-0.5 flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+              acceptedTerms
+                ? "bg-teal-500 border-teal-500 text-white"
+                : "border-gray-300"
             }`}
           >
-            <User className="h-4 w-4" />
-            Tenant
+            {acceptedTerms && <Check className="h-3 w-3" />}
           </motion.button>
-          <motion.button
-            type="button"
-            onClick={() => setUserRole("landlord")}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={`flex-1 py-2 px-3 rounded-lg border transition-colors flex items-center justify-center gap-2 text-sm ${
-              userRole === "landlord"
-                ? "border-blue-500 bg-blue-50 text-blue-700"
-                : "border-gray-300 text-gray-500 hover:border-blue-300"
-            }`}
-          >
-            <Key className="h-4 w-4" />
-            Landlord
-          </motion.button>
+          <label htmlFor="terms" className="text-xs text-gray-600">
+            I agree to the{" "}
+            <a href="#" className="text-teal-600 hover:text-teal-800 font-medium">
+              Terms of Service
+            </a>{" "}
+            and{" "}
+            <a href="#" className="text-teal-600 hover:text-teal-800 font-medium">
+              Privacy Policy
+            </a>{" "}
+            <span className="text-red-500">*</span>
+          </label>
         </div>
-      </div>
 
-      {/* Email field */}
-      <div>
-        <label
-          htmlFor="email"
-          className="block text-sm font-medium text-gray-700 mb-2"
-        >
-          Email Address
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Mail className="h-4 w-4 text-gray-400" />
-          </div>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="email@example.com"
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
-            focus:outline-none focus:border-teal-400 focus:ring-0 
-            transition-colors text-sm"
-          />
+        {/* Error message container with fixed height */}
+        <div className="min-h-[60px] max-h-24 overflow-y-auto transition-all duration-300">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-red-600 break-words">{error}</p>
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Password field */}
-      <div>
-        <label
-          htmlFor="password"
-          className="block text-sm font-medium text-gray-700 mb-2"
-        >
-          Password
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Lock className="h-4 w-4 text-gray-400" />
-          </div>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            placeholder="••••••••"
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
-            focus:outline-none focus:border-teal-400 focus:ring-0 
-            transition-colors text-sm"
-          />
-        </div>
-      </div>
-
-      {/* Confirm Password field */}
-      <div>
-        <label
-          htmlFor="confirmPassword"
-          className="block text-sm font-medium text-gray-700 mb-2"
-        >
-          Confirm Password
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Lock className="h-4 w-4 text-gray-400" />
-          </div>
-          <input
-            id="confirmPassword"
-            name="confirmPassword"
-            type={showConfirmPassword ? "text" : "password"}
-            placeholder="••••••••"
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
-            focus:outline-none focus:border-teal-400 focus:ring-0 
-            transition-colors text-sm"
-          />
-          <button
-            type="button"
-            className="absolute inset-y-0 right-0 pr-3 flex items-center"
-            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-          >
-            {showConfirmPassword ? (
-              <EyeOff className="h-4 w-4 text-gray-400" />
-            ) : (
-              <Eye className="h-4 w-4 text-gray-400" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Terms and Conditions */}
-      <div className="flex items-start gap-3">
+        {/* Submit button */}
         <motion.button
-          type="button"
-          onClick={() => setAcceptedTerms(!acceptedTerms)}
-          whileTap={{ scale: 0.9 }}
-          className={`mt-0.5 flex h-4 w-4 items-center justify-center rounded border transition-colors ${
-            acceptedTerms
-              ? "bg-teal-500 border-teal-500 text-white"
-              : "border-gray-300"
-          }`}
+          type="submit"
+          disabled={!acceptedTerms || loading}
+          whileHover={{ scale: acceptedTerms && !loading ? 1.02 : 1 }}
+          whileTap={{ scale: acceptedTerms && !loading ? 0.98 : 1 }}
+          className="w-full bg-gradient-to-r from-teal-600 to-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:from-teal-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg text-sm"
         >
-          {acceptedTerms && <Check className="h-3 w-3" />}
+          {loading ? "Creating Account..." : "Create Account"}
         </motion.button>
-        <label htmlFor="terms" className="text-xs text-gray-600">
-          I agree to the{" "}
-          <a href="#" className="text-teal-600 hover:text-teal-800 font-medium">
-            Terms of Service
-          </a>{" "}
-          and{" "}
-          <a href="#" className="text-teal-600 hover:text-teal-800 font-medium">
-            Privacy Policy
-          </a>
-        </label>
-      </div>
 
-      {/* Submit button */}
-      <motion.button
-        type="submit"
-        disabled={!acceptedTerms}
-        whileHover={{ scale: acceptedTerms ? 1.02 : 1 }}
-        whileTap={{ scale: acceptedTerms ? 0.98 : 1 }}
-        className="w-full bg-gradient-to-r from-teal-600 to-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:from-teal-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg text-sm"
-      >
-        Create Account
-      </motion.button>
-
-      <div className="text-center text-xs text-gray-500 pt-3">
-        Already have an account?{" "}
-        <Link
-          to="/auth/login"
-          className="text-teal-600 hover:text-teal-800 font-medium"
-        >
-          Sign in
-        </Link>
-      </div>
-    </form>
+        <div className="text-center text-xs text-gray-500 pt-3">
+          Already have an account?{" "}
+          <Link
+            to="/auth/login"
+            className="text-teal-600 hover:text-teal-800 font-medium"
+          >
+            Sign in
+          </Link>
+        </div>
+      </form>
+    </div>
   );
 };
 

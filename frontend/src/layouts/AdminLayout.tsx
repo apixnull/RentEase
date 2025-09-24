@@ -1,10 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  Link,
-  Outlet,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -29,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { logoutRequest } from "@/api/authApi";
 
 // Sidebar configuration for admin
 const sidebarConfig = [
@@ -148,20 +145,38 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
 };
 
 // Components
-const Sidebar = ({ isMobile, onClose }: { isMobile?: boolean; onClose?: () => void }) => {
+const Sidebar = ({
+  isMobile,
+  onClose,
+}: {
+  isMobile?: boolean;
+  onClose?: () => void;
+}) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    toast.success("Logged out successfully");
-    navigate("/", { replace: true });
+  const handleLogout = async () => {
+    try {
+      await logoutRequest(); // ✅ call backend
+    } catch (err) {
+      console.error("Logout request failed:", err);
+    } finally {
+      // ✅ clear Zustand store
+      const { clearUser } = useAuthStore.getState();
+      clearUser();
+
+      toast.success("Logged out successfully");
+      navigate("/auth/login", { replace: true });
+    }
   };
 
   return (
-    <div className={cn(
-      "flex flex-col h-full bg-white border-r border-gray-200",
-      isMobile ? "w-64" : "w-56"
-    )}>
+    <div
+      className={cn(
+        "flex flex-col h-full bg-white border-r border-gray-200",
+        isMobile ? "w-64" : "w-56"
+      )}
+    >
       {/* Logo */}
       <div className="p-4 border-b border-gray-100">
         <div className="flex items-center gap-2.5">
@@ -188,7 +203,7 @@ const Sidebar = ({ isMobile, onClose }: { isMobile?: boolean; onClose?: () => vo
                 {section.section}
               </h3>
             </div>
-            
+
             {/* Section Items */}
             <div className="space-y-0.5 pl-1">
               {section.items.map((item) => (
@@ -203,10 +218,14 @@ const Sidebar = ({ isMobile, onClose }: { isMobile?: boolean; onClose?: () => vo
                       : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                   )}
                 >
-                  <item.icon className={cn(
-                    "h-3.5 w-3.5 transition-colors",
-                    location.pathname === item.path ? "text-purple-600" : "text-gray-400 group-hover:text-gray-600"
-                  )} />
+                  <item.icon
+                    className={cn(
+                      "h-3.5 w-3.5 transition-colors",
+                      location.pathname === item.path
+                        ? "text-purple-600"
+                        : "text-gray-400 group-hover:text-gray-600"
+                    )}
+                  />
                   <span className="text-xs font-medium">{item.name}</span>
                   {location.pathname === item.path && (
                     <div className="ml-auto w-1 h-1 bg-purple-500 rounded-full" />
@@ -251,28 +270,30 @@ const Sidebar = ({ isMobile, onClose }: { isMobile?: boolean; onClose?: () => vo
 const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
   const location = useLocation();
   const [notifsOpen, setNotifsOpen] = useState(false);
-  const [breadcrumbs, setBreadcrumbs] = useState<{ name: string; path?: string }[]>([]);
+  const [breadcrumbs, setBreadcrumbs] = useState<
+    { name: string; path?: string }[]
+  >([]);
+
+  // ✅ pull user from auth store
+  const user = useAuthStore((s) => s.user);
 
   // Close notifications when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
-      if (notifsOpen && !target.closest('.notification-dropdown')) {
+      if (notifsOpen && !target.closest(".notification-dropdown")) {
         setNotifsOpen(false);
       }
     };
 
     if (notifsOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [notifsOpen]);
-
-  // User data
-  const user = { name: "Admin User", avatar: "/avatar.jpg" };
 
   // Notifications data
   const notifications = [
@@ -320,12 +341,12 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
           const paramNames: string[] = [];
           const regexPattern = pattern.replace(/:\w+/g, (param) => {
             paramNames.push(param.substring(1));
-            return '([^/]+)';
+            return "([^/]+)";
           });
-          
+
           const regex = new RegExp(`^${regexPattern}$`);
           const match = path.match(regex);
-          
+
           if (match) {
             paramNames.forEach((key, idx) => {
               paramCache.set(key, match[idx + 1]);
@@ -342,10 +363,10 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
 
         const config = breadcrumbConfig[pattern];
         const resolvedPath = resolvePath(pattern);
-        
+
         crumbs.push({
           name: config.name,
-          path: resolvedPath
+          path: resolvedPath,
         });
 
         if (config.parent) {
@@ -381,7 +402,9 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
           <nav className="flex items-center text-xs sm:text-sm">
             {breadcrumbs.map((crumb, index) => (
               <div key={index} className="flex items-center">
-                {index > 0 && <ChevronRight className="mx-1 sm:mx-2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />}
+                {index > 0 && (
+                  <ChevronRight className="mx-1 sm:mx-2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                )}
                 {crumb.path ? (
                   <Link
                     to={crumb.path}
@@ -390,7 +413,7 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
                     {crumb.name}
                   </Link>
                 ) : (
-                  <span className="text-gray-900 font-semibold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent truncate max-w-[100px] sm:max-w-[140px]">
+                  <span className="font-semibold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent truncate max-w-[100px] sm:max-w-[140px]">
                     {crumb.name}
                   </span>
                 )}
@@ -426,7 +449,9 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
                 >
                   <div className="p-3 sm:p-4 border-b border-gray-100">
                     <div className="flex justify-between items-center">
-                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base">System Alerts</h3>
+                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
+                        System Alerts
+                      </h3>
                       <button className="text-xs sm:text-sm text-purple-600 hover:underline">
                         Mark all as read
                       </button>
@@ -451,10 +476,14 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
                               <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0" />
                             )}
                             <div className="flex-1 min-w-0">
-                              <p className={cn(
-                                "font-medium text-sm",
-                                !notification.read ? "text-gray-900" : "text-gray-700"
-                              )}>
+                              <p
+                                className={cn(
+                                  "font-medium text-sm",
+                                  !notification.read
+                                    ? "text-gray-900"
+                                    : "text-gray-700"
+                                )}
+                              >
                                 {notification.title}
                               </p>
                               <p className="text-xs text-gray-500 mt-1">
@@ -484,13 +513,18 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
           {/* User Profile */}
           <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-gray-200">
             <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
-              <AvatarImage src={user.avatar} alt={user.name} />
+              <AvatarImage
+                src={user?.avatarUrl ?? undefined}
+                alt={user?.firstName ?? "User"}
+              />
               <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-white text-xs sm:text-sm">
-                AU
+                {user?.firstName?.[0]?.toUpperCase() ?? "U"}
               </AvatarFallback>
             </Avatar>
             <div className="hidden sm:block">
-              <p className="text-sm font-medium text-gray-900">{user.name}</p>
+              <p className="text-sm font-medium text-gray-900">
+                {user?.firstName ?? "Unnamed"}
+              </p>
               <p className="text-xs text-gray-500">Administrator</p>
             </div>
           </div>
@@ -500,7 +534,7 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
   );
 };
 
-export const AdminLayout = () => {
+const AdminLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -537,7 +571,7 @@ export const AdminLayout = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-0">
         <Header onMobileMenuClick={() => setMobileOpen(true)} />
-        
+
         <main className="flex-1 overflow-y-auto bg-gradient-to-br from-purple-50/20 to-blue-50/20">
           <div className="p-6">
             <Outlet />
@@ -547,3 +581,5 @@ export const AdminLayout = () => {
     </div>
   );
 };
+
+export default AdminLayout;

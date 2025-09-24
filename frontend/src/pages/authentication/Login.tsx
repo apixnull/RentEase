@@ -1,8 +1,11 @@
 // Login Page
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Zap, Mail, Lock, Eye, EyeOff, Home, Building2 } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
+import { getUserInfoRequest, loginRequest } from "@/api/authApi";
+import { toast } from "sonner";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 const Login = () => {
   // Background animation variants
@@ -79,11 +82,11 @@ const Login = () => {
             <div className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full bg-white"></div>
             <div className="absolute bottom-1/3 right-1/4 w-32 h-32 bg-white rotate-45"></div>
           </div>
-          
+
           {/* Decorative elements */}
           <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-white/10"></div>
           <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full bg-white/10"></div>
-          
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -101,7 +104,10 @@ const Login = () => {
                   },
                 }}
               >
-                <Zap className="h-10 w-10 text-emerald-200" fill="currentColor" />
+                <Zap
+                  className="h-10 w-10 text-emerald-200"
+                  fill="currentColor"
+                />
               </motion.div>
               <span className="text-2xl font-bold">RentEase</span>
             </div>
@@ -178,10 +184,87 @@ const Login = () => {
 };
 
 const LoginForm = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+     const setUser = useAuthStore.getState().setUser;
+
+    try {
+      const { data } = await loginRequest({ email, password });
+
+      if (data.verified === false) {
+        // Email not verified → send user to verify page with token
+        navigate(`/auth/verify-email/${data.token}`);
+        return;
+      }
+
+      if (data.verified === true) {
+        try {
+          const userInfoRes = await getUserInfoRequest();
+          const user = userInfoRes.data.user;
+
+          // ✅ Store user in Zustand
+          setUser(user);
+
+          // ✅ Show success toast
+          toast.success(data.message || "Login successful");
+
+          // Check if first-time onboarding
+          if (!user.hasSeenOnboarding) {
+            navigate("/auth/onboarding"); // 🔄 redirect to onboarding
+            return;
+          }
+
+          // Navigate by role
+          switch (user.role) {
+            case "ADMIN":
+              navigate("/admin");
+              break;
+            case "LANDLORD":
+              navigate("/landlord");
+              break;
+            case "TENANT":
+              navigate("/tenant");
+              break;
+            default:
+              navigate("/"); // fallback
+          }
+
+          return;
+        } catch (infoErr) {
+          setError("Failed to load user info. Please try again.");
+        }
+      }
+    } catch (err: any) {
+      if (err.response) {
+        const { status, data } = err.response;
+
+        if (status === 403 && data.code === "ACCOUNT_DISABLED") {
+          navigate("/auth/disabled");
+          return;
+        }
+
+        setError(data.message || "Login failed. Please try again.");
+      } else {
+        setError("Network error. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <form className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {/* Email field */}
       <div>
         <label
@@ -198,6 +281,9 @@ const LoginForm = () => {
             id="email"
             name="email"
             type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder="email@example.com"
             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl 
             focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent 
@@ -231,6 +317,9 @@ const LoginForm = () => {
             name="password"
             type={showPassword ? "text" : "password"}
             placeholder="••••••••"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl 
             focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent 
             transition-all text-sm shadow-sm"
@@ -257,19 +346,30 @@ const LoginForm = () => {
           type="checkbox"
           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
         />
-        <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+        <label
+          htmlFor="remember-me"
+          className="ml-2 block text-sm text-gray-700"
+        >
           Remember me
         </label>
       </div>
+
+      {/* Error message */}
+      {error && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+          {error}
+        </div>
+      )}
 
       {/* Submit button */}
       <motion.button
         type="submit"
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
+        disabled={loading}
         className="w-full bg-gradient-to-r from-emerald-600 to-sky-600 text-white py-3 px-4 rounded-xl font-medium hover:from-emerald-700 hover:to-sky-700 transition-all shadow-md hover:shadow-lg"
       >
-        Sign In
+        {loading ? "Signing in..." : "Sign In"}
       </motion.button>
 
       <div className="text-center text-sm text-gray-600 pt-4">
@@ -281,7 +381,6 @@ const LoginForm = () => {
           Create account
         </Link>
       </div>
-      
     </form>
   );
 };
