@@ -24,25 +24,32 @@ privateApi.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
+    // --- If account disabled (403) → force logout ---
+    if (status === 403) {
+      const { setUser } = useAuthStore.getState();
+      setUser(null);
+
+      window.history.pushState({}, "", "/auth/login");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+
+      return Promise.reject(error);
+    }
+
+    // --- If expired token (401) → attempt refresh ---
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // Start refresh if not already in progress
       if (!refreshPromise) {
         refreshPromise = refreshTokenRequest()
-          .then((res: AxiosResponse<any>) => {
-            return res;
-          })
+          .then((res: AxiosResponse<any>) => res)
           .catch((err) => {
-            
             const { setUser } = useAuthStore.getState();
             setUser(null);
 
-            // Force React Router navigation without reload
             window.history.pushState({}, "", "/auth/login");
             window.dispatchEvent(new PopStateEvent("popstate"));
 
-            throw err; // propagate
+            throw err;
           })
           .finally(() => {
             refreshPromise = null;
@@ -51,10 +58,8 @@ privateApi.interceptors.response.use(
 
       try {
         await refreshPromise;
-        // Retry the original request after refresh
-        return privateApi(originalRequest);
+        return privateApi(originalRequest); // retry original
       } catch {
-        // Refresh failed → original request fails
         return Promise.reject(error);
       }
     }
@@ -62,3 +67,4 @@ privateApi.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+

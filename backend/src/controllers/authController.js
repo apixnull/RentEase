@@ -8,6 +8,7 @@ import { resetPasswordTemplate } from "../services/email/templates/resetPassword
 import { sendEmail } from "../services/email/emailSender.js";
 import redis from "../libs/redisClient.js";
 import jwt from "jsonwebtoken"; 
+import supabase from "../libs/supabaseClient.js";
 
 // authentication 
 const ACCESS_TOKEN_TTL = "1h";              // JWT access token: 1 hour
@@ -65,13 +66,8 @@ export const register = async (req, res) => {
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
-
-    // Handle soft-deleted user
-    if (existingUser && existingUser.deletedAt) {
-      await prisma.user.delete({ where: { email } });
-    } else if (existingUser) {
-      // Email already registered
-      return res.status(409).json({ message: "Invalid Email" });
+    if (existingUser) {
+      return res.status(409).json({ message: "Email already registered" });
     }
 
     // Hash password
@@ -244,7 +240,7 @@ export const forgotPassword = async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email } });
 
     // Invalid if user not found or soft-deleted
-    if (!user || user.deletedAt) {
+    if (!user) {
       return res.status(404).json({ message: "Invalid email" });
     }
 
@@ -330,7 +326,7 @@ export const resetPassword = async (req, res) => {
 
     // Find user
     const user = await prisma.user.findUnique({ where: { email: data.email } });
-    if (!user || user.deletedAt) {
+    if (!user) {
       return res.status(404).json({ message: "Invalid account" });
     }
    
@@ -370,9 +366,10 @@ export const login = async (req, res) => {
 
     // Find user
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.deletedAt) {
+    if (!user) {
       return res.status(404).json({ message: "Invalid credentials" });
     }
+
 
     if (user.isDisabled) {
       return res.status(403).json({
@@ -647,7 +644,7 @@ export const updateProfile = async (req, res) => {
       firstName,
       middleName,
       lastName,
-      avatarUrl, // new uploaded avatar URL
+      avatarUrl, // may be new uploaded URL or null if removed
       birthdate,
       gender,
       bio,
@@ -663,31 +660,32 @@ export const updateProfile = async (req, res) => {
       select: { avatarUrl: true },
     });
 
-    // ✅ If new avatar uploaded, delete old one from Supabase
+    // ✅ If new avatar uploaded (not null), delete old one
     if (
-      avatarUrl &&
+      avatarUrl && // new image provided
       currentUser?.avatarUrl &&
       currentUser.avatarUrl !== avatarUrl
     ) {
       try {
-        // Example old avatar:
-        // https://ikqdyczsveeqnfwtrkaf.supabase.co/storage/v1/object/public/rentease-images/avatars/uuid.jfif
+        // Example: https://...supabase.co/storage/v1/object/public/rentease-images/avatars/uuid.jpg
+        const baseUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/rentease-images/`;
+        if (currentUser.avatarUrl.startsWith(baseUrl)) {
+          const oldPath = currentUser.avatarUrl.replace(baseUrl, ""); // gives "avatars/uuid.jpg"
 
-        const oldPath = currentUser.avatarUrl.split(
-          "/rentease-images/"
-        )[1]; // gives "avatars/uuid.jfif"
+          if (oldPath) {
+            const { error } = await supabase.storage
+              .from("rentease-images")
+              .remove([oldPath]);
 
-        if (oldPath) {
-          const { error } = await supabase.storage
-            .from("rentease-images")
-            .remove([oldPath]);
-
-          if (error) {
-            console.warn("Supabase delete error:", error.message);
+            if (error) {
+              console.warn("⚠️ Supabase delete error:", error.message);
+            } else {
+              console.log(`✅ Old avatar deleted: ${oldPath}`);
+            }
           }
         }
       } catch (delErr) {
-        console.warn("Failed to delete old avatar:", delErr.message);
+        console.warn("⚠️ Failed to delete old avatar:", delErr.message);
       }
     }
 
@@ -696,7 +694,7 @@ export const updateProfile = async (req, res) => {
     if (firstName !== undefined) updateData.firstName = firstName;
     if (middleName !== undefined) updateData.middleName = middleName;
     if (lastName !== undefined) updateData.lastName = lastName;
-    if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
+    if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl; // can be new URL or null
     if (birthdate !== undefined)
       updateData.birthdate = birthdate ? new Date(birthdate) : null;
     if (gender !== undefined) updateData.gender = gender;
@@ -716,10 +714,11 @@ export const updateProfile = async (req, res) => {
       message: "Profile updated successfully",
     });
   } catch (err) {
-    console.error("Update profile error:", err);
+    console.error("❌ Update profile error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 // ---------------------------------------------- COMPLETE USER ONBOARDING ----------------------------------------------
 export const onboarding = async (req, res) => {

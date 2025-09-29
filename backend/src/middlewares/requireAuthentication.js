@@ -8,9 +8,6 @@ import redis from "../libs/redisClient.js";
 export const requireAuthentication = (allowedRoles = ["ANY_ROLE"]) => {
   return async (req, res, next) => {
     try {
-      // Debug: log cookies
-      console.log("Incoming cookies:", req.cookies);
-      
       // 1. Read JWT from cookie
       const token = req.cookies?.accessToken;
       if (!token) {
@@ -35,11 +32,19 @@ export const requireAuthentication = (allowedRoles = ["ANY_ROLE"]) => {
         return res.status(401).json({ message: "Session expired or invalid" });
       }
 
-      // 4. Query user for latest role
+      // 4. Query user for latest role & status
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, role: true }
+        select: { id: true, role: true, isDisabled: true }
       });
+
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      if (user.isDisabled) {
+        return res.status(403).json({ message: "Account is disabled" });
+      }
 
       // 5. Role-based access
       if (!(allowedRoles.includes("ANY_ROLE") || allowedRoles.includes(user.role))) {
@@ -56,28 +61,3 @@ export const requireAuthentication = (allowedRoles = ["ANY_ROLE"]) => {
     }
   };
 };
-
-
-/*
-Usage examples:
-
-// Any logged-in user
-router.get("/dashboard", requireAuthentication(["ANY_ROLE"]), (req, res) => {
-  res.json({ message: "Dashboard for all users", user: req.user });
-});
-
-// Only tenants and landlords
-router.get("/rentals", requireAuthentication(["TENANT", "LANDLORD"]), (req, res) => {
-  res.json({ message: "Accessible by tenants and landlords", user: req.user });
-});
-
-// Only admins
-router.get("/admin/panel", requireAuthentication(["ADMIN"]), (req, res) => {
-  res.json({ message: "Admin only", user: req.user });
-});
-
-// All roles explicitly
-router.get("/all-access", requireAuthentication(["ADMIN", "TENANT", "LANDLORD"]), (req, res) => {
-  res.json({ message: "All roles allowed", user: req.user });
-});
-*/

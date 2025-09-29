@@ -13,6 +13,7 @@ import {
   refreshTokenRequest,
   getUserInfoRequest,
 } from "./api/authApi";
+import UnitDetails from "./pages/private/landlord/property/UnitDetails";
 
 // ------------------------------- Lazy Imports
 // Layouts
@@ -49,7 +50,7 @@ const DisplayProperty = lazy(
   () => import("./pages/private/landlord/property/DisplayAllProperties")
 );
 const PropertyDetails = lazy(
-  () => import("./pages/private/landlord/property/PropertyDetails")
+  () => import("./pages/private/landlord/property/property-details/PropertyDetails")
 );
 const AddUnit = lazy(() => import("./pages/private/landlord/property/AddUnit"));
 
@@ -221,10 +222,18 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: "properties/unit/add",
+        path: "properties/:propertyId/units/create",
         element: (
           <Suspense fallback={<Loader />}>
             <AddUnit />
+          </Suspense>
+        ),
+      },
+      {
+         path: "properties/:propertyId/units/:unitId",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <UnitDetails />
           </Suspense>
         ),
       },

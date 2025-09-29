@@ -65,7 +65,6 @@ model User {
   isVerified          Boolean   @default(false)
   isDisabled          Boolean   @default(false)
   lastPasswordChange  DateTime?
-  deletedAt           DateTime?
 
   // Audit
   lastLogin    DateTime?
@@ -146,12 +145,11 @@ model Property {
   type        String   // APARTMENT, CONDOMINUIM, BOARDING_HOUSE, SINGLE_HOUSE
   createdAt   DateTime @default(now()) // audit created
   updatedAt   DateTime @updatedAt      // audit updated
-  deletedAt           DateTime?
 
   // --- Address ---
   street          String
   barangay        String
-  zipCode         String?                          // Optional ZIP code
+  zipCode         String                          
 
   // Optional normalized locality references (one or none typically set)
   cityId          String?                          
@@ -165,7 +163,7 @@ model Property {
   longitude       Float?                           // optional geo coordinates
 
   // --- Media & nearby institutions ---
-  mainImageUrl      String?                        // Featured image for the property
+  mainImageUrl      String                        // Featured image for the property
   nearInstitutions  Json?                          // JSON array of nearby institutions (format at app layer) { "name": "Ayala Mall", "type": "Mall" },
 
   // --- Relations ---
@@ -175,7 +173,7 @@ model Property {
   Income             Income[]
   Expense            Expense[]
 
-  @@unique([ownerId, title])
+  @@unique([title, street, barangay, cityId, municipalityId])
   @@map("properties")
   @@index([id])
   @@index([cityId])
@@ -199,26 +197,25 @@ model Unit {
   floorNumber    Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  deletedAt           DateTime?
 
   // --- Layout & Features ---
   maxOccupancy   Int @default(1)
   amenities      Amenity[] @relation("UnitAmenities")
   mainImageUrl   String? // main image of the unit
   otherImages    Json?    // other images of the unit at 6 images
-  unitLeaseRules Json?    
+  unitLeaseRules Json?    // upto 10 rules and 7 words per rules limit
   viewCount Int @default(0)
 
   // --- Pricing ---
-  targetPrice     Float     
-  securityDeposit Float? 
+  targetPrice     Float       // cannot be more than a 100,000 and less  
+  securityDeposit Float?      
 
   // --- Screening Settings ---
   requiresScreening Boolean @default(false) // true = landlord requires tenant screening
 
   // --- Listing Status
-  isListed Boolean @default(false)
-
+  listedAt DateTime? // null = not listed, timestamp = listed date
+  
   // --- Relations ---
   property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   listings  Listing[]
@@ -266,7 +263,6 @@ model Listing {
   // --- Workflow ---
   status     String // PENDING → APPROVED → ACTIVE → EXPIRED → REJECTED -> BLOCKED
   expiresAt  DateTime?                         // set when activated (3 months validity)
-  deletedAt           DateTime?
   
 
   // --- Admin & Review ---

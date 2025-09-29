@@ -1,470 +1,465 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
-import { 
-  Search, Home, Building, MapPin, 
-  ChevronLeft, ChevronRight, X, Plus, Filter
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Search,
+  Home,
+  Building,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Calendar,
 } from "lucide-react";
+import { getLandlordPropertiesRequest } from "@/api/landlordPropertyApi";
+import { toast } from "sonner";
 
 type Property = {
   id: string;
   title: string;
   type: string;
+  createdAt: string;
+  updatedAt: string;
   street: string;
   barangay: string;
   zipCode?: string | null;
   city?: { id: string; name: string } | null;
   municipality?: { id: string; name: string } | null;
   mainImageUrl?: string | null;
-  Unit?: Array<{ id: string }>;
+  unitsSummary: {
+    total: number;
+    available: number;
+    occupied: number;
+    maintenance: number;
+  };
 };
 
 function formatAddress(property: Property): string {
   const locality = property.city?.name || property.municipality?.name || "";
-  const segments = [property.street, property.barangay, locality, property.zipCode].filter(Boolean);
+  const segments = [property.street, property.barangay, locality]
+    .filter(Boolean); // removes null/undefined/empty
   return segments.join(", ");
 }
-
-const baseExample: Property = {
-  id: "base",
-  title: "Sample Property",
-  type: "APARTMENT",
-  street: "123 Mango Ave",
-  barangay: "Barangay Luz",
-  zipCode: "6000",
-  city: { id: "c1", name: "Cebu City" },
-  municipality: null,
-  mainImageUrl: "https://images.unsplash.com/photo-1749315098378-4671599e1d81?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  Unit: [{ id: "u1" }, { id: "u2" }, { id: "u3" }],
-};
-
-const mockProperties: Property[] = Array.from({ length: 37 }).map((_, idx) => {
-  const types = ["APARTMENT", "CONDOMINIUM", "BOARDING_HOUSE", "SINGLE_HOUSE"] as const;
-  const cities = [
-    { id: "c1", name: "Cebu City" },
-    { id: "c2", name: "Mandaue" },
-  ];
-  const municipalities = [
-    { id: "m1", name: "Toledo" },
-    { id: "m2", name: "Danao" },
-  ];
-
-  const useCity = idx % 2 === 0;
-  const place = useCity ? cities[idx % cities.length] : municipalities[idx % municipalities.length];
-  const type = types[idx % types.length];
-
-  return {
-    ...baseExample,
-    id: `p-${idx + 1}`,
-    title: `${baseExample.title} ${idx + 1}`,
-    type,
-    city: useCity ? (place as { id: string; name: string }) : null,
-    municipality: !useCity ? (place as { id: string; name: string }) : null,
-  } as Property;
-});
 
 const getPropertyTypeIcon = (type: string) => {
   switch (type) {
     case "APARTMENT":
     case "CONDOMINIUM":
-      return <Building className="h-4 w-4" />;
+      return <Building className="h-3 w-3" />;
     case "BOARDING_HOUSE":
     case "SINGLE_HOUSE":
-      return <Home className="h-4 w-4" />;
+      return <Home className="h-3 w-3" />;
     default:
-      return <Home className="h-4 w-4" />;
+      return <Home className="h-3 w-3" />;
   }
+};
+
+const formatPropertyType = (type: string): string => {
+  return type.replaceAll("_", " ").toLowerCase();
+};
+
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - date.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 1) return "1 day ago";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+const shouldShowNewBadge = (property: Property): boolean => {
+  const created = new Date(property.createdAt);
+  const updated = new Date(property.updatedAt);
+  const now = new Date();
+  
+  const diffCreated = Math.ceil((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  const diffUpdated = Math.ceil((now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24));
+  
+  return diffCreated <= 3 || diffUpdated <= 3;
 };
 
 const DisplayProperty = () => {
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("ALL");
-  const [placeFilter, setPlaceFilter] = useState<string>("ALL");
-  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
-  const [isScrolling, setIsScrolling] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const properties = mockProperties;
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchProperties = async () => {
+      setLoading(true);
+      try {
+        const res = await getLandlordPropertiesRequest({
+          signal: controller.signal,
+        });
+        setProperties(res.data);
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("Error fetching properties:", err);
+          toast.error("Failed to fetch properties");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const uniqueTypes = useMemo(() => {
-    return Array.from(new Set(properties.map((p) => p.type)));
-  }, [properties]);
+    fetchProperties();
+    return () => controller.abort();
+  }, []);
 
-  const uniquePlaces = useMemo(() => {
-    const names = properties.map((p) => p.city?.name || p.municipality?.name).filter(Boolean) as string[];
-    return Array.from(new Set(names));
+  const sortedProperties = useMemo(() => {
+    return [...properties].sort((a, b) => {
+      // Get the most recent date for each property (either createdAt or updatedAt)
+      const aRecentDate = new Date(Math.max(
+        new Date(a.createdAt).getTime(),
+        new Date(a.updatedAt).getTime()
+      ));
+      
+      const bRecentDate = new Date(Math.max(
+        new Date(b.createdAt).getTime(),
+        new Date(b.updatedAt).getTime()
+      ));
+      
+      // Sort by the most recent date in descending order
+      return bRecentDate.getTime() - aRecentDate.getTime();
+    });
   }, [properties]);
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return properties.filter((p) => {
-      if (typeFilter !== "ALL" && p.type !== typeFilter) return false;
-      if (placeFilter !== "ALL") {
-        const placeName = (p.city?.name || p.municipality?.name || "").toLowerCase();
-        if (placeName !== placeFilter.toLowerCase()) return false;
-      }
-      if (!normalizedQuery) return true;
+    if (!normalizedQuery) return sortedProperties;
+
+    return sortedProperties.filter((p) => {
       const address = formatAddress(p).toLowerCase();
       const title = p.title.toLowerCase();
       return title.includes(normalizedQuery) || address.includes(normalizedQuery);
     });
-  }, [properties, query, typeFilter, placeFilter]);
+  }, [sortedProperties, query]);
 
-  const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const current = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const propertiesPerPage = 12;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / propertiesPerPage));
+  const currentPageProperties = filtered.slice(
+    (page - 1) * propertiesPerPage,
+    page * propertiesPerPage
+  );
 
-  function goToPage(next: number) {
-    const clamped = Math.min(Math.max(1, next), totalPages);
-    setPage(clamped);
-  }
-
-  const resetFilters = () => {
-    setQuery("");
-    setTypeFilter("ALL");
-    setPlaceFilter("ALL");
-    setPage(1);
+  const goToPage = (newPage: number) => {
+    setPage(Math.max(1, Math.min(newPage, totalPages)));
   };
 
-  // Handle horizontal scrolling on mobile
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
 
-    const handleScroll = () => {
-      setIsScrolling(true);
-      if (scrollTimeoutRef.current !== null) {
-        clearTimeout(scrollTimeoutRef.current);
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
       }
-      scrollTimeoutRef.current = window.setTimeout(() => {
-        setIsScrolling(false);
-        scrollTimeoutRef.current = null;
-      }, 150);
-    };
+    } else {
+      pages.push(1);
 
-    container.addEventListener('scroll', handleScroll);
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-      if (scrollTimeoutRef.current !== null) {
-        clearTimeout(scrollTimeoutRef.current);
-        scrollTimeoutRef.current = null;
+      let start = Math.max(2, page - 1);
+      let end = Math.min(totalPages - 1, page + 1);
+
+      if (page <= 3) {
+        end = Math.min(totalPages - 1, maxVisiblePages - 1);
       }
-    };
-  }, []);
 
-  return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-100 to-sky-100 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-medium">
-            <span>Landlord • Properties</span>
-          </div>
-          <h1 className="mt-3 text-2xl md:text-3xl font-bold text-gray-900">Your Properties</h1>
-          <p className="text-sm text-gray-600 mt-1">Manage and view all your rental properties</p>
-        </div>
-        
-        <Button className="bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 gap-2">
-          <Plus className="h-4 w-4" />
-          Add Property
-        </Button>
-      </div>
+      if (page >= totalPages - 2) {
+        start = Math.max(2, totalPages - (maxVisiblePages - 2));
+      }
 
-      {/* Search and Filter Section */}
-      <Card className="p-4 md:p-6 bg-gradient-to-br from-white to-gray-50 border-gray-200 shadow-sm">
-        <div className="flex flex-col gap-4">
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                value={query}
-                onChange={(e) => {
-                  setPage(1);
-                  setQuery(e.target.value);
-                }}
-                placeholder="Search properties by title or address..."
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-              />
+      if (start > 2) {
+        pages.push(-1);
+      }
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (end < totalPages - 1) {
+        pages.push(-2);
+      }
+
+      if (totalPages > 1) {
+        pages.push(totalPages);
+      }
+    }
+
+    return pages;
+  };
+
+  const PropertyCard = ({ property }: { property: Property }) => {
+    const occupancyRate = property.unitsSummary.total > 0
+      ? Math.round((property.unitsSummary.occupied / property.unitsSummary.total) * 100)
+      : 0;
+    const showNewBadge = shouldShowNewBadge(property);
+    const isRecentlyUpdated = new Date(property.updatedAt) > new Date(property.createdAt);
+
+    return (
+      <Card className="w-full overflow-hidden border border-gray-200 hover:border-emerald-200 transition-all duration-200 hover:shadow-lg rounded-xl bg-white">
+        {/* Image Section */}
+        <div className="relative aspect-[4/3] overflow-hidden">
+          {property.mainImageUrl ? (
+            <img
+              src={property.mainImageUrl}
+              alt={property.title}
+              className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+              loading="lazy"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-emerald-100 to-sky-100 flex items-center justify-center">
+              <Home className="h-8 w-8 text-emerald-400" />
+            </div>
+          )}
+          
+          {/* Top Badges */}
+          <div className="absolute top-2 left-2 right-2 flex justify-between items-start">
+            <div className="flex items-center gap-1 bg-white/95 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium text-emerald-700">
+              {getPropertyTypeIcon(property.type)}
+              <span className="capitalize">{formatPropertyType(property.type)}</span>
             </div>
             
-            <Button 
-              variant="outline" 
-              className="md:hidden"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Filter className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-1">
+              {showNewBadge && (
+                <div className={`px-2 py-1 rounded text-xs font-medium ${
+                  isRecentlyUpdated ? "bg-blue-500 text-white" : "bg-red-500 text-white"
+                }`}>
+                  {isRecentlyUpdated ? "UPDATED" : "NEW"}
+                </div>
+              )}
+              {property.unitsSummary.total > 0 && (
+                <div className={`px-2 py-1 rounded text-xs font-medium ${
+                  occupancyRate >= 80 ? "bg-emerald-500 text-white" :
+                  occupancyRate >= 50 ? "bg-amber-500 text-white" :
+                  "bg-gray-500 text-white"
+                }`}>
+                  {occupancyRate}% occupied
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className={`flex-col sm:flex-row gap-3 ${showFilters ? 'flex' : 'hidden md:flex'}`}>
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <select
-                value={typeFilter}
-                onChange={(e) => {
-                  setPage(1);
-                  setTypeFilter(e.target.value);
-                }}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-              >
-                <option value="ALL">All Property Types</option>
-                {uniqueTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </select>
+          {/* Gradient Overlay */}
+          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/30 to-transparent" />
+        </div>
 
-              <select
-                value={placeFilter}
-                onChange={(e) => {
-                  setPage(1);
-                  setPlaceFilter(e.target.value);
-                }}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-              >
-                <option value="ALL">All Locations</option>
-                {uniquePlaces.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+        {/* Content Section */}
+        <div className="p-3 space-y-2">
+          <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 min-h-[2.5rem]">
+            {property.title}
+          </h3>
+
+          {/* Location */}
+          <div className="flex items-start gap-1.5 text-xs text-gray-600">
+            <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+            <span className="leading-tight line-clamp-2 flex-1">
+              {formatAddress(property)}
+            </span>
+          </div>
+
+          {/* Date Information */}
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <Calendar className="h-3 w-3" />
+            <span>Updated {formatDate(property.updatedAt)}</span>
+          </div>
+
+          {/* Units Summary */}
+          <div className="grid grid-cols-2 gap-2 p-2 bg-gradient-to-r from-emerald-50 to-sky-50 rounded-lg">
+            <div className="text-center">
+              <div className="font-semibold text-gray-900 text-sm">{property.unitsSummary.total}</div>
+              <div className="text-[10px] text-gray-500">Total Units</div>
             </div>
+            <div className="text-center">
+              <div className="font-semibold text-emerald-600 text-sm">{property.unitsSummary.available}</div>
+              <div className="text-[10px] text-gray-500">Available</div>
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-blue-600 text-sm">{property.unitsSummary.occupied}</div>
+              <div className="text-[10px] text-gray-500">Occupied</div>
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-amber-600 text-sm">{property.unitsSummary.maintenance}</div>
+              <div className="text-[10px] text-gray-500">Maintenance</div>
+            </div>
+          </div>
 
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                onClick={resetFilters}
-                className="gap-2"
+          {/* Action Button */}
+          <Link to={`/landlord/properties/${property.id}?tab=overview`}>
+            <Button className="w-full rounded-lg bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white text-xs py-2 h-8">
+              View Details
+            </Button>
+          </Link>
+        </div>
+      </Card>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-100 to-sky-100 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-medium">
+              <span>Landlord • Properties</span>
+            </div>
+            <h1 className="mt-3 text-2xl font-bold text-gray-900">
+              Your Properties
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Manage and view all your rental properties
+            </p>
+          </div>
+
+          <Button
+            onClick={() => navigate("/landlord/properties/create")}
+            className="bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 gap-2 shadow-lg hover:shadow-xl transition-all duration-200"
+            size="sm"
+          >
+            <Plus className="h-4 w-4" />
+            Add Property
+          </Button>
+        </div>
+
+        {/* Search Section */}
+        <Card className="p-4 bg-white border-gray-200 shadow-sm rounded-xl">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search properties by title or location..."
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200"
+            />
+          </div>
+        </Card>
+
+        {/* Results Count */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="text-sm text-gray-600">
+            Showing <span className="font-medium text-emerald-500">{currentPageProperties.length}</span> of{" "}
+            <span className="font-medium">{filtered.length}</span> properties
+            {filtered.length > propertiesPerPage && (
+              <span> • Page {page} of {totalPages}</span>
+            )}
+          </p>
+          {filtered.length > 0 && (
+            <p className="text-xs text-gray-500">
+              Sorted by most recent activity (creation or update)
+            </p>
+          )}
+        </div>
+
+        {/* Properties Grid */}
+        {currentPageProperties.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {currentPageProperties.map((property) => (
+              <PropertyCard key={property.id} property={property} />
+            ))}
+          </div>
+        ) : (
+          <Card className="p-8 text-center border border-dashed border-gray-300 bg-white rounded-xl">
+            <div className="mx-auto w-12 h-12 rounded-full bg-gradient-to-r from-emerald-100 to-sky-100 flex items-center justify-center mb-3">
+              <Home className="h-6 w-6 text-emerald-500" />
+            </div>
+            <h3 className="text-base font-medium text-gray-900">
+              No properties found
+            </h3>
+            <p className="text-gray-600 text-sm mt-1 max-w-md mx-auto">
+              Try adjusting your search or add a new property to get started.
+            </p>
+            <Button 
+              onClick={() => navigate("/landlord/properties/create")}
+              className="mt-4 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 gap-2"
+              size="sm"
+            >
+              <Plus className="h-4 w-4" />
+              Add Your First Property
+            </Button>
+          </Card>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-gray-200">
+            <p className="text-sm text-gray-600">
+              Page <span className="font-medium">{page}</span> of{" "}
+              <span className="font-medium">{totalPages}</span> •{" "}
+              <span className="text-emerald-500">
+                {(page - 1) * propertiesPerPage + 1}-{Math.min(page * propertiesPerPage, filtered.length)}
+              </span> of {filtered.length} properties
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 1}
+                className="gap-1 rounded-lg h-8 px-3"
               >
-                <X className="h-4 w-4" />
-                Reset
+                <ChevronLeft className="h-3 w-3" />
+                <span className="hidden sm:inline">Previous</span>
+              </Button>
+
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map((pageNum, index) => {
+                  if (pageNum === -1 || pageNum === -2) {
+                    return (
+                      <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
+                        ...
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={page === pageNum ? "default" : "outline"}
+                      size="sm"
+                      className={`h-8 w-8 p-0 rounded-lg text-xs ${
+                        page === pageNum
+                          ? "bg-gradient-to-r from-emerald-500 to-sky-500"
+                          : ""
+                      }`}
+                      onClick={() => goToPage(pageNum)}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToPage(page + 1)}
+                disabled={page === totalPages}
+                className="gap-1 rounded-lg h-8 px-3"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="h-3 w-3" />
               </Button>
             </div>
           </div>
-        </div>
-      </Card>
-
-      {/* Results Count */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <p className="text-sm text-gray-600">
-          Showing <span className="font-medium">{current.length}</span> of{" "}
-          <span className="font-medium">{filtered.length}</span> properties
-        </p>
-        
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span>Page</span>
-          <span className="font-medium">{page}</span>
-          <span>of</span>
-          <span className="font-medium">{totalPages}</span>
-        </div>
+        )}
       </div>
-
-      {/* Properties Grid */}
-      {current.length > 0 ? (
-        <>
-          {/* Mobile horizontal scroll */}
-          <div className="md:hidden -mx-4 px-4">
-            <div 
-              ref={scrollContainerRef}
-              className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {current.map((property) => {
-                const unitsCount = property.Unit?.length ?? 0;
-                return (
-                  <Card 
-                    key={property.id}
-                    className="min-w-[85%] snap-center overflow-hidden border border-gray-200 transition-all duration-300 hover:shadow-md"
-                  >
-                    <div className="relative aspect-video overflow-hidden">
-                      {property.mainImageUrl ? (
-                        <img
-                          src={property.mainImageUrl}
-                          alt={property.title}
-                          className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-emerald-100 to-sky-100 flex items-center justify-center">
-                          <Home className="h-12 w-12 text-emerald-400" />
-                        </div>
-                      )}
-                      <div className="absolute top-3 left-3">
-                        <div className="flex items-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium text-emerald-700">
-                          {getPropertyTypeIcon(property.type)}
-                          <span>{property.type.replaceAll("_", " ")}</span>
-                        </div>
-                      </div>
-                      <div className="absolute top-3 right-3">
-                        <div className="bg-emerald-500 text-white px-2 py-1 rounded-md text-xs font-medium">
-                          {unitsCount} {unitsCount === 1 ? 'Unit' : 'Units'}
-                        </div>
-                      </div>
-                      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent" />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-semibold text-gray-900 truncate">{property.title}</h3>
-                      <div className="flex items-start gap-2 mt-2 text-sm text-gray-600">
-                        <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                        <span className="line-clamp-2">{formatAddress(property)}</span>
-                      </div>
-                      <div className="mt-4 pt-3 border-t border-gray-100">
-                        <Link to={`/landlord/properties/${property.id}?tab=overview`}>
-                          <Button variant="outline" size="sm" className="w-full">View Details</Button>
-                        </Link>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-            {!isScrolling && (
-              <div className="flex justify-center mt-2">
-                <div className="flex gap-1">
-                  {Array.from({ length: Math.min(3, totalPages) }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        i + 1 === page ? 'w-6 bg-emerald-500' : 'w-2 bg-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Desktop grid */}
-          <div className="hidden md:grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {current.map((property) => {
-              const unitsCount = property.Unit?.length ?? 0;
-              return (
-                <Card 
-                  key={property.id} 
-                  className="overflow-hidden border border-gray-200 transition-all duration-300 hover:shadow-md"
-                >
-                  <div className="relative aspect-video overflow-hidden">
-                    {property.mainImageUrl ? (
-                      <img
-                        src={property.mainImageUrl}
-                        alt={property.title}
-                        className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-emerald-100 to-sky-100 flex items-center justify-center">
-                        <Home className="h-12 w-12 text-emerald-400" />
-                      </div>
-                    )}
-                    <div className="absolute top-3 left-3">
-                      <div className="flex items-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium text-emerald-700">
-                        {getPropertyTypeIcon(property.type)}
-                        <span>{property.type.replaceAll("_", " ")}</span>
-                      </div>
-                    </div>
-                    <div className="absolute top-3 right-3">
-                      <div className="bg-emerald-500 text-white px-2 py-1 rounded-md text-xs font-medium">
-                        {unitsCount} {unitsCount === 1 ? 'Unit' : 'Units'}
-                      </div>
-                    </div>
-                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent" />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 truncate">{property.title}</h3>
-                    <div className="flex items-start gap-2 mt-2 text-sm text-gray-600">
-                      <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                      <span className="line-clamp-2">{formatAddress(property)}</span>
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-gray-100">
-                      <Link to={`/landlord/properties/${property.id}?tab=overview`}>
-                        <Button variant="outline" size="sm" className="w-full">View Details</Button>
-                      </Link>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </>
-      ) : (
-        <Card className="p-10 text-center border border-dashed border-gray-300 bg-gradient-to-br from-emerald-50/50 to-sky-50/50">
-          <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-r from-emerald-100 to-sky-100 flex items-center justify-center mb-4">
-            <Home className="h-8 w-8 text-emerald-500" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900">No properties found</h3>
-          <p className="text-gray-600 mt-1 max-w-md mx-auto">
-            Try adjusting your search filters or add a new property to get started.
-          </p>
-          <Button className="mt-4 bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 gap-2">
-            <Plus className="h-4 w-4" />
-            Add Your First Property
-          </Button>
-        </Card>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-600">
-            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filtered.length)} of {filtered.length} properties
-          </p>
-          
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => goToPage(page - 1)} 
-              disabled={page === 1}
-              className="gap-1"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
-            
-            <div className="hidden sm:flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                // Show pages around current page
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (page <= 3) {
-                  pageNum = i + 1;
-                } else if (page >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = page - 2 + i;
-                }
-                
-                return (
-                  <Button
-                    key={pageNum}
-                    variant={page === pageNum ? "default" : "outline"}
-                    size="sm"
-                    className={`h-9 w-9 p-0 ${page === pageNum ? 'bg-gradient-to-r from-emerald-600 to-sky-600' : ''}`}
-                    onClick={() => goToPage(pageNum)}
-                  >
-                    {pageNum}
-                  </Button>
-                );
-              })}
-            </div>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => goToPage(page + 1)} 
-              disabled={page === totalPages}
-              className="gap-1"
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
