@@ -13,8 +13,6 @@ import {
   Menu,
   ChevronRight,
   Shield,
-  UserCheck,
-  TrendingUp,
   AlertTriangle,
   Database,
   Activity,
@@ -55,16 +53,6 @@ const sidebarConfig = [
         icon: Users,
       },
       {
-        path: "/admin/landlords",
-        name: "Landlords",
-        icon: UserCheck,
-      },
-      {
-        path: "/admin/tenants",
-        name: "Tenants",
-        icon: Users,
-      },
-      {
         path: "/admin/verifications",
         name: "Verifications",
         icon: Shield,
@@ -81,8 +69,8 @@ const sidebarConfig = [
         icon: Building2,
       },
       {
-        path: "/admin/property-requests",
-        name: "Property Requests",
+        path: "/admin/listing",
+        name: "Listing Requests",
         icon: FileText,
       },
     ],
@@ -95,11 +83,6 @@ const sidebarConfig = [
         path: "/admin/payments",
         name: "All Payments",
         icon: DollarSign,
-      },
-      {
-        path: "/admin/transactions",
-        name: "Transactions",
-        icon: TrendingUp,
       },
     ],
   },

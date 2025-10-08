@@ -1,39 +1,40 @@
-// file: routes/landlordPropertyRoutes.js
+// file: routes/landlordRoutes.js
 import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 import { 
   createProperty, 
-  createUnit, 
   getAmenities, 
   getCitiesAndMunicipalities, 
   getLandlordProperties, 
   getPropertyDetails, 
-  getPropertyUnits,
-  getUnitDetails,   // ✅ import our new controller
 } from "../controllers/landlord/propertyController.js";
-import { getUnitsListingStatus, requestListing } from "../controllers/landlord/unitListingController.js";
+import { createUnit, getPropertyUnits, getUnitDetails } from "../controllers/landlord/unitController.js";
+import { createListingWithPayment, getEligibleUnitsForListing, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview} from "../controllers/landlord/listingController.js";
+// import { createListing, getPropertiesForListing, getSpecificUnitForListing, getUnitsForListing } from "../controllers/landlord/listingController.js";
 
 const router = Router();
 
 // ---------------------------- Property
-// Lookup data
-router.get("/property/amenities", requireAuthentication(["LANDLORD"]), getAmenities);                          // get all amenities 
-router.get("/property/city-municipality", requireAuthentication(["LANDLORD"]), getCitiesAndMunicipalities);    // get all municipality and city
+router.get("/property/amenities", requireAuthentication(["LANDLORD"]), getAmenities);                                 // get all amenity
+router.get("/property/city-municipality", requireAuthentication(["LANDLORD"]), getCitiesAndMunicipalities);           // get all city and municipality
 
-// Property CRUD
-router.post("/property/create", requireAuthentication(["LANDLORD"]), createProperty);                          // create a new property
-router.get("/property/properties", requireAuthentication(["LANDLORD"]), getLandlordProperties);                // get all properties of the landlord
-router.get("/property/:propertyId", requireAuthentication(["LANDLORD"]), getPropertyDetails);                  // get specific property details
+// Property 
+router.post("/property/create", requireAuthentication(["LANDLORD"]), createProperty);                                 // create a new property
+router.get("/property/properties", requireAuthentication(["LANDLORD"]), getLandlordProperties);                       // get all properties owned by landlord
+router.get("/property/:propertyId", requireAuthentication(["LANDLORD"]), getPropertyDetails);                         // get specific property details
 
 
-// ---------------------------- Unit ----------------------------
-router.get("/property/:propertyId/units/listing-status", requireAuthentication(["LANDLORD"]), getUnitsListingStatus); // landlord get all the unit status request in listing
-router.get("/property/:propertyId/units", requireAuthentication(["LANDLORD"]), getPropertyUnits);              // get all unit of that property
-router.get("/property/:propertyId/units/:unitId", requireAuthentication(["LANDLORD"]), getUnitDetails);        // get specific unit details 
-router.post("/property/:propertyId/units", requireAuthentication(["LANDLORD"]), createUnit);                   // create a new unit
+// ---------------------------- Unit 
+router.get("/unit/:propertyId/units", requireAuthentication(["LANDLORD"]), getPropertyUnits);                         // get all unit of that property
+router.get("/unit/:unitId", requireAuthentication(["LANDLORD"]), getUnitDetails);                                     // get specific unit details 
+router.post("/unit/:propertyId/create", requireAuthentication(["LANDLORD"]), createUnit);                             // create a new unit
 
 
 // ---------------------------- Listing
-router.post("/property/:propertyId/units/:unitId/request-listing",  requireAuthentication(["LANDLORD"]), requestListing); // landlord attempt to make a listing request
+router.get("/listings", requireAuthentication(["LANDLORD"]), getLandlordListings);                                // landlord's listings
+router.get("/listing/:unitId/review", requireAuthentication(["LANDLORD"]), getUnitForListingReview);             // review unit before listing
+router.post("/listing/:unitId/create", requireAuthentication(["LANDLORD"]), createListingWithPayment);           // create listing + payment session
+router.get("/listing/:listingId/details", requireAuthentication(["LANDLORD"]), getLandlordSpecificListing);       // get a specific listing information
+router.get("/listing/eligible-units", requireAuthentication(["LANDLORD"]), getEligibleUnitsForListing);           // get units that can be listed
 
 export default router;

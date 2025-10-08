@@ -12,7 +12,7 @@ import {
   Plus,
   Calendar,
 } from "lucide-react";
-import { getLandlordPropertiesRequest } from "@/api/landlordPropertyApi";
+import { getLandlordPropertiesRequest } from "@/api/landlord/propertyApi";
 import { toast } from "sonner";
 
 type Property = {
@@ -81,7 +81,7 @@ const shouldShowNewBadge = (property: Property): boolean => {
   return diffCreated <= 3 || diffUpdated <= 3;
 };
 
-const DisplayProperty = () => {
+const DisplayProperties = () => {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -289,13 +289,13 @@ const DisplayProperty = () => {
           </div>
 
           {/* Action Button */}
-          <Link to={`/landlord/properties/${property.id}?tab=overview`}>
+          <Link to={`/landlord/properties/${property.id}`}>
             <Button className="w-full rounded-lg bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white text-xs py-2 h-8">
               View Details
             </Button>
           </Link>
         </div>
-      </Card>
+      </Card> 
     );
   };
 
@@ -313,9 +313,6 @@ const DisplayProperty = () => {
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-100 to-sky-100 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-medium">
-              <span>Landlord • Properties</span>
-            </div>
             <h1 className="mt-3 text-2xl font-bold text-gray-900">
               Your Properties
             </h1>
@@ -464,4 +461,4 @@ const DisplayProperty = () => {
   );
 };
 
-export default DisplayProperty;
+export default DisplayProperties;

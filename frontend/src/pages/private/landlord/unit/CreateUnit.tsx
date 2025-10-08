@@ -19,10 +19,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  createUnitRequest,
   getAmenitiesRequest,
-} from "@/api/landlordPropertyApi";
+} from "@/api/landlord/propertyApi";
 import { supabase } from "@/lib/supabaseClient";
+import { createUnitRequest } from "@/api/landlord/unitApi";
 
 // Lease rule categories as specified
 const leaseRuleCategories = [
@@ -60,7 +60,7 @@ const steps = [
   { id: 5, title: "Lease Rules", icon: Shield },
 ];
 
-const AddUnit = () => {
+const CreateUnit = () => {
   const { propertyId } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -436,9 +436,10 @@ const AddUnit = () => {
 
       // Send data to backend API
       const response = await createUnitRequest(propertyId, unitData);
+      const unitId = response.data.id;
 
       toast.success(response.data.message || "Unit added successfully!");
-      navigate(`/landlord/properties/${propertyId}?tab=units`);
+      navigate(`/landlord/units/${propertyId}/${unitId}`);
     } catch (error: any) {
       console.error("Error creating unit:", error);
       setImageUploading(false);
@@ -1149,14 +1150,14 @@ const AddUnit = () => {
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link to={`/landlord/properties/${propertyId}?tab=units`}>
+        <Link to={`/landlord/units/${propertyId}`}>
           <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Add a New Unit
+            Create a New Unit
           </h1>
           <p className="text-sm text-gray-600 mt-1">
             Step {currentStep} of {steps.length}
@@ -1208,4 +1209,4 @@ const AddUnit = () => {
   );
 };
 
-export default AddUnit;
+export default CreateUnit;

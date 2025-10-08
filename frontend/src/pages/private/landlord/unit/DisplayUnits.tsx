@@ -3,11 +3,10 @@ import { Building, ChevronLeft, ChevronRight, Home, Plus, Search, Star, Clock, S
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getPropertyUnitsRequest } from "@/api/landlordPropertyApi";
-import { useNavigate } from "react-router-dom"; 
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom"; 
+import { getPropertyUnitsRequest } from "@/api/landlord/unitApi";
 
-// Updated type based on backend responseS
+// Updated type based on backend response
 type Unit = {
   id: string;
   label: string;
@@ -22,8 +21,8 @@ type Unit = {
   mainImageUrl?: string;
   viewCount: number;
   reviewsSummary: {
-    total: number; // num of reviews
-    average: number; // star review by each reviewers, 1-5 stars, this is float
+    total: number;
+    average: number;
   };
 };
 
@@ -48,11 +47,9 @@ const getUnitBadgeType = (createdAt: string, updatedAt: string) => {
   const created = new Date(createdAt);
   const updated = new Date(updatedAt);
   
-  // If created within 3 days, it's "New"
   if (created > threeDaysAgo) {
     return "NEW";
   }
-  // If updated within 3 days (but not created recently), it's "Updated"
   else if (updated > threeDaysAgo) {
     return "UPDATED";
   }
@@ -61,7 +58,7 @@ const getUnitBadgeType = (createdAt: string, updatedAt: string) => {
 };
 
 const StarRating = ({ rating, showText = true }: { rating: number; showText?: boolean }) => {
-  const normalizedRating = Math.max(0, Math.min(5, rating)); // Ensure rating is between 0-5
+  const normalizedRating = Math.max(0, Math.min(5, rating));
   const fullStars = Math.floor(normalizedRating);
   const hasHalfStar = normalizedRating % 1 >= 0.5;
   
@@ -132,13 +129,15 @@ const UnitsSubnav = ({
             <option value="MAINTENANCE">Maintenance</option>
           </select>
         </div>
-        <Button
-          onClick={onAddUnit}
-          className="bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 gap-2 mt-3 lg:mt-0 text-sm"
-        >
-          <Plus className="h-4 w-4" />
-          Add Unit
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={onAddUnit}
+            className="bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 gap-2 text-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Create Unit
+          </Button>
+        </div>
       </div>
       <div className="mt-2 text-xs text-gray-500">
         {filteredUnitsCount} units found
@@ -148,25 +147,19 @@ const UnitsSubnav = ({
 };
 
 // Main PropertyUnits Component
-const PropertyUnits = ({ 
-  propertyId,
-  onAddUnit
-}: { 
-  propertyId: string;
-  onAddUnit: () => void;
-}) => {
+const DisplayUnits = () => {
+  const { propertyId } = useParams<{ propertyId: string }>();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate(); // Added navigate hook
+  const navigate = useNavigate();
   
   // Units filters and pagination
   const [unitQuery, setUnitQuery] = useState("");
   const [unitStatus, setUnitStatus] = useState<string>("ALL");
   const [unitPage, setUnitPage] = useState(1);
-  const unitPageSize = 8; // 4 cards per row × 2 rows = 8 total
+  const unitPageSize = 8;
 
-    
   // Fetch units when component mounts
   useEffect(() => {
     if (!propertyId) return;
@@ -226,10 +219,14 @@ const PropertyUnits = ({
     window.location.reload();
   };
 
+  const handleAddUnit = () => {
+    navigate(`/landlord/units/${propertyId}/create`);
+  };
+
   const currentUnits = filteredUnits.slice((unitPage - 1) * unitPageSize, unitPage * unitPageSize);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Error Banner */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -262,7 +259,7 @@ const PropertyUnits = ({
           setUnitPage(1);
         }}
         filteredUnitsCount={filteredUnits.length}
-        onAddUnit={onAddUnit}
+        onAddUnit={handleAddUnit}
       />
 
       {/* Loading State */}
@@ -275,7 +272,6 @@ const PropertyUnits = ({
           unitPage={unitPage}
           totalUnitPages={totalUnitPages}
           onPageChange={goToUnitPage}
-          navigate={navigate} // Pass navigate function
         />
       )}
     </div>
@@ -288,14 +284,13 @@ const UnitsList = ({
   unitPage, 
   totalUnitPages,
   onPageChange,
-  navigate // Added navigate prop
 }: { 
   units: Unit[];
   unitPage: number;
   totalUnitPages: number;
   onPageChange: (page: number) => void;
-  navigate: (path: string) => void; // Added navigate prop type
 }) => {
+
   if (units.length === 0) {
     return (
       <div className="text-center py-8">
@@ -310,7 +305,7 @@ const UnitsList = ({
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {units.map((unit) => (
-          <UnitCard key={unit.id} unit={unit} navigate={navigate} />
+          <UnitCard key={unit.id} unit={unit} />
         ))}
       </div>
 
@@ -326,12 +321,28 @@ const UnitsList = ({
 };
 
 // Sub-components for UnitsList
-const UnitCard = ({ unit, navigate }: { unit: Unit; navigate: (path: string) => void }) => (
-  <Card className="overflow-hidden border border-gray-200 transition-all duration-200 hover:shadow-md hover:border-emerald-200 h-full flex flex-col">
-    <UnitImage unit={unit} />
-    <UnitDetails unit={unit} navigate={navigate} />
-  </Card>
-);
+const UnitCard = ({ unit }: { unit: Unit }) => {
+  const { propertyId } = useParams<{ propertyId: string }>();
+  const navigate = useNavigate();
+
+  return (
+    <Card className="overflow-hidden border border-gray-200 transition-all duration-200 hover:shadow-md hover:border-emerald-200 h-full flex flex-col">
+      <UnitImage unit={unit} />
+      <UnitDetails unit={unit} />
+      
+      <div className="mt-auto p-3 pt-0">
+        <Button 
+          onClick={() => navigate(`/landlord/units/${propertyId}/${unit.id}`)} 
+          className="w-full bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white text-xs py-2 h-8 gap-1"
+          size="sm"
+        >
+          View Details
+          <ArrowRight className="h-3 w-3" />
+        </Button>
+      </div>
+    </Card>
+  );
+};
 
 const UnitImage = ({ unit }: { unit: Unit }) => {
   const badgeType = getUnitBadgeType(unit.createdAt, unit.updatedAt);
@@ -369,30 +380,15 @@ const UnitImage = ({ unit }: { unit: Unit }) => {
     </div>
   );
 };
-const UnitDetails = ({ unit, navigate }: { unit: Unit; navigate: (path: string) => void }) => {
-  const { propertyId } = useParams<{ propertyId: string }>(); 
 
-  return (
-    <div className="p-3 flex-1 flex flex-col">
-      <UnitHeader unit={unit} />
-      <UnitMeta unit={unit} />
-      <UnitFeatures unit={unit} />
-      <UnitFooter unit={unit} />
-
-      <div className="mt-auto pt-3">
-        <Button 
-          onClick={() => navigate(`/landlord/properties/${propertyId}/units/${unit.id}`)} 
-          className="w-full bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white text-xs py-2 h-8 gap-1"
-          size="sm"
-        >
-          View Details
-          <ArrowRight className="h-3 w-3" />
-        </Button>
-      </div>
-    </div>
-  );
-};
-
+const UnitDetails = ({ unit }: { unit: Unit }) => (
+  <div className="p-3 flex-1 flex flex-col">
+    <UnitHeader unit={unit} />
+    <UnitMeta unit={unit} />
+    <UnitFeatures unit={unit} />
+    <UnitFooter unit={unit} />
+  </div>
+);
 
 const UnitHeader = ({ unit }: { unit: Unit }) => (
   <div className="flex items-center justify-between mb-2">
@@ -430,7 +426,6 @@ const UnitFeatures = ({ unit }: { unit: Unit }) => (
     </div>
   </div>
 );
-
 
 const UnitFooter = ({ unit }: { unit: Unit }) => (
   <div className="pt-2 border-t border-gray-100">
@@ -521,4 +516,4 @@ const Pagination = ({
   );
 };
 
-export default PropertyUnits;
+export default DisplayUnits;

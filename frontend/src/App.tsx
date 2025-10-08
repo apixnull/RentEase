@@ -13,7 +13,15 @@ import {
   refreshTokenRequest,
   getUserInfoRequest,
 } from "./api/authApi";
-import UnitDetails from "./pages/private/landlord/property/UnitDetails";
+import DisplaySpecificUnit from "./pages/private/landlord/unit/DisplaySpecificUnit";
+import DisplayUnits from "./pages/private/landlord/unit/DisplayUnits";
+import PropertyLayout from "./pages/private/landlord/property/PropertyLayout";
+import LandlordListing from "./pages/private/landlord/listing/LandlordListing";
+import ReviewUnitForListing from "./pages/private/landlord/listing/ReviewUnitForListing";
+import { ListingDetails } from "./pages/private/landlord/listing/ListingDetails";
+import ListingPaymentSuccess from "./pages/private/landlord/listing/ListingPaymentSuccess";
+import ViewUnitDetails from "./pages/private/tenant/browse-unit/ViewUnitDetails.tsx";
+
 
 // ------------------------------- Lazy Imports
 // Layouts
@@ -46,20 +54,20 @@ const LandlordDashboard = lazy(
 const CreateProperty = lazy(
   () => import("./pages/private/landlord/property/CreateProperty")
 );
-const DisplayProperty = lazy(
-  () => import("./pages/private/landlord/property/DisplayAllProperties")
+const DisplayProperties = lazy(
+  () => import("./pages/private/landlord/property/DisplayProperties")
 );
-const PropertyDetails = lazy(
-  () => import("./pages/private/landlord/property/property-details/PropertyDetails")
+const DisplaySpecificProperty = lazy(
+  () => import("./pages/private/landlord/property/DisplaySpecificProperty")
 );
-const AddUnit = lazy(() => import("./pages/private/landlord/property/AddUnit"));
+const CreateUnit = lazy(() => import("./pages/private/landlord/unit/CreateUnit"));
 
 // Private pages - Tenant
 const TenantDashboard = lazy(
   () => import("./pages/private/tenant/TenantDashboard")
 );
 const BrowseProperties = lazy(
-  () => import("./pages/private/tenant/BrowseProperties")
+  () => import("./pages/private/tenant/browse-unit/BrowseUnit.tsx")
 );
 
 // Private pages - Admin
@@ -88,270 +96,76 @@ const Loader = () => (
 const router = createBrowserRouter([
   {
     path: "/",
-    element: (
-      <Suspense fallback={<Loader />}>
-        <PublicLayout />
-      </Suspense>
-    ),
+    element: <Suspense fallback={<Loader />}><PublicLayout /></Suspense>,
     children: [
-      {
-        index: true,
-        element: (
-          <Suspense fallback={<Loader />}>
-            <Landing />
-          </Suspense>
-        ),
-      },
-      {
-        path: "about",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <About />
-          </Suspense>
-        ),
-      },
-      {
-        path: "features",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <Features />
-          </Suspense>
-        ),
-      },
+      { index: true, element: <Suspense fallback={<Loader />}><Landing /></Suspense> },
+      { path: "about", element: <Suspense fallback={<Loader />}><About /></Suspense> },
+      { path: "features", element: <Suspense fallback={<Loader />}><Features /></Suspense> },
     ],
   },
   {
     path: "auth",
     children: [
-      {
-        path: "register",
-        element: (
-          <AuthRedirectRoute>
-            <Suspense fallback={<Loader />}>
-              <Register />
-            </Suspense>
-          </AuthRedirectRoute>
-        ),
-      },
-      {
-        path: "login",
-        element: (
-          <AuthRedirectRoute>
-            <Suspense fallback={<Loader />}>
-              <Login />
-            </Suspense>
-          </AuthRedirectRoute>
-        ),
-      },
-      {
-        path: "forgot-password",
-        element: (
-          <AuthRedirectRoute>
-            <Suspense fallback={<Loader />}>
-              <ForgotPassword />
-            </Suspense>
-          </AuthRedirectRoute>
-        ),
-      },
-      {
-        path: "reset-password/:token",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <ResetPassword />
-          </Suspense>
-        ),
-      },
-      {
-        path: "verify-email/:token",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <VerifyEmail />
-          </Suspense>
-        ),
-      },
-      {
-        path: "onboarding",
-        element: (
-            <Suspense fallback={<Loader />}>
-              <Onboarding />
-            </Suspense>
-        ),
-      },
+      { path: "register", element: <AuthRedirectRoute><Suspense fallback={<Loader />}><Register /></Suspense></AuthRedirectRoute> },
+      { path: "login", element: <AuthRedirectRoute><Suspense fallback={<Loader />}><Login /></Suspense></AuthRedirectRoute> },
+      { path: "forgot-password", element: <AuthRedirectRoute><Suspense fallback={<Loader />}><ForgotPassword /></Suspense></AuthRedirectRoute> },
+      { path: "reset-password/:token", element: <Suspense fallback={<Loader />}><ResetPassword /></Suspense> },
+      { path: "verify-email/:token", element: <Suspense fallback={<Loader />}><VerifyEmail /></Suspense> },
+      { path: "onboarding", element: <Suspense fallback={<Loader />}><Onboarding /></Suspense> },
     ],
   },
   {
     path: "landlord",
-    element: (
-      <ProtectedRoute allowedRoles={["LANDLORD"]}>
-        <Suspense fallback={<Loader />}>
-          <LandlordLayout />
-        </Suspense>
-      </ProtectedRoute>
-    ),
+    element: <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}><LandlordLayout /></Suspense></ProtectedRoute>,
     children: [
-      {
-        index: true,
-        element: (
-          <Suspense fallback={<Loader />}>
-            <LandlordDashboard />
-          </Suspense>
-        ),
-      },
-      {
-        path: "properties",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <DisplayProperty />
-          </Suspense>
-        ),
-      },
-      {
-        path: "properties/:propertyId",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <PropertyDetails />
-          </Suspense>
-        ),
-      },
-      {
-        path: "properties/create",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <CreateProperty />
-          </Suspense>
-        ),
-      },
-      {
-        path: "properties/:propertyId/units/create",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <AddUnit />
-          </Suspense>
-        ),
-      },
-      {
-         path: "properties/:propertyId/units/:unitId",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <UnitDetails />
-          </Suspense>
-        ),
-      },
-      {
-        path: "account",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <AccountProfile />
-          </Suspense>
-        ),
-      },
-      {
-        path: "messages",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <Messages />
-          </Suspense>
-        ),
-      },
+      // dashboard
+      { index: true, element: <Suspense fallback={<Loader />}><LandlordDashboard /></Suspense> },
+
+      // properties
+      { path: "properties", element: <Suspense fallback={<Loader />}><DisplayProperties /></Suspense> },                                                        // display all properties 
+      { path: "properties/create", element: <Suspense fallback={<Loader />}><CreateProperty /></Suspense> },                                                    // create property
+      { path: "properties/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplaySpecificProperty /></PropertyLayout></Suspense> },     // display specific property
+
+      // units
+      { path: "units/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplayUnits /></PropertyLayout></Suspense> },                     // display all units 
+      { path: "units/:propertyId/create", element: <Suspense fallback={<Loader />}><CreateUnit /></Suspense> },                                                 // create a unit 
+      { path: "units/:propertyId/:unitId", element: <Suspense fallback={<Loader />}><DisplaySpecificUnit /></Suspense> },                                       // display specific unit 
+        
+      // listing
+      { path: "listing", element: <Suspense fallback={<Loader />}><LandlordListing /></Suspense>},                                                              // display all landlord listings
+      { path: "listing/:unitId/review", element: ( <Suspense fallback={<Loader />}> <ReviewUnitForListing /> </Suspense>) },                                    // ✅ review specific unit before creating a listing
+      { path: "listing/:listingId/success",  element: ( <Suspense fallback={<Loader />}> <ListingPaymentSuccess /> </Suspense>) },
+      { path: "listing/:listingId/details", element: (<Suspense fallback={<Loader />}> <ListingDetails /></Suspense> ), },                                      // ✅ display specific listing details (property + unit info)
+      // account
+      { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },  
+      { path: "messages", element: <Suspense fallback={<Loader />}><Messages /></Suspense> },
     ],
   },
   {
     path: "tenant",
-    element: (
-      <ProtectedRoute allowedRoles={["TENANT"]}>
-        <Suspense fallback={<Loader />}>
-          <TenantLayout />
-        </Suspense>
-      </ProtectedRoute>
-    ),
+    element: <ProtectedRoute allowedRoles={["TENANT"]}><Suspense fallback={<Loader />}><TenantLayout /></Suspense></ProtectedRoute>,
     children: [
-      {
-        index: true,
-        element: (
-          <Suspense fallback={<Loader />}>
-            <TenantDashboard />
-          </Suspense>
-        ),
-      },
-      {
-        path: "account",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <AccountProfile />
-          </Suspense>
-        ),
-      },
-      {
-        path: "messages",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <Messages />
-          </Suspense>
-        ),
-      },
+      { index: true, element: <Suspense fallback={<Loader />}><TenantDashboard /></Suspense> },
+      { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },
+      { path: "messages", element: <Suspense fallback={<Loader />}><Messages /></Suspense> },
     ],
   },
-  {
-    path: "tenant/browse-properties",
-    element: (
-      <Suspense fallback={<Loader />}>
-        <BrowseProperties />
-      </Suspense>
-    ),
-  },
+  { path: "tenant/browse-unit", element: <ProtectedRoute allowedRoles={["TENANT"]}><Suspense fallback={<Loader />}><BrowseProperties /></Suspense></ProtectedRoute>},
+  { path: "tenant/browse-unit/:listingId/details", element: <ProtectedRoute allowedRoles={["TENANT"]}><Suspense fallback={<Loader />}><ViewUnitDetails/></Suspense></ProtectedRoute>},
+
   {
     path: "admin",
-    element: (
-      <ProtectedRoute allowedRoles={["ADMIN"]}>
-        <Suspense fallback={<Loader />}>
-          <AdminLayout />
-        </Suspense>
-      </ProtectedRoute>
-    ),
+    element: <ProtectedRoute allowedRoles={["ADMIN"]}><Suspense fallback={<Loader />}><AdminLayout /></Suspense></ProtectedRoute>,
     children: [
-      {
-        index: true,
-        element: (
-          <Suspense fallback={<Loader />}>
-            <AdminDashboard />
-          </Suspense>
-        ),
-      },
-      {
-        path: "account",
-        element: (
-          <Suspense fallback={<Loader />}>
-            <AccountProfile />
-          </Suspense>
-        ),
-      },
+      { index: true, element: <Suspense fallback={<Loader />}><AdminDashboard /></Suspense> },
+      { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },
     ],
   },
-  {
-    path: "*",
-    element: (
-      <Suspense fallback={<Loader />}>
-        <NotFound />
-      </Suspense>
-    ),
-  },
-  {
-    path: "unauthorized",
-    element: (
-      <Suspense fallback={<Loader />}>
-        <Unauthorized />
-      </Suspense>
-    ),
-  },
-  {
-    path: "disabled",
-    element: (
-      <Suspense fallback={<Loader />}>
-        <DisabledAccount />
-      </Suspense>
-    ),
-  },
+  { path: "*", element: <Suspense fallback={<Loader />}><NotFound /></Suspense> },
+  { path: "unauthorized", element: <Suspense fallback={<Loader />}><Unauthorized /></Suspense> },
+  { path: "disabled", element: <Suspense fallback={<Loader />}><DisabledAccount /></Suspense> },
 ]);
+
 
 // ------------------------------- APP
 const App = () => {

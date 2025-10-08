@@ -43,6 +43,11 @@ const sidebarConfig = [
         icon: Home,
       },
       {
+        path: "/landlord/listing",
+        name: "Listing",
+        icon: Home,
+      },
+      {
         path: "/landlord/leases",
         name: "Leases",
         icon: FileText,
@@ -97,18 +102,33 @@ const sidebarConfig = [
 const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/landlord": { name: "Dashboard" },
   "/landlord/properties": { name: "Properties" },
-  "/landlord/property/add-property": {
-    name: "Add Property",
+  "/landlord/properties/create": {
+    name: "Create Property",
     parent: "/landlord/properties",
   },
-  "/landlord/property/:propertyId/details": {
+  "/landlord/properties/:propertyId": {
     name: "Details",
     parent: "/landlord/properties",
   },
-  "/landlord/property/:propertyId/add-unit": {
-    name: "Add Unit",
-    parent: "/landlord/property/:propertyId/details",
+  "/landlord/units/:propertyId": {
+    name: "Units",
+    parent: "/landlord/properties",
   },
+  "/landlord/units/:propertyId/create": {
+    name: "Create",
+    parent: "/landlord/units/:propertyId",
+  },
+  "/landlord/units/:propertyId/:unitId": {
+    name: "Details",
+    parent: "/landlord/units/:propertyId",
+  },
+  
+
+  "/landlord/listing": { name: "Listing" },
+  "/landlord/listing/:unitId/review": { name: "Unit Review", parent: "/landlord/listing"},
+  "/landlord/listing/:listingId/details": { name: "Details", parent: "/landlord/listing"},
+
+
   "/landlord/leases": { name: "Leases" },
   "/landlord/maintenance/maintenances": { name: "Maintenance" },
   "/landlord/messages": { name: "Messages" },
@@ -116,7 +136,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/landlord/payments": { name: "Payments" },
   "/landlord/financials": { name: "Financials" },
   "/landlord/reports": { name: "Reports" },
-  "/landlord/settings": { name: "Settings" },
+  "/landlord/account": { name: "Account Profile" },
 };
 
 // Components

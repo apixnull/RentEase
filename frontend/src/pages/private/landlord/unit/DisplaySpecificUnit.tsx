@@ -29,7 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getUnitDetailsRequest } from "@/api/landlordPropertyApi";
+import { getUnitDetailsRequest } from "@/api/landlord/unitApi";
 
 // Types based on your backend response
 type Amenity = {
@@ -108,7 +108,7 @@ const leaseRuleCategories = [
   { id: "other", name: "Other Policies" },
 ];
 
-const UnitDetails = () => {
+const DisplaySpecificUnit = () => {
   const { unitId, propertyId } = useParams<{ unitId: string; propertyId: string }>();
   const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState(0);
@@ -129,7 +129,7 @@ const UnitDetails = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await getUnitDetailsRequest(propertyId, unitId);
+        const response = await getUnitDetailsRequest(unitId);
         setUnit(response.data);
       } catch (err) {
         console.error('Error fetching unit details:', err);
@@ -199,7 +199,7 @@ const UnitDetails = () => {
     console.log('Deleting unit:', unitId);
     // After successful deletion, navigate back to property units
     if (unit) {
-      navigate(`/landlord/properties/${unit.propertyId}?tab=units`);
+      navigate(`/landlord/units/${unit.propertyId}`);
     }
   };
 
@@ -292,7 +292,7 @@ const UnitDetails = () => {
                 : "The unit you're looking for doesn't exist or has been removed."
               }
             </p>
-            <Button onClick={() => navigate(`/landlord/properties/${propertyId}?tab=units`)}>
+            <Button onClick={() => navigate(`/landlord/units/${propertyId}`)}>
               Back to Property Units
             </Button>
           </div>
@@ -306,7 +306,7 @@ const UnitDetails = () => {
       {/* Header with Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link to={`/landlord/properties/${unit.propertyId}?tab=units`}>
+          <Link to={`/landlord/units/${unit.propertyId}`}>
             <Button variant="outline" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -827,4 +827,4 @@ const UnitDetails = () => {
   );
 };
 
-export default UnitDetails;
+export default DisplaySpecificUnit;

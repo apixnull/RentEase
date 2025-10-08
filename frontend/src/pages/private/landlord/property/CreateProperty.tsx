@@ -19,7 +19,7 @@ import { useNavigate } from "react-router-dom";
 import {
   createPropertyRequest,
   getCitiesAndMunicipalitiesRequest,
-} from "@/api/landlordPropertyApi";
+} from "@/api/landlord/propertyApi";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
