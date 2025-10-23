@@ -33,7 +33,7 @@ enum Role {
 
 // ============================================================================
 // MODELS
-// ============================================================================
+// ============================================================================ 
 // --------------------
 // USER: primary account table (auth + role + profile + contacts)
 // --------------------
@@ -67,7 +67,6 @@ model User {
   lastLogin DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  Lease     Lease[]
 
   // Onboarding
   hasSeenOnboarding Boolean @default(false)
@@ -77,21 +76,30 @@ model User {
   MaintenanceRequest     MaintenanceRequest[]
   Notification           Notification[]
   UnitReview             UnitReview[]
-  listingsAsLandlord     Listing[] // landlord’s listings
+
+  listingsAsLandlord     Listing[]                                              // landlord’s listings
   listingsReviewed       Listing[]                @relation("ReviewedListings") // admin-reviewed listings
-  TenantScreening        TenantScreening[]
   TenantBehaviorAnalysis TenantBehaviorAnalysis[]
   TenantChatbotSession   TenantChatbotSession[]
 
-  // messages
-  messages             Message[]
-  conversationsAsUserA Conversation[] @relation("ConversationsAsUserA")
-  conversationsAsUserB Conversation[] @relation("ConversationsAsUserB")
+  // Lease relations
+  tenantLeases   Lease[] @relation("TenantLeases")   // Leases where user is the tenant
+  landlordLeases Lease[] @relation("LandlordLeases") // Leases where user is the landlord
+
+  // Chat relationships
+  tenantChannels   ChatChannel[] @relation("TenantChatChannels")
+  landlordChannels ChatChannel[] @relation("LandlordChatChannels")
+
+  // all the messages sent 
+  sentMessages     ChatMessage[]
 
   @@index([email])
   @@index([role])
   @@index([lastLogin])
   @@map("users")
+
+  tenantScreening TenantScreening[] @relation("TenantScreeningsAsTenant")
+  tenantScreeningLandlord TenantScreening[] @relation("TenantScreeningsAsLandlord")
 }
 
 // --------------------
@@ -156,6 +164,9 @@ model Property {
   mainImageUrl     String // Featured image for the property
   nearInstitutions Json? // JSON array of nearby institutions (format at app layer) { "name": "Ayala Mall", "type": "Mall" },
 
+  // other information || update the schema first to reflect new changes
+  // otherInformation Json? // JSON array of other information format : { "context": "second Floor" : "description": "has a lot of information about the stuff and etc"}
+
   // --- Relations ---
   owner              User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   Unit               Unit[]
@@ -168,6 +179,7 @@ model Property {
   @@index([cityId])
   @@index([municipalityId])
   @@map("properties")
+  Lease Lease[]
 }
 
 // --------------------
@@ -196,7 +208,7 @@ model Unit {
 
   // --- Pricing ---
   targetPrice     Float // cannot be more than a 100,000 and less  
-  securityDeposit Float?
+  securityDeposit Float? // ----------------------------------------------------- || to be removed
 
   // --- Screening Settings ---
   requiresScreening Boolean @default(false) // true = landlord requires tenant screening
@@ -209,12 +221,12 @@ model Unit {
   listings           Listing[]
   reviews            UnitReview[]
   MaintenanceRequest MaintenanceRequest[]
-  TenantScreening    TenantScreening[]
   Lease              Lease[]
 
   @@unique([propertyId, label])
   @@index([propertyId])
   @@map("units")
+  ChatChannel ChatChannel[]
 }
 
 // --------------------
@@ -287,48 +299,57 @@ model Listing {
   @@map("listings")
 }
 
-// --------------------
-// LEASE: contract details
-// --------------------
-// --------------------
-// LEASE
-// --------------------
 model Lease {
-  id       String @id @default(uuid())
-  unitId   String // FK to Unit.id
-  tenantId String // FK to User.id
+  id          String   @id @default(uuid())
+  propertyId  String    
+  unitId      String
+  tenantId    String
+  landlordId  String
 
-  leaseNickname String
+  // --- Basic Details ---
+  leaseNickname   String?
+  leaseType       String   @default("STANDARD") // STANDARD, SHORT_TERM, LONG_TERM, FIXED-TERM
+  startDate       DateTime
+  endDate         DateTime?
+  rentAmount      Float
 
-  leaseType  String
-  startDate  DateTime
-  endDate    DateTime?
-  rentAmount Float
-  interval   String // DAILY, WEEKLY, MONTHLY
-  status     String
+  // Optional one-time details
+  securityDeposit Float?    // One-time amount held until lease ends
+  advanceMonths   Int       @default(0)         // How many months prepaid rent
 
-  leaseDocumentUrl  String?
-  hasFormalDocument Boolean @default(false)
+  interval        String    @default("MONTHLY") // DAILY, WEEKLY, MONTHLY
+  dueDate         Int       // 1–31 (adjust if > daysInMonth)
+  status          String    @default("PENDING") // PENDING, ACTIVE, COMPLETED, TERMINATED, CANCELLED
 
-  landlordName String?
-  tenantName   String?
-  rules        Json?
-  notes        String?
 
+  // --- Tracking ---
+  totalPaymentsMade Int      @default(0)   // Incremented when tenant pays
+  lastPaymentDate   DateTime?              // Useful for reminders
+
+  // --- Digital Documents ---
+  leaseDocumentUrl     String?
+  landlordSignatureUrl String?
+  tenantSignatureUrl   String?
+
+  // --- Timestamps ---
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  unit                   Unit                     @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  tenant                 User                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  payments               Payment[]
-  TenantBehaviorAnalysis TenantBehaviorAnalysis[]
+
+  // --- Relations ---
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit      Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenant    User   @relation("TenantLeases", fields: [tenantId], references: [id], onDelete: Cascade)
+  landlord  User   @relation("LandlordLeases", fields: [landlordId], references: [id], onDelete: Cascade)
+  payments  Payment[]
+  behaviors TenantBehaviorAnalysis[]
 
   @@index([unitId])
   @@index([tenantId])
   @@index([startDate, endDate])
   @@map("leases")
 }
+
 
 // --------------------
 // PAYMENT: actual transactions
@@ -339,15 +360,15 @@ model Payment {
 
   amount        Float
   paidAt        DateTime?
-  method        String? // CASH, GCASH, PAYPAL, etc.
-  providerTxnId String?
+  method        String?  // CASH, GCASH, PAYPAL, etc.
+  paymentProofUrl String?
+
 
   // --- Tracking ---
-  status       String // PENDING, PAID
-  timingStatus String // ONTIME, LATE, ADVANCE
-  isPartial    Boolean @default(false) // NEW: true if this is a partial payment
-
-  note String?
+  status        String @default("PENDING")  // PENDING, PAID
+  timingStatus  String?                     // ONTIME, LATE, ADVANCE
+  note          String?
+  reminderStage Int     @default(0)         // 0=none, 1=pre-due, 2=due-day, 3=late notice sent
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -358,6 +379,90 @@ model Payment {
   @@index([paidAt])
   @@map("payments")
 }
+
+
+model TenantScreening {
+  id          String   @id @default(uuid())
+  tenantId    String
+  landlordId  String
+
+  // ============================================================
+  // REVIEW STATUS — Managed by system and landlord
+  // ============================================================
+  status      String   @default("PENDING") // PENDING | SUBMITTED | APPROVED | REJECTED
+  remarks     String?                      // System-generated note (e.g., "You do not qualify at this time")
+  reviewedAt  DateTime?
+
+  // ============================================================
+  // BASIC INFO — Collected from tenant application form
+  // ============================================================
+  fullName         String
+  birthdate        DateTime?
+  employmentStatus String?  // STUDENT | EMPLOYED | SELF_EMPLOYED | UNEMPLOYED
+  incomeSource     String?  // e.g. Salary, Business, Allowance
+  monthlyIncome    Float?
+
+  // ============================================================
+  // DOCUMENT & IDENTITY CHECKS — Tenant confirms availability
+  // (Landlord may verify in person later for privacy)
+  // ============================================================
+  hasGovernmentId  Boolean? @default(false) // Valid government-issued ID
+  hasNbiClearance  Boolean? @default(false) // Criminal background clearance
+  hasProofOfIncome Boolean? @default(false) // Payslip, remittance, or bank proof
+
+  // ============================================================
+  // FINANCIAL & EMPLOYMENT HISTORY
+  // ============================================================
+  currentEmployer     String? // Optional — Name of employer or company
+  jobPosition         String? // Optional — Current role or position
+  yearsEmployed       Int?    // Optional — How long have they been employed
+  employmentRemarks   String? // Optional — Additional details about work or income consistency
+
+  // ============================================================
+  // RENTAL HISTORY — Used to assess reliability as a tenant
+  // ============================================================
+  previousLandlordName    String? // Optional
+  previousLandlordContact String? // Optional (phone or email)
+  previousRentalAddress   String? // Optional
+  reasonForLeaving        String? // Optional — Why they left previous unit
+  hadEvictionHistory      Boolean? @default(false) // If ever evicted before
+  latePaymentHistory      Boolean? @default(false) // History of delayed rent payments
+
+  // ============================================================
+  // LIFESTYLE INDICATORS — Used to assess property compatibility
+  // ============================================================
+  smokes          Boolean? @default(false)
+  drinksAlcohol   Boolean? @default(false)
+  hasPets         Boolean? @default(false)
+  worksNightShift Boolean? @default(false)
+  hasVisitors     Boolean? @default(false)
+  noiseLevel      String?  // LOW | MODERATE | HIGH
+  otherLifestyle  String[] // e.g. ["Gamer", "Travels Often", "Works from Home"]
+
+  // ============================================================
+  // AI ANALYSIS — System generated after submission
+  // ============================================================
+  aiRiskScore        Float?  // 0.0 - 1.0
+  riskLevel          String? // LOW | MEDIUM | HIGH
+  aiScreeningSummary String? // Short readable result
+  aiFindings         Json?   // Deep reasoning (e.g., {"financial": "...", "behavior": "..."})
+  aiGeneratedAt      DateTime?
+
+  // ============================================================
+  // METADATA
+  // ============================================================
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ============================================================
+  // RELATIONS
+  // ============================================================
+  tenant   User @relation("TenantScreeningsAsTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  landlord User @relation("TenantScreeningsAsLandlord", fields: [landlordId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_screenings")
+}
+
 
 // --------------------
 // LEASE DOCUMENT (Legal Contract / PDF Export)
@@ -552,97 +657,54 @@ model Notification {
   @@map("notifications")
 }
 
-model Conversation {
+// ============================================================================
+// CHAT CHANNEL
+// ============================================================================
+model ChatChannel {
+  id          String   @id @default(uuid())
+  tenantId    String
+  landlordId  String
+  unitId      String
+  status      String   @default("INQUIRY") // INQUIRY, ACTIVE, ENDED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // --- Chat summary fields ---
+  lastMessageText     String?   // ✅ snapshot of the last message
+  lastMessageAt       DateTime? // ✅ when last message was sent
+  lastMessageSenderId String?   // ✅ who sent the last message
+  readAt              DateTime? // ✅ when last message was read 
+
+  // --- Relations ---
+  tenant   User @relation("TenantChatChannels", fields: [tenantId], references: [id])
+  landlord User @relation("LandlordChatChannels", fields: [landlordId], references: [id])
+  unit     Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@unique([tenantId, landlordId, unitId])
+  @@map("chat_channels")
+}
+
+// ============================================================================
+// CHAT MESSAGE
+// ============================================================================
+
+model ChatMessage {
   id        String   @id @default(uuid())
-  title     String?
-  userAId   String
-  userBId   String
+  channelId String
+  senderId  String
+  content   String   @db.Text
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  readAt    DateTime?
 
-  userA    User      @relation("ConversationsAsUserA", fields: [userAId], references: [id], onDelete: Cascade)
-  userB    User      @relation("ConversationsAsUserB", fields: [userBId], references: [id], onDelete: Cascade)
-  messages Message[]
+  // --- Relations ---
+  channel ChatChannel @relation(fields: [channelId], references: [id])
+  sender  User        @relation(fields: [senderId], references: [id])
 
-  @@unique([userAId, userBId]) // only 1 conversation per pair
-  @@map("conversations")
+  @@index([channelId])
+  @@map("chat_messages")
 }
 
-model Message {
-  id             String   @id @default(uuid())
-  conversationId String
-  senderId       String
-  content        String   @db.Text
-  isRead         Boolean  @default(false)
-  createdAt      DateTime @default(now())
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId])
-  @@index([senderId])
-  @@map("messages")
-}
-
-model TenantScreening {
-  id String @id @default(uuid())
-
-  tenantId String
-  unitId   String
-
-  // --------------------
-  // Identity & Docs
-  // --------------------
-  fullName           String
-  birthdate          DateTime?
-  governmentIdNumber String?
-  idImageUrl         String? // uploaded ID picture
-  selfieUrl          String? // tenant holding ID
-  nbiClearanceUrl    String?
-  biodataUrl         String?
-
-  // --------------------
-  // Financial
-  // --------------------
-  employmentStatus String? // STUDENT | EMPLOYED | SELF_EMPLOYED | UNEMPLOYED
-  employerName     String?
-  monthlyIncome    Float?
-  proofOfIncomeUrl String?
-
-  // --------------------
-  // Background & Rental History
-  // --------------------
-  previousLandlordName    String?
-  previousLandlordContact String?
-  rentalHistoryNotes      String? @db.Text
-  characterReferences     Json? // [{ "name":"Maria Santos", "relation":"Classmate", "contact":"0917..." }]
-
-  // --------------------
-  // Lifestyle
-  // --------------------
-  isSmoker       Boolean? @default(false) // true = smokes
-  hasPets        Boolean? @default(false) // true = has pets
-  petTypes       String? // e.g., "Dog", "Cat"
-  otherLifestyle Json? // Example: { "drinksAlcohol": true, "musicLoud": false }
-
-  // --------------------
-  // AI Risk Analysis
-  // --------------------
-  aiRiskScore        Float? // 0.0 → 1.0
-  riskLevel          String? // LOW | MEDIUM | HIGH
-  aiScreeningSummary String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // --------------------
-  // Relations
-  // --------------------
-  tenant User @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  unit   Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
-
-  @@map("tenant_screenings")
-}
 
 // --------------------
 // Tenant Behavior Analysis

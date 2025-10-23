@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -11,12 +11,12 @@ import {
   LogOut,
   Bell,
   Menu,
-  DollarSign,
-  BarChart3,
   ChevronRight,
   Building2,
-  Receipt,
   TrendingUp,
+  BarChart3,
+  MoreHorizontal,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -26,81 +26,86 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { logoutRequest } from "@/api/authApi";
 
-// Sidebar configuration - simplified and logical
-const sidebarConfig = [
+// Enhanced sidebar configuration with status indicators
+const sidebarItems = [
   {
-    section: "Properties",
+    path: "/landlord",
+    name: "Dashboard",
+    icon: LayoutDashboard,
+    description: "Property overview",
+    badge: null,
+  },
+  {
+    path: "/landlord/properties",
+    name: "Properties",
     icon: Building2,
-    items: [
-      {
-        path: "/landlord",
-        name: "Dashboard",
-        icon: LayoutDashboard,
-      },
-      {
-        path: "/landlord/properties",
-        name: "Properties",
-        icon: Home,
-      },
-      {
-        path: "/landlord/listing",
-        name: "Listing",
-        icon: Home,
-      },
-      {
-        path: "/landlord/leases",
-        name: "Leases",
-        icon: FileText,
-      },
-      {
-        path: "/landlord/maintenance/maintenances",
-        name: "Maintenance",
-        icon: Wrench,
-      },
-    ],
+    description: "Manage properties",
+    badge: "12 Units",
   },
   {
-    section: "Tenants",
+    path: "/landlord/listing",
+    name: "Listing",
+    icon: Home,
+    description: "Advertise Unit",
+    badge: "3 Active",
+  },
+  {
+    path: "/landlord/screening",
+    name: "Screening",
+    icon: FileText,
+    description: "Review Potential Tenant",
+    badge: "1",
+  },
+  {
+    path: "/landlord/leases",
+    name: "Leases",
+    icon: FileText,
+    description: "Rental agreements",
+    badge: "2 Renewals",
+  },
+  {
+    path: "/landlord/maintenance",
+    name: "Maintenance",
+    icon: Wrench,
+    description: "Repair requests",
+    badge: "5 Pending",
+  },
+  {
+    path: "/landlord/tenants",
+    name: "Tenants",
     icon: Users,
-    items: [
-      {
-        path: "/landlord/tenants",
-        name: "Tenants",
-        icon: Users,
-      },
-      {
-        path: "/landlord/messages",
-        name: "Messages",
-        icon: MessageSquare,
-      },
-    ],
+    description: "Tenant management",
+    badge: "8 Active",
   },
   {
-    section: "Finance",
+    path: "/landlord/messages",
+    name: "Messages",
+    icon: MessageSquare,
+    description: "Communications",
+    badge: "7 New",
+  },
+  {
+    path: "/landlord/financials",
+    name: "Financials",
     icon: TrendingUp,
-    items: [
-      {
-        path: "/landlord/payments",
-        name: "Payments",
-        icon: DollarSign,
-      },
-      {
-        path: "/landlord/financials",
-        name: "Financials",
-        icon: Receipt,
-      },
-      {
-        path: "/landlord/reports",
-        name: "Reports",
-        icon: BarChart3,
-      },
-    ],
+    description: "Income & expenses",
+    badge: null,
+  },
+  {
+    path: "/landlord/reports",
+    name: "Reports",
+    icon: BarChart3,
+    description: "Analytics & insights",
+    badge: null,
   },
 ];
 
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
+  // dashboard 
   "/landlord": { name: "Dashboard" },
+
+  // properties
   "/landlord/properties": { name: "Properties" },
   "/landlord/properties/create": {
     name: "Create Property",
@@ -110,6 +115,8 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
     name: "Details",
     parent: "/landlord/properties",
   },
+  
+  // unit
   "/landlord/units/:propertyId": {
     name: "Units",
     parent: "/landlord/properties",
@@ -122,41 +129,238 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
     name: "Details",
     parent: "/landlord/units/:propertyId",
   },
-  
 
+  // listing
   "/landlord/listing": { name: "Listing" },
   "/landlord/listing/:unitId/review": { name: "Unit Review", parent: "/landlord/listing"},
   "/landlord/listing/:listingId/details": { name: "Details", parent: "/landlord/listing"},
 
+  // tenant screening
+  "/landlord/screening": { name: "Tenant Screening" },
+  "/landlord/screening/:screeningId/details": { name: "Screening Details", parent: "/landlord/screening"},
 
+  // leases
   "/landlord/leases": { name: "Leases" },
-  "/landlord/maintenance/maintenances": { name: "Maintenance" },
+  "/landlord/leases/create": { name: "Create", parent: "/landlord/leases"},
+  "/landlord/leases/:leaseId/details": { name: "Details", parent: "/landlord/leases"},
+  
+  // maintenance
+  "/landlord/maintenance": { name: "Maintenance" },
+
   "/landlord/messages": { name: "Messages" },
+  "/landlord/messages/:channelId": { name: "Convo",  parent: "/landlord/messages" },
+
   "/landlord/tenants": { name: "Tenants" },
   "/landlord/payments": { name: "Payments" },
   "/landlord/financials": { name: "Financials" },
   "/landlord/reports": { name: "Reports" },
-  "/landlord/account": { name: "Account Profile" },
+  "/landlord/account": { name: "Account" },
+  "/landlord/settings": { name: "Settings" },
 };
 
-// Components
-const Sidebar = ({
+// Custom hook for sidebar state management
+const useSidebarState = () => {
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const savedState = sessionStorage.getItem('landlord-sidebar-collapsed');
+    if (savedState) {
+      setCollapsed(JSON.parse(savedState));
+    }
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed(prev => {
+      const newState = !prev;
+      sessionStorage.setItem('landlord-sidebar-collapsed', JSON.stringify(newState));
+      return newState;
+    });
+  };
+
+  return { collapsed, toggleCollapsed };
+};
+
+// Sidebar Components Structure
+const SidebarHeader = ({ collapsed, isMobile }: { collapsed: boolean; isMobile?: boolean }) => (
+  <div className={cn(
+    "transition-all duration-300 border-b border-gray-200/60 flex-shrink-0",
+    collapsed ? "p-3" : "p-4",
+    isMobile ? "p-3" : "p-4"
+  )}>
+    <div className={cn(
+      "flex items-center gap-3 transition-all duration-300",
+      collapsed ? "justify-center" : "justify-start"
+    )}>
+      <div className="flex items-center gap-3">
+        <Zap 
+          className={cn(
+            "text-green-500",
+            isMobile ? "w-5 h-5" : "w-6 h-6"
+          )} 
+          fill="currentColor"
+        />
+        {!collapsed && (
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className={cn(
+              "font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent",
+              isMobile ? "text-base" : "text-lg"
+            )}>
+              RentEase
+            </span>
+            <span className={cn(
+              "bg-green-100 text-green-700 font-medium rounded-full border border-green-200",
+              isMobile ? "text-xs px-1.5 py-0.5" : "text-xs px-2 py-1"
+            )}>
+              Landlord
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+const NavMain = ({ 
+  items, 
+  collapsed, 
   isMobile,
-  onClose,
-}: {
+  onClose 
+}: { 
+  items: typeof sidebarItems;
+  collapsed: boolean;
   isMobile?: boolean;
   onClose?: () => void;
 }) => {
   const location = useLocation();
+
+  return (
+    <nav className={cn(
+      "flex-1 overflow-y-auto",
+      isMobile ? "px-2 py-2 space-y-1" : "px-3 py-4 space-y-2"
+    )}>
+      {items.map((item) => (
+        <Link
+          key={item.path}
+          to={item.path}
+          onClick={onClose}
+          className={cn(
+            "group flex items-center transition-all duration-200 rounded-lg relative",
+            location.pathname === item.path
+              ? "bg-gradient-to-r from-green-50/80 to-blue-50/80 text-green-700 border border-green-200/50"
+              : "text-gray-600 hover:bg-gray-50/80 hover:text-gray-900",
+            collapsed && !isMobile ? "px-3 justify-center" : "px-3 justify-start gap-3",
+            isMobile ? "py-2" : "py-3"
+          )}
+        >
+          {/* Active indicator */}
+          {location.pathname === item.path && (
+            <motion.div
+              layoutId="activeIndicator"
+              className="absolute left-0 top-1/2 -translate-y-1/2 w-1 bg-gradient-to-b from-green-500 to-blue-500 rounded-r-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+              style={{ height: isMobile ? '24px' : '32px' }}
+            />
+          )}
+          
+          <div className="relative">
+            <item.icon
+              className={cn(
+                "transition-colors flex-shrink-0",
+                location.pathname === item.path
+                  ? "text-green-600"
+                  : "text-gray-400 group-hover:text-gray-600",
+                isMobile ? "h-4 w-4" : "h-5 w-5"
+              )}
+            />
+            {item.badge && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className={cn(
+                  "absolute -top-1 -right-1 rounded-full",
+                  item.badge.includes("Due") ? "bg-red-400" : 
+                  item.badge.includes("New") ? "bg-blue-400" : "bg-green-400",
+                  isMobile ? "w-1.5 h-1.5" : "w-2 h-2"
+                )}
+              />
+            )}
+          </div>
+          
+          <AnimatePresence>
+            {(!collapsed || isMobile) && (
+              <motion.div
+                initial={{ opacity: 1, width: "auto" }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 min-w-0 overflow-hidden"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex-1 min-w-0">
+                    <span className={cn(
+                      "font-medium block truncate",
+                      isMobile ? "text-xs" : "text-sm"
+                    )}>
+                      {item.name}
+                    </span>
+                    {item.description && (
+                      <p className={cn(
+                        "text-gray-500 mt-0.5 truncate",
+                        isMobile ? "text-xs" : "text-xs"
+                      )}>
+                        {item.description}
+                      </p>
+                    )}
+                  </div>
+                  
+                  {/* Badge text for collapsed state */}
+                  {item.badge && (
+                    <motion.span
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className={cn(
+                        "font-medium ml-2 flex-shrink-0 rounded-full",
+                        item.badge.includes("Due") ? "bg-red-100 text-red-700" : 
+                        item.badge.includes("New") ? "bg-blue-100 text-blue-700" : 
+                        "bg-green-100 text-green-700",
+                        isMobile ? "text-xs px-1.5 py-0.5" : "text-xs px-2 py-1"
+                      )}
+                    >
+                      {item.badge.split(' ')[0]}
+                    </motion.span>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Link>
+      ))}
+    </nav>
+  );
+};
+
+const NavUser = ({ 
+  collapsed, 
+  isMobile,
+  onClose 
+}: { 
+  collapsed: boolean;
+  isMobile?: boolean;
+  onClose?: () => void;
+}) => {
+  const user = useAuthStore((s) => s.user);
+  const location = useLocation();
   const navigate = useNavigate();
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = async () => {
     try {
-      await logoutRequest(); // ✅ call backend
+      await logoutRequest();
     } catch (err) {
       console.error("Logout request failed:", err);
     } finally {
-      // ✅ clear Zustand store
       const { clearUser } = useAuthStore.getState();
       clearUser();
 
@@ -165,118 +369,221 @@ const Sidebar = ({
     }
   };
 
+  // Close more menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+
+    if (showMoreMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMoreMenu]);
+
   return (
-    <div
-      className={cn(
-        "flex flex-col h-full bg-white border-r border-gray-200",
-        isMobile ? "w-64" : "w-56"
-      )}
-    >
-      {/* Logo */}
-      <div className="p-4 border-b border-gray-100">
-        <div className="flex items-center gap-2.5">
-          <div className="bg-gradient-to-br from-green-400 to-blue-400 p-2 rounded-lg shadow-sm">
-            <Home className="text-white h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-base font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-              RentEase
-            </h1>
-            <p className="text-xs text-gray-500">Property Management</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-3 space-y-5 overflow-y-auto">
-        {sidebarConfig.map((section, index) => (
-          <div key={index} className="space-y-2">
-            {/* Section Header */}
-            <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50/50 rounded-md">
-              <section.icon className="h-3 w-3 text-gray-400" />
-              <h3 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                {section.section}
-              </h3>
+    <AnimatePresence>
+      {(!collapsed || isMobile) && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          transition={{ duration: 0.3 }}
+          className={cn(
+            "bg-gray-50 rounded-lg border border-gray-200/60 flex-shrink-0",
+            isMobile ? "mx-2 mb-2 p-2" : "mx-3 mb-3 p-3"
+          )}
+        >
+          <div className="flex items-center justify-between gap-3">
+            {/* User Info */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <Avatar className={cn(
+                "border border-white shadow-sm",
+                isMobile ? "h-8 w-8" : "h-10 w-10"
+              )}>
+                <AvatarImage src={user?.avatarUrl} alt={user?.firstName || "User"} />
+                <AvatarFallback className="bg-gradient-to-r from-green-100 to-blue-100 text-green-700 text-sm">
+                  {user?.firstName?.[0]?.toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className={cn(
+                  "font-semibold text-gray-900 truncate",
+                  isMobile ? "text-xs" : "text-sm"
+                )}>
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className={cn(
+                  "text-gray-500 truncate",
+                  isMobile ? "text-xs" : "text-xs"
+                )}>
+                  {user?.email || "landlord@gmail.com"}
+                </p>
+              </div>
             </div>
 
-            {/* Section Items */}
-            <div className="space-y-0.5 pl-1">
-              {section.items.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  className={cn(
-                    "group flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200",
-                    location.pathname === item.path
-                      ? "bg-gradient-to-r from-green-50 to-blue-50 text-green-700 border border-green-200 shadow-sm"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  )}
-                >
-                  <item.icon
+            {/* More Button */}
+            <div className="relative" ref={moreMenuRef}>
+              <button
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className="p-1 rounded-lg text-gray-500 hover:bg-gray-200/60 hover:text-gray-700 transition-all duration-200"
+              >
+                <MoreHorizontal className={isMobile ? "h-3 w-3" : "h-4 w-4"} />
+              </button>
+
+              <AnimatePresence>
+                {showMoreMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
                     className={cn(
-                      "h-3.5 w-3.5 transition-colors",
-                      location.pathname === item.path
-                        ? "text-green-600"
-                        : "text-gray-400 group-hover:text-gray-600"
+                      "absolute right-0 bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-xl z-50 overflow-hidden",
+                      isMobile ? "bottom-full mb-1 w-40" : "bottom-full mb-2 w-48"
                     )}
-                  />
-                  <span className="text-xs font-medium">{item.name}</span>
-                  {location.pathname === item.path && (
-                    <div className="ml-auto w-1 h-1 bg-green-500 rounded-full" />
-                  )}
-                </Link>
-              ))}
+                  >
+                    {/* Account Link */}
+                    <Link
+                      to="/landlord/account"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        onClose?.();
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 transition-all duration-200 border-b border-gray-100/60",
+                        location.pathname === "/landlord/account"
+                          ? "bg-gradient-to-r from-green-50/80 to-blue-50/80 text-green-700"
+                          : "text-gray-700 hover:bg-gray-50/80 hover:text-gray-900",
+                        isMobile ? "p-2 text-xs" : "p-3 text-sm"
+                      )}
+                    >
+                      <Users className={isMobile ? "h-3 w-3 flex-shrink-0" : "h-4 w-4 flex-shrink-0"} />
+                      <span className="font-medium">Account</span>
+                    </Link>
+
+                    {/* Settings Link */}
+                    <Link
+                      to="/landlord/settings"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        onClose?.();
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 transition-all duration-200 border-b border-gray-100/60",
+                        location.pathname === "/landlord/settings"
+                          ? "bg-gradient-to-r from-green-50/80 to-blue-50/80 text-green-700"
+                          : "text-gray-700 hover:bg-gray-50/80 hover:text-gray-900",
+                        isMobile ? "p-2 text-xs" : "p-3 text-sm"
+                      )}
+                    >
+                      <SettingsIcon className={isMobile ? "h-3 w-3 flex-shrink-0" : "h-4 w-4 flex-shrink-0"} />
+                      <span className="font-medium">Settings</span>
+                    </Link>
+
+                    {/* Logout Button */}
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setShowMoreMenu(false);
+                        onClose?.();
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 w-full text-red-600 hover:bg-red-50/80 transition-all duration-200",
+                        isMobile ? "p-2 text-xs" : "p-3 text-sm"
+                      )}
+                    >
+                      <LogOut className={isMobile ? "h-3 w-3 flex-shrink-0" : "h-4 w-4 flex-shrink-0"} />
+                      <span className="font-medium">Logout</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
-        ))}
-      </nav>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
-      {/* Footer */}
-      <div className="p-4 border-t border-gray-100 space-y-1">
-        <Link
-          to="/landlord/account"
-          onClick={onClose}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-        >
-          <Users className="h-4 w-4" />
-          <span>Account Profile</span>
-        </Link>
-        <Link
-          to="/landlord/settings"
-          onClick={onClose}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-        >
-          <SettingsIcon className="h-4 w-4" />
-          <span>Settings</span>
-        </Link>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-        >
-          <LogOut className="h-4 w-4" />
-          <span>Logout</span>
-        </button>
-      </div>
+const SidebarContent = ({
+  collapsed,
+  isMobile,
+  onClose
+}: {
+  collapsed: boolean;
+  isMobile?: boolean;
+  onClose?: () => void;
+}) => {
+  return (
+    <div className="flex flex-col h-full">
+      <NavMain 
+        items={sidebarItems} 
+        collapsed={collapsed}
+        isMobile={isMobile}
+        onClose={onClose}
+      />
+      <NavUser 
+        collapsed={collapsed} 
+        isMobile={isMobile}
+        onClose={onClose}
+      />
     </div>
   );
 };
 
-const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
+const Sidebar = ({
+  isMobile,
+  onClose,
+  collapsed = false,
+}: {
+  isMobile?: boolean;
+  onClose?: () => void;
+  collapsed?: boolean;
+}) => {
+  return (
+    <div
+      className={cn(
+        "flex flex-col h-full bg-white/95 backdrop-blur-sm transition-all duration-300 border-r border-gray-200/60",
+        collapsed && !isMobile ? "w-0 opacity-0" : "w-64 opacity-100",
+        isMobile && "w-64"
+      )}
+    >
+      <SidebarHeader collapsed={collapsed && !isMobile} isMobile={isMobile} />
+      <SidebarContent 
+        collapsed={collapsed}
+        isMobile={isMobile}
+        onClose={onClose}
+      />
+    </div>
+  );
+};
+
+const Header = ({ 
+  onMobileMenuClick, 
+  sidebarCollapsed,
+  onToggleSidebar 
+}: { 
+  onMobileMenuClick: () => void;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+}) => {
   const location = useLocation();
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [breadcrumbs, setBreadcrumbs] = useState<
     { name: string; path?: string }[]
   >([]);
-
-  // ✅ Get real user from Zustand
-  const user = useAuthStore((state) => state.user);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   // Close notifications when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (notifsOpen && !target.closest(".notification-dropdown")) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setNotifsOpen(false);
       }
     };
@@ -290,33 +597,44 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
     };
   }, [notifsOpen]);
 
-  // Notifications data
+  // Enhanced notifications data for landlord
   const notifications = [
     {
       id: 1,
-      title: "New message from tenant",
-      time: "10 minutes ago",
+      title: "Rent payment received from John Doe",
+      time: "2 hours ago",
       read: false,
-      link: "/landlord/messages",
+      link: "/landlord/payments",
+      type: "payment",
     },
     {
       id: 2,
-      title: "Maintenance request",
-      time: "2 hours ago",
+      title: "New maintenance request submitted",
+      time: "1 day ago",
       read: true,
-      link: "/landlord/maintenance",
+      link: "/landlord/maintenance/maintenances",
+      type: "maintenance",
     },
     {
       id: 3,
-      title: "Payment received",
-      time: "5 hours ago",
+      title: "New message from tenant",
+      time: "2 days ago",
       read: true,
-      link: "/landlord/payments",
+      link: "/landlord/messages",
+      type: "message",
+    },
+    {
+      id: 4,
+      title: "Lease renewal reminder",
+      time: "3 days ago",
+      read: true,
+      link: "/landlord/leases",
+      type: "lease",
     },
   ];
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // Breadcrumb logic
+  // Enhanced breadcrumb logic
   useEffect(() => {
     const generateBreadcrumbs = () => {
       const currentPath = location.pathname;
@@ -381,99 +699,127 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
   }, [location.pathname]);
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+    <header className="bg-white/80 backdrop-blur-sm px-4 py-3 shadow-sm border-b border-gray-200/60">
+      <div className="flex items-center justify-between w-full gap-3">
+        {/* Left Section - Menu & Breadcrumbs */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {/* Desktop Sidebar Toggle */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden flex-shrink-0"
+            className="hidden lg:flex flex-shrink-0 hover:bg-gray-50/80 rounded-lg transition-all duration-200 h-9 w-9"
+            onClick={onToggleSidebar}
+          >
+            <motion.div
+              animate={{ rotate: sidebarCollapsed ? 0 : 180 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Menu className="h-5 w-5" />
+            </motion.div>
+          </Button>
+
+          {/* Mobile Menu Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden flex-shrink-0 hover:bg-gray-50/80 rounded-lg transition-all duration-200 h-9 w-9"
             onClick={onMobileMenuClick}
           >
             <Menu className="h-5 w-5" />
           </Button>
 
           {/* Breadcrumbs */}
-          <nav className="flex items-center text-xs sm:text-sm">
-            {breadcrumbs.map((crumb, index) => (
-              <div key={index} className="flex items-center">
-                {index > 0 && (
-                  <ChevronRight className="mx-1 sm:mx-2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
-                )}
-                {crumb.path ? (
-                  <Link
-                    to={crumb.path}
-                    className="text-gray-600 hover:bg-gradient-to-r hover:from-green-600 hover:to-blue-600 hover:bg-clip-text hover:text-transparent transition-all duration-200 font-medium hover:underline truncate max-w-[80px] sm:max-w-[120px]"
-                  >
-                    {crumb.name}
-                  </Link>
-                ) : (
-                  <span className="font-semibold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent truncate max-w-[100px] sm:max-w-[140px]">
-                    {crumb.name}
-                  </span>
-                )}
-              </div>
-            ))}
+          <nav className="flex items-center text-sm flex-1 min-w-0 overflow-hidden">
+            <div className="flex items-center min-w-0 flex-1 gap-1">
+              {breadcrumbs.map((crumb, index) => (
+                <div key={index} className="flex items-center min-w-0 flex-shrink-0">
+                  {index > 0 && (
+                    <ChevronRight className="mx-1 h-4 w-4 text-gray-400 flex-shrink-0" />
+                  )}
+                  {crumb.path ? (
+                    <Link
+                      to={crumb.path}
+                      className="text-gray-600 hover:text-green-600 transition-all duration-200 font-medium hover:underline truncate max-w-[100px] sm:max-w-none"
+                    >
+                      {crumb.name}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-green-600 truncate max-w-[100px] sm:max-w-none">
+                      {crumb.name}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </nav>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+        {/* Right Section - Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Notifications */}
-          <div className="relative notification-dropdown">
+          <div className="relative notification-dropdown" ref={notifRef}>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setNotifsOpen(!notifsOpen)}
-              className="relative"
+              className="relative hover:bg-gray-50/80 h-9 w-9 rounded-lg transition-all duration-200"
             >
-              <Bell className="h-5 w-5" />
+              <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center shadow-sm"
+                >
                   {unreadCount}
-                </span>
+                </motion.span>
               )}
             </Button>
 
             <AnimatePresence>
               {notifsOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-1rem)] bg-white border border-gray-200 rounded-xl shadow-lg z-50"
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-1rem)] bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-xl z-50 overflow-hidden"
                 >
-                  <div className="p-3 sm:p-4 border-b border-gray-100">
+                  <div className="p-3 border-b border-gray-100/60 bg-gradient-to-r from-white to-gray-50/50">
                     <div className="flex justify-between items-center">
-                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
+                      <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+                        <Bell className="h-4 w-4" />
                         Notifications
                       </h3>
-                      <button className="text-xs sm:text-sm text-green-600 hover:underline">
+                      <button className="text-sm text-green-600 hover:underline font-medium">
                         Mark all as read
                       </button>
                     </div>
                   </div>
 
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-64 overflow-y-auto">
                     {notifications.map((notification) => (
                       <Link
                         key={notification.id}
                         to={notification.link}
                         onClick={() => setNotifsOpen(false)}
                       >
-                        <div
+                        <motion.div
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
                           className={cn(
-                            "p-3 sm:p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0",
-                            !notification.read && "bg-green-50"
+                            "p-3 hover:bg-gray-50/50 transition-all duration-200 border-b border-gray-100/50 last:border-b-0 group text-sm",
+                            !notification.read && "bg-green-50/30"
                           )}
                         >
                           <div className="flex gap-3">
-                            {!notification.read && (
-                              <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-                            )}
+                            <div className={cn(
+                              "w-2 h-2 rounded-full mt-2 flex-shrink-0",
+                              !notification.read ? "bg-green-500" : "bg-gray-300"
+                            )} />
                             <div className="flex-1 min-w-0">
                               <p
                                 className={cn(
-                                  "font-medium text-sm",
+                                  "font-medium group-hover:text-green-700 transition-colors",
                                   !notification.read
                                     ? "text-gray-900"
                                     : "text-gray-700"
@@ -481,20 +827,28 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
                               >
                                 {notification.title}
                               </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {notification.time}
-                              </p>
+                              <div className="flex items-center justify-between mt-1">
+                                <p className="text-xs text-gray-500">
+                                  {notification.time}
+                                </p>
+                                <motion.div
+                                  whileHover={{ x: 2 }}
+                                  className="text-green-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <ChevronRight className="h-3 w-3" />
+                                </motion.div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        </motion.div>
                       </Link>
                     ))}
                   </div>
 
-                  <div className="p-3 sm:p-4 text-center border-t border-gray-100">
+                  <div className="p-3 text-center border-t border-gray-100/60 bg-gray-50/30">
                     <Link
                       to="/landlord/notifications"
-                      className="text-xs sm:text-sm text-green-600 hover:underline"
+                      className="text-sm text-green-600 hover:underline font-medium"
                       onClick={() => setNotifsOpen(false)}
                     >
                       View all notifications
@@ -504,26 +858,6 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
               )}
             </AnimatePresence>
           </div>
-
-          {/* User Profile */}
-          <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-gray-200">
-            <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
-              <AvatarImage
-                src={user?.avatarUrl ?? undefined}
-                alt={user?.firstName ?? "User"}
-              />
-              <AvatarFallback className="bg-gradient-to-br from-green-500 to-blue-500 text-white text-xs sm:text-sm">
-                {user?.firstName?.[0]?.toUpperCase() ?? "U"}
-              </AvatarFallback>
-            </Avatar>
-
-            <div className="hidden sm:block">
-              <p className="text-sm font-medium text-gray-900">
-                {user?.firstName ?? "Unnamed"}
-              </p>
-              <p className="text-xs text-gray-500">Landlord</p>
-            </div>
-          </div>
         </div>
       </div>
     </header>
@@ -532,12 +866,29 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
 
 const LandlordLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { collapsed, toggleCollapsed } = useSidebarState();
+  const location = useLocation();
+
+  // Close mobile sidebar when route changes
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-green-50/30 via-white to-blue-50/30">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:block">
-        <Sidebar />
+    <div className="flex h-screen bg-gradient-to-br from-green-50/30 via-white to-blue-50/30 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-8 -left-8 w-16 h-16 bg-green-200/20 rounded-full blur-xl"></div>
+        <div className="absolute top-1/4 -right-8 w-12 h-12 bg-blue-200/20 rounded-full blur-xl"></div>
+        <div className="absolute bottom-8 left-1/4 w-20 h-20 bg-teal-200/20 rounded-full blur-xl"></div>
+      </div>
+
+      {/* Desktop Sidebar - Now completely hidden when collapsed */}
+      <aside className={cn(
+        "hidden lg:block h-full transition-all duration-300 bg-white/95 backdrop-blur-sm shadow-sm border-r border-gray-200/60 z-30 relative",
+        collapsed ? "w-0 opacity-0" : "w-64 opacity-100"
+      )}>
+        <Sidebar collapsed={collapsed} />
       </aside>
 
       {/* Mobile Sidebar Overlay */}
@@ -545,14 +896,14 @@ const LandlordLayout = () => {
         {mobileOpen && (
           <>
             <motion.div
-              className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+              className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
-              className="fixed left-0 top-0 z-50 h-screen lg:hidden"
+              className="fixed left-0 top-0 z-50 h-screen lg:hidden bg-white/95 backdrop-blur-sm shadow-xl flex flex-col"
               initial={{ x: -300 }}
               animate={{ x: 0 }}
               exit={{ x: -300 }}
@@ -564,12 +915,19 @@ const LandlordLayout = () => {
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <Header onMobileMenuClick={() => setMobileOpen(true)} />
-
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-green-50/20 to-blue-50/20">
-          <div className="p-6">
+      {/* Main Content Area */}
+      <div className={cn(
+        "flex flex-col flex-1 min-w-0 min-h-0 transition-all duration-300 relative z-10",
+        // Adjust main content width based on sidebar state
+        collapsed ? "w-full" : "lg:w-[calc(100vw-16rem)]"
+      )}>
+        <Header 
+          onMobileMenuClick={() => setMobileOpen(true)}
+          sidebarCollapsed={collapsed}
+          onToggleSidebar={toggleCollapsed}
+        />
+        <main className="flex-1 overflow-y-auto bg-transparent min-h-0">
+          <div className="p-4 sm:p-6 h-full">
             <Outlet />
           </div>
         </main>

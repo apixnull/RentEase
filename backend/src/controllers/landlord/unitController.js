@@ -200,25 +200,24 @@ export const getUnitDetails = async (req, res) => {
   }
 };
 
-
-
 // ---------------------------------------------- CREATE NEW UNITS UNDER THAT PROPERTY ----------------------------------------------
 export const createUnit = async (req, res) => {
   try {
     const { propertyId } = req.params;
     const {
+      id, 
       label,
       description,
       status,
       floorNumber,
       maxOccupancy,
       mainImageUrl,
-      otherImages, // an array of images up to 6
+      otherImages,
       unitLeaseRules,
       targetPrice,
       securityDeposit,
       requiresScreening,
-      amenities, // array of amenity IDs
+      amenities,
     } = req.body;
 
     const ownerId = req.user?.id;
@@ -226,11 +225,12 @@ export const createUnit = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized: owner not found" });
     }
 
+    // ✅ Basic validation
     if (!propertyId || !label || !description || !status || !targetPrice) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Validate property ownership
+    // ✅ Validate property ownership
     const property = await prisma.property.findFirst({
       where: { id: propertyId, ownerId },
     });
@@ -240,33 +240,28 @@ export const createUnit = async (req, res) => {
         .json({ message: "Property not found or not owned by landlord" });
     }
 
-    // Validate otherImages (max 6)
-    if (otherImages && Array.isArray(otherImages) && otherImages.length > 6) {
+    // ✅ Validate other images count
+    if (Array.isArray(otherImages) && otherImages.length > 6) {
       return res
         .status(400)
         .json({ message: "Maximum of 6 other images allowed" });
     }
 
-    // --- Prevent duplicate unit labels (case + space insensitive) ---
+    // ✅ Prevent duplicate unit labels (case + space insensitive)
     const normalize = (str) => str.replace(/\s+/g, "").toLowerCase();
     const normalizedLabel = normalize(label);
-
     const existingUnits = await prisma.unit.findMany({
       where: { propertyId },
       select: { label: true },
     });
 
-    const conflict = existingUnits.some(
-      (u) => normalize(u.label) === normalizedLabel
-    );
-
-    if (conflict) {
+    if (existingUnits.some((u) => normalize(u.label) === normalizedLabel)) {
       return res.status(400).json({
         message: `A unit with the label "${label}" already exists in this property.`,
       });
     }
 
-    // ✅ Convert values to correct types
+    // ✅ Convert values
     const parsedMaxOccupancy = maxOccupancy ? Number(maxOccupancy) : 1;
     const parsedFloorNumber = floorNumber ? Number(floorNumber) : null;
     const parsedTargetPrice = Number(targetPrice);
@@ -274,9 +269,10 @@ export const createUnit = async (req, res) => {
       ? Number(securityDeposit)
       : null;
 
-    // Create unit
+    // ✅ Create unit — use provided ID if available
     const unit = await prisma.unit.create({
       data: {
+        id: id || undefined, // 👈 override if provided, else Prisma uses default uuid()
         propertyId,
         label: label.trim(),
         description,
@@ -284,15 +280,13 @@ export const createUnit = async (req, res) => {
         floorNumber: parsedFloorNumber,
         maxOccupancy: parsedMaxOccupancy,
         mainImageUrl: mainImageUrl || null,
-        otherImages: otherImages || null, // Prisma handles JSON
+        otherImages: otherImages || null,
         unitLeaseRules: unitLeaseRules || null,
         targetPrice: parsedTargetPrice,
         securityDeposit: parsedSecurityDeposit,
         requiresScreening: requiresScreening ?? false,
         amenities: amenities
-          ? {
-              connect: amenities.map((id) => ({ id })),
-            }
+          ? { connect: amenities.map((id) => ({ id })) }
           : undefined,
       },
       include: { amenities: true },
@@ -304,6 +298,9 @@ export const createUnit = async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating unit:", error);
-    return res.status(500).json({ message: "Failed to create unit" });
+    return res.status(500).json({
+      message: "Failed to create unit",
+      error: error.message,
+    });
   }
 };

@@ -98,15 +98,14 @@ export const getVisibleListingsForTenant = async (req, res) => {
   }
 };
 
-
 // ------------------------------------------------------------
-// GET SPECIFIC LISTING (Tenant → Full Unit Details)
+// GET SPECIFIC LISTING (Tenant → Full Unit + Property Details)
 // ------------------------------------------------------------
 export const getSpecificListing = async (req, res) => {
   try {
     const { listingId } = req.params;
 
-    // Step 1: Find the listing (must be visible and not expired)
+    // Step 1: Fetch listing → unit → property
     const listing = await prisma.listing.findFirst({
       where: {
         id: listingId,
@@ -116,7 +115,7 @@ export const getSpecificListing = async (req, res) => {
       include: {
         unit: {
           include: {
-            amenities: true, // all amenities attached to the unit
+            amenities: true,
             property: {
               include: {
                 city: true,
@@ -152,7 +151,7 @@ export const getSpecificListing = async (req, res) => {
       },
     });
 
-    // Step 2: Handle not found
+    // Step 2: Handle not found or invisible
     if (!listing) {
       return res.status(404).json({
         success: false,
@@ -167,14 +166,20 @@ export const getSpecificListing = async (req, res) => {
         ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
         : null;
 
-    // Step 4: Increment view count (analytics)
+    // Step 4: Increment view count
     await prisma.unit.update({
       where: { id: listing.unit.id },
       data: { viewCount: { increment: 1 } },
     });
 
-    // Step 5: Prepare clean response for frontend
+    // Step 5: Clean response
+    const property = listing.unit.property;
+
     const responseData = {
+      id: listing.id,
+      lifecycleStatus: listing.lifecycleStatus,
+      expiresAt: listing.expiresAt,
+
       unit: {
         id: listing.unit.id,
         label: listing.unit.label,
@@ -196,20 +201,21 @@ export const getSpecificListing = async (req, res) => {
           createdAt: r.createdAt,
           tenant: r.tenant,
         })),
-        property: {
-          id: listing.unit.property.id,
-          title: listing.unit.property.title,
-          type: listing.unit.property.type,
-          street: listing.unit.property.street,
-          barangay: listing.unit.property.barangay,
-          zipCode: listing.unit.property.zipCode,
-          city: listing.unit.property.city,
-          municipality: listing.unit.property.municipality,
-          latitude: listing.unit.property.latitude,
-          longitude: listing.unit.property.longitude,
-          mainImageUrl: listing.unit.property.mainImageUrl,
-          nearInstitutions: listing.unit.property.nearInstitutions,
-        },
+      },
+
+      property: {
+        id: property.id,
+        title: property.title,
+        type: property.type,
+        street: property.street,
+        barangay: property.barangay,
+        zipCode: property.zipCode,
+        latitude: property.latitude,
+        longitude: property.longitude,
+        mainImageUrl: property.mainImageUrl,
+        nearInstitutions: property.nearInstitutions,
+        city: property.city,
+        municipality: property.municipality,
       },
 
       landlord: {
@@ -224,7 +230,6 @@ export const getSpecificListing = async (req, res) => {
         },
       },
 
-      // message button metadata (frontend can decide how to render it)
       messageButton: {
         available: !!(
           listing.landlord.messengerUrl ||

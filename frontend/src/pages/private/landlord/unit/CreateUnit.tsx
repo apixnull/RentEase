@@ -1,6 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,15 +22,21 @@ import {
   X,
   Image as ImageIcon,
   Loader,
+  Zap,
+  Plus,
+  Trash2,
+  Camera,
+  Star,
+  Lightbulb,
+  Info,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  getAmenitiesRequest,
-} from "@/api/landlord/propertyApi";
+import { getAmenitiesRequest } from "@/api/landlord/propertyApi";
 import { supabase } from "@/lib/supabaseClient";
 import { createUnitRequest } from "@/api/landlord/unitApi";
 
-// Lease rule categories as specified
+// Lease rule categories
 const leaseRuleCategories = [
   { id: "general", name: "General Policies" },
   { id: "visitor", name: "Visitor Policies" },
@@ -38,7 +50,6 @@ const leaseRuleCategories = [
   { id: "other", name: "Other Policies" },
 ];
 
-// Lease rule type
 type LeaseRule = {
   id: string;
   text: string;
@@ -51,15 +62,6 @@ type Amenity = {
   category: string;
 };
 
-// Steps configuration
-const steps = [
-  { id: 1, title: "Basic Info", icon: Home },
-  { id: 2, title: "Amenities", icon: CheckCircle },
-  { id: 3, title: "Images", icon: ImageIcon },
-  { id: 4, title: "Pricing", icon: DollarSign },
-  { id: 5, title: "Lease Rules", icon: Shield },
-];
-
 const CreateUnit = () => {
   const { propertyId } = useParams();
   const navigate = useNavigate();
@@ -71,35 +73,22 @@ const CreateUnit = () => {
   const [isLoadingAmenities, setIsLoadingAmenities] = useState(true);
   const [amenitiesError, setAmenitiesError] = useState<string | null>(null);
 
-  // Form state based on your Unit schema
+  // Form state
   const [formData, setFormData] = useState({
-    // Basic Info
     label: "",
     description: "",
     floorNumber: "",
-
-    // Layout & Features
     maxOccupancy: 1,
-
-    // Amenities
     amenities: [] as string[],
-
-    // Images
     mainImage: null as File | null,
     mainImagePreview: "",
     otherImages: [] as File[],
     otherImagesPreviews: [] as string[],
-
-    // Pricing
     targetPrice: "",
     securityDeposit: "",
-
-    // Lease Rules
     leaseRules: [] as LeaseRule[],
     newLeaseRule: "",
     newLeaseRuleCategory: "general",
-
-    // Screening Settings
     requiresScreening: false,
   });
 
@@ -107,6 +96,45 @@ const CreateUnit = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // Steps configuration
+  const steps = [
+    {
+      id: 1,
+      title: "Unit Basics",
+      description: "Tell us about your unit",
+      icon: Home,
+      guideline: "Choose a clear, descriptive name that helps tenants identify your unit",
+    },
+    {
+      id: 2,
+      title: "Features & Amenities",
+      description: "What makes your unit special",
+      icon: Star,
+      guideline: "Select amenities that match your target tenant's lifestyle",
+    },
+    {
+      id: 3,
+      title: "Photos",
+      description: "Showcase your unit",
+      icon: Camera,
+      guideline: "High-quality photos increase booking chances by 40%",
+    },
+    {
+      id: 4,
+      title: "Pricing",
+      description: "Set your rates",
+      icon: DollarSign,
+      guideline: "Competitive pricing helps you attract tenants faster",
+    },
+    {
+      id: 5,
+      title: "House Rules",
+      description: "Set expectations",
+      icon: Shield,
+      guideline: "Clear rules prevent misunderstandings with tenants",
+    },
+  ];
 
   // Fetch amenities from API
   useEffect(() => {
@@ -117,7 +145,7 @@ const CreateUnit = () => {
         setIsLoadingAmenities(true);
         setAmenitiesError(null);
         const res = await getAmenitiesRequest({ signal: controller.signal });
-        setAmenities(res.data); // expect [{ id, name, category }, ...]
+        setAmenities(res.data);
       } catch (err: any) {
         if (err.name !== "AbortError") {
           console.error("Failed to fetch amenities:", err);
@@ -152,15 +180,12 @@ const CreateUnit = () => {
   }, {} as Record<string, LeaseRule[]>);
 
   const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]:
-        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
+      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
@@ -212,7 +237,6 @@ const CreateUnit = () => {
       otherImagesPreviews: newPreviews.slice(0, 6),
     }));
 
-    // Reset the file input
     if (otherImagesInputRef.current) {
       otherImagesInputRef.current.value = "";
     }
@@ -222,9 +246,7 @@ const CreateUnit = () => {
     setFormData((prev) => ({
       ...prev,
       otherImages: prev.otherImages.filter((_, i) => i !== index),
-      otherImagesPreviews: prev.otherImagesPreviews.filter(
-        (_, i) => i !== index
-      ),
+      otherImagesPreviews: prev.otherImagesPreviews.filter((_, i) => i !== index),
     }));
   };
 
@@ -314,10 +336,7 @@ const CreateUnit = () => {
         }
         return true;
       case 5:
-        // Lease rules validation - optional but if present, validate word count
-        if (
-          formData.leaseRules.some((rule) => rule.text.split(/\s+/).length > 7)
-        ) {
+        if (formData.leaseRules.some((rule) => rule.text.split(/\s+/).length > 7)) {
           toast.error("All lease rules must be 7 words or less");
           return false;
         }
@@ -329,42 +348,73 @@ const CreateUnit = () => {
 
   // Function to generate UUID
   const generateUUID = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c == "x" ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
   };
 
-  // Function to upload image to Supabase
-  const uploadImageToSupabase = async (file: File, folderPath: string, fileName: string): Promise<string> => {
+  // Function to upload image to Supabase with new folder structure
+  const uploadImageToSupabase = async (
+    file: File,
+    unitId: string,
+    fileName: string
+  ): Promise<string> => {
     try {
-      // Get file extension
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fullFileName = `${fileName}.${fileExt}`;
-      const filePath = `${folderPath}/${fullFileName}`;
+      const filePath = `unit_images/${unitId}/${fullFileName}`;
 
-      // Upload the file
       const { error } = await supabase.storage
-        .from('rentease-images')
+        .from("rentease-images")
         .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
+          cacheControl: "3600",
+          upsert: false,
         });
 
       if (error) {
         throw error;
       }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('rentease-images')
-        .getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
 
       return publicUrl;
     } catch (error) {
-      console.error('Error uploading image to Supabase:', error);
+      console.error("Error uploading image to Supabase:", error);
       throw new Error(`Failed to upload image: ${error}`);
+    }
+  };
+
+  // Function to delete entire unit folder from Supabase (for rollback)
+  const deleteUnitFolderFromSupabase = async (unitId: string): Promise<void> => {
+    try {
+      const { data: files, error: listError } = await supabase.storage
+        .from("rentease-images")
+        .list(`unit_images/${unitId}`);
+
+      if (listError) {
+        console.error("Error listing files for deletion:", listError);
+        return;
+      }
+
+      if (files && files.length > 0) {
+        const filePaths = files.map((file) => `unit_images/${unitId}/${file.name}`);
+        
+        const { error: deleteError } = await supabase.storage
+          .from("rentease-images")
+          .remove(filePaths);
+
+        if (deleteError) {
+          console.error("Error deleting files:", deleteError);
+        } else {
+          console.log(`Successfully deleted ${filePaths.length} files for unit ${unitId}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error in deleteUnitFolderFromSupabase:", error);
     }
   };
 
@@ -378,48 +428,49 @@ const CreateUnit = () => {
     setIsSubmitting(true);
     setImageUploading(true);
 
+    // Generate the actual UUID that will be used for the unit
+    const unitId = generateUUID();
+    let uploadedImages = false;
+
     try {
+      // First upload all images to Supabase using the actual unitId
       let mainImageUrl = "";
       const otherImageUrls: string[] = [];
 
       // Upload main image
       if (formData.mainImage) {
-        const mainImageUUID = generateUUID();
         mainImageUrl = await uploadImageToSupabase(
           formData.mainImage,
-          `units/${propertyId}`,
-          `main-${mainImageUUID}`
+          unitId,
+          "main"
         );
       }
 
       // Upload other images
       if (formData.otherImages.length > 0) {
         for (let i = 0; i < formData.otherImages.length; i++) {
-          const imageUUID = generateUUID();
           const imageUrl = await uploadImageToSupabase(
             formData.otherImages[i],
-            `units/${propertyId}`,
-            `other-${imageUUID}-${i}`
+            unitId,
+            `image_${i + 1}`
           );
           otherImageUrls.push(imageUrl);
         }
       }
 
-      setImageUploading(false);
+      uploadedImages = true;
 
-      // Prepare the final data payload
-      const unitData = {
+      // Prepare the complete unit data with image URLs and the unitId
+      const completeUnitData = {
+        id: unitId, // Send the actual UUID to backend
         label: formData.label.trim(),
         description: formData.description.trim(),
         status: "AVAILABLE" as const,
-        floorNumber: formData.floorNumber
-          ? parseInt(formData.floorNumber)
-          : null,
+        floorNumber: formData.floorNumber ? parseInt(formData.floorNumber) : null,
         maxOccupancy: formData.maxOccupancy,
         amenities: formData.amenities,
         mainImageUrl: mainImageUrl,
         otherImages: otherImageUrls.length > 0 ? otherImageUrls : null,
-        // Updated to include category with each lease rule
         unitLeaseRules:
           formData.leaseRules.length > 0
             ? formData.leaseRules.map((rule) => ({
@@ -434,17 +485,27 @@ const CreateUnit = () => {
         requiresScreening: formData.requiresScreening,
       };
 
-      // Send data to backend API
-      const response = await createUnitRequest(propertyId, unitData);
-      const unitId = response.data.id;
+      // Create unit with all data including image URLs and the actual unitId
+      const response = await createUnitRequest(propertyId, completeUnitData);
 
+      setImageUploading(false);
       toast.success(response.data.message || "Unit added successfully!");
       navigate(`/landlord/units/${propertyId}/${unitId}`);
+
     } catch (error: any) {
       console.error("Error creating unit:", error);
+      
+      // Rollback: Delete uploaded images if backend creation failed
+      if (uploadedImages) {
+        console.log("Rolling back: Deleting uploaded images...");
+        await deleteUnitFolderFromSupabase(unitId);
+      }
+
       setImageUploading(false);
       toast.error(
-        error.response?.data?.message || error.message || "Failed to add unit. Please try again."
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to add unit. Please try again."
       );
     } finally {
       setIsSubmitting(false);
@@ -455,77 +516,69 @@ const CreateUnit = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Only show confirmation on the last step after validation
     if (currentStep === steps.length) {
       if (validateStep(currentStep)) {
         setShowConfirmation(true);
       }
     } else {
-      // For non-final steps, just proceed to next step
       nextStep();
     }
   };
 
-  // Compact progress bar
+  // Progress bar with new color scheme
   const renderProgressBar = () => (
-    <div className="mb-6">
-      <div className="flex items-center justify-center space-x-1">
-        {steps.map((step, index) => (
-          <div key={step.id} className="flex items-center">
-            <div
-              className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-                currentStep > step.id
-                  ? "bg-emerald-500 text-white"
-                  : currentStep === step.id
-                  ? "bg-emerald-100 text-emerald-700 border-2 border-emerald-500"
-                  : "bg-gray-100 text-gray-400"
-              }`}
-            >
-              {currentStep > step.id ? (
-                <CheckCircle className="h-4 w-4" />
-              ) : (
-                <step.icon className="h-4 w-4" />
-              )}
-            </div>
-            {index < steps.length - 1 && (
-              <div
-                className={`w-8 h-0.5 ${
-                  currentStep > step.id ? "bg-emerald-500" : "bg-gray-200"
-                }`}
-              />
-            )}
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Create Your Unit</h1>
+          <p className="text-gray-600">
+            Step {currentStep} of {steps.length}
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="text-sm text-gray-500">Completion</div>
+          <div className="text-lg font-semibold text-green-600">
+            {Math.round(((currentStep - 1) / (steps.length - 1)) * 100)}%
           </div>
-        ))}
+        </div>
       </div>
-      <div className="flex justify-center mt-2 space-x-8">
-        {steps.map((step) => (
+
+      <div className="w-full bg-gray-200 rounded-full h-2">
+        <div
+          className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-500"
+          style={{
+            width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
+          }}
+        ></div>
+      </div>
+
+      <div className="flex justify-between mt-2">
+        {steps.map((stepItem) => (
           <div
-            key={step.id}
-            className={`text-xs ${
-              currentStep >= step.id
-                ? "text-emerald-700 font-medium"
-                : "text-gray-500"
+            key={stepItem.id}
+            className={`text-xs font-medium ${
+              currentStep >= stepItem.id ? "text-green-600" : "text-gray-400"
             }`}
           >
-            {step.title}
+            {stepItem.title}
           </div>
         ))}
       </div>
     </div>
   );
 
-  // Confirmation Dialog
+  // Confirmation Dialog with transparent background
   const renderConfirmation = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="p-6 max-w-md w-full">
+    <div className="fixed inset-0 bg-transparent backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <Card className="p-6 max-w-md w-full shadow-2xl border-0">
         <div className="text-center">
-          <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
+          <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Confirm Unit Creation
+            Ready to List Your Unit?
           </h3>
           <p className="text-sm text-gray-600 mb-6">
-            Are you sure you want to create this unit? This action cannot be
-            undone.
+            Your unit will be published and visible to potential tenants
+            immediately after creation.
           </p>
           <div className="flex gap-3 justify-center">
             <Button
@@ -533,12 +586,12 @@ const CreateUnit = () => {
               onClick={() => setShowConfirmation(false)}
               disabled={isSubmitting}
             >
-              Cancel
+              Review Details
             </Button>
             <Button
               onClick={handleFinalSubmit}
               disabled={isSubmitting || imageUploading}
-              className="bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700"
+              className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
             >
               {isSubmitting || imageUploading ? (
                 <>
@@ -546,7 +599,7 @@ const CreateUnit = () => {
                   {imageUploading ? "Uploading Images..." : "Creating Unit..."}
                 </>
               ) : (
-                "Yes, Create Unit"
+                "Publish Unit"
               )}
             </Button>
           </div>
@@ -555,656 +608,746 @@ const CreateUnit = () => {
     </div>
   );
 
-  // Render amenities step content
-  const renderAmenitiesStep = () => {
-    if (isLoadingAmenities) {
-      return (
-        <Card className="p-6">
-          <div className="flex items-center justify-center py-8">
-            <Loader className="h-6 w-6 animate-spin text-emerald-600 mr-2" />
-            <span className="text-gray-600">Loading amenities...</span>
-          </div>
-        </Card>
-      );
-    }
-
-    if (amenitiesError) {
-      return (
-        <Card className="p-6">
-          <div className="text-center py-8 text-gray-500">
-            <CheckCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-red-600 mb-2">{amenitiesError}</p>
-            <p className="text-sm">Please try refreshing the page</p>
-          </div>
-        </Card>
-      );
-    }
+  // Render step content with new color scheme
+  const renderStepContent = () => {
+    const currentStepData = steps.find((step) => step.id === currentStep);
+    if (!currentStepData) return null;
 
     return (
-      <Card className="p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="p-2 rounded-lg bg-amber-100 text-amber-700">
-            <CheckCircle className="h-5 w-5" />
-          </div>
-          <h2 className="text-lg font-semibold text-gray-900">Amenities</h2>
-        </div>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        {/* Main Content - 2/3 width */}
+        <div className="xl:col-span-2">
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="pb-4 border-b">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-gradient-to-r from-green-100 to-blue-100 text-green-600">
+                  <currentStepData.icon className="h-6 w-6" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">
+                    {currentStepData.title}
+                  </CardTitle>
+                  <CardDescription>
+                    {currentStepData.description}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
 
-        <div className="space-y-6">
-          <p className="text-sm text-gray-600">
-            Select the amenities available in this unit. This helps tenants find
-            the perfect match for their needs.
-          </p>
+            <CardContent className="pt-6">
+              {/* Step 1: Unit Basics */}
+              {currentStep === 1 && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        Unit Label/Name *
+                        <Info className="h-4 w-4 text-gray-400" />
+                      </label>
+                      <Input
+                        name="label"
+                        value={formData.label}
+                        onChange={handleInputChange}
+                        placeholder="e.g., Unit 3A, Studio B, Garden Suite"
+                        maxLength={50}
+                        required
+                        className="h-12 text-lg"
+                      />
+                      <p className="text-xs text-gray-500">
+                        {formData.label.length}/50 characters • Be specific and
+                        clear
+                      </p>
+                    </div>
 
-          {amenities.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <CheckCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p>No amenities available</p>
-              <p className="text-sm">
-                Please contact support if this issue persists
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Object.entries(groupedAmenities).map(
-                  ([category, categoryAmenities]) => (
-                    <div key={category} className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3">
-                        {category}
-                      </h3>
-                      <div className="space-y-2">
-                        {categoryAmenities.map((amenity) => (
-                          <div
-                            key={amenity.id}
-                            className="flex items-center gap-3"
-                          >
-                            <input
-                              type="checkbox"
-                              id={`amenity-${amenity.id}`}
-                              checked={formData.amenities.includes(amenity.id)}
-                              onChange={() => handleAmenityChange(amenity.id)}
-                              className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
-                            />
-                            <label
-                              htmlFor={`amenity-${amenity.id}`}
-                              className="text-sm text-gray-700 flex-1"
-                            >
-                              {amenity.name}
-                            </label>
-                          </div>
-                        ))}
+                    <div className="space-y-3">
+                      <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        Floor Number
+                        <Info className="h-4 w-4 text-gray-400" />
+                      </label>
+                      <Input
+                        name="floorNumber"
+                        type="number"
+                        min="0"
+                        max="200"
+                        value={formData.floorNumber}
+                        onChange={handleInputChange}
+                        placeholder="e.g., 3 (leave blank for single-level)"
+                        className="h-12"
+                      />
+                    </div>
+
+                    <div className="space-y-3 md:col-span-2">
+                      <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        Description *
+                        <Info className="h-4 w-4 text-gray-400" />
+                      </label>
+                      <Textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        placeholder="Describe what makes your unit special. Highlight unique features, recent renovations, or special amenities..."
+                        rows={5}
+                        required
+                        className="resize-none"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>
+                          {getWordCount(formData.description)}/30 words
+                        </span>
+                        <span>Focus on what tenants care about</span>
                       </div>
                     </div>
-                  )
-                )}
-              </div>
+                  </div>
+                </div>
+              )}
 
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600">
-                  <strong>Selected amenities:</strong>{" "}
-                  {formData.amenities.length} of {amenities.length}
-                </p>
-              </div>
-            </>
-          )}
+              {/* Step 2: Amenities */}
+              {currentStep === 2 && (
+                <div className="space-y-6">
+                  {isLoadingAmenities ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader className="h-8 w-8 animate-spin text-green-600 mr-3" />
+                      <span className="text-gray-600 text-lg">
+                        Loading amenities...
+                      </span>
+                    </div>
+                  ) : amenitiesError ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Star className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                      <p className="text-red-600 mb-2 text-lg">
+                        {amenitiesError}
+                      </p>
+                      <p className="text-sm">Please try refreshing the page</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {Object.entries(groupedAmenities).map(
+                          ([category, categoryAmenities]) => (
+                            <div
+                              key={category}
+                              className="border-2 border-gray-100 rounded-xl p-5 bg-white hover:border-green-200 transition-colors"
+                            >
+                              <h3 className="font-semibold text-gray-900 text-lg mb-4 pb-2 border-b">
+                                {category}
+                              </h3>
+                              <div className="space-y-3">
+                                {categoryAmenities.map((amenity) => (
+                                  <div
+                                    key={amenity.id}
+                                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      id={`amenity-${amenity.id}`}
+                                      checked={formData.amenities.includes(
+                                        amenity.id
+                                      )}
+                                      onChange={() =>
+                                        handleAmenityChange(amenity.id)
+                                      }
+                                      className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                    />
+                                    <label
+                                      htmlFor={`amenity-${amenity.id}`}
+                                      className="text-sm text-gray-700 flex-1 cursor-pointer"
+                                    >
+                                      {amenity.name}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+
+                      <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-5 border border-green-200">
+                        <div className="flex items-center gap-3 mb-2">
+                          <Lightbulb className="h-5 w-5 text-green-600" />
+                          <h4 className="font-semibold text-green-900">
+                            Selection Summary
+                          </h4>
+                        </div>
+                        <p className="text-green-700 text-sm">
+                          You've selected{" "}
+                          <strong>{formData.amenities.length} amenities</strong>{" "}
+                          out of {amenities.length} available. Units with more
+                          amenities typically attract tenants faster.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Step 3: Photos */}
+              {currentStep === 3 && (
+                <div className="space-y-8">
+                  {/* Main Image Section */}
+                  <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Camera className="h-6 w-6 text-green-600" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">
+                          Cover Photo
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          This is the first image tenants will see
+                        </p>
+                      </div>
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleMainImageChange}
+                      accept="image/*"
+                      className="hidden"
+                    />
+
+                    {!formData.mainImagePreview ? (
+                      <div
+                        className="border-3 border-dashed border-green-300 rounded-xl p-12 text-center cursor-pointer hover:border-green-400 transition-colors bg-white"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Camera className="h-12 w-12 text-green-400 mx-auto mb-4" />
+                        <h4 className="font-semibold text-gray-900 text-lg mb-2">
+                          Add a Cover Photo
+                        </h4>
+                        <p className="text-gray-600">
+                          Choose your best photo that shows the unit's main
+                          feature
+                        </p>
+                        <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload Cover Photo
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-xl p-4 border-2 border-green-200">
+                        <div className="flex items-center gap-4">
+                          <img
+                            src={formData.mainImagePreview}
+                            alt="Main preview"
+                            className="w-24 h-24 object-cover rounded-lg"
+                          />
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-900">
+                              Cover Photo Selected
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {formData.mainImage?.name}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                mainImage: null,
+                                mainImagePreview: "",
+                              }))
+                            }
+                          >
+                            Change Photo
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Additional Images Section */}
+                  <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-6 border border-blue-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <ImageIcon className="h-6 w-6 text-blue-600" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">
+                          Additional Photos
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          Show different angles and features (6 required)
+                        </p>
+                      </div>
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={otherImagesInputRef}
+                      onChange={handleOtherImagesChange}
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                    />
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                      {formData.otherImagesPreviews.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={preview}
+                            alt={`Additional ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 h-6 w-6 bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
+                            onClick={() => removeOtherImage(index)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                          <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                            {index + 1}
+                          </div>
+                        </div>
+                      ))}
+
+                      {Array.from({
+                        length: 6 - formData.otherImages.length,
+                      }).map((_, index) => (
+                        <div
+                          key={`empty-${index}`}
+                          className="border-2 border-dashed border-gray-300 rounded-lg h-32 flex items-center justify-center cursor-pointer hover:border-green-400 transition-colors bg-white"
+                          onClick={() => otherImagesInputRef.current?.click()}
+                        >
+                          <Plus className="h-8 w-8 text-gray-400" />
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => otherImagesInputRef.current?.click()}
+                      disabled={formData.otherImages.length >= 6}
+                      className="w-full"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Add More Photos ({formData.otherImages.length}/6)
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Pricing */}
+              {currentStep === 4 && (
+                <div className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Pricing Section */}
+                    <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
+                      <div className="flex items-center gap-3 mb-6">
+                        <DollarSign className="h-6 w-6 text-green-600" />
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-lg">
+                            Monthly Rent
+                          </h3>
+                          <p className="text-gray-600 text-sm">
+                            Set your monthly rental price
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-3">
+                          <label className="text-sm font-semibold text-gray-700">
+                            Monthly Rent (₱) *
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                              ₱
+                            </span>
+                            <Input
+                              name="targetPrice"
+                              type="number"
+                              min="1"
+                              max="100000"
+                              value={formData.targetPrice}
+                              onChange={handleInputChange}
+                              placeholder="15000"
+                              required
+                              className="h-12 pl-8 text-lg font-semibold"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Competitive range: ₱8,000 - ₱25,000 for similar
+                            units
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          <label className="text-sm font-semibold text-gray-700">
+                            Security Deposit (₱)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                              ₱
+                            </span>
+                            <Input
+                              name="securityDeposit"
+                              type="number"
+                              min="0"
+                              max="100000"
+                              step="100"
+                              value={formData.securityDeposit}
+                              onChange={handleInputChange}
+                              placeholder="10000"
+                              className="h-12 pl-8"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Typically 1-2 months' rent
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Occupancy & Screening */}
+                    <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-6 border border-blue-200">
+                      <div className="flex items-center gap-3 mb-6">
+                        <Users className="h-6 w-6 text-blue-600" />
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-lg">
+                            Occupancy & Screening
+                          </h3>
+                          <p className="text-gray-600 text-sm">
+                            Set capacity and tenant requirements
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="space-y-3">
+                          <label className="text-sm font-semibold text-gray-700">
+                            Maximum Occupancy *
+                          </label>
+                          <Input
+                            name="maxOccupancy"
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={formData.maxOccupancy}
+                            onChange={handleInputChange}
+                            required
+                            className="h-12 text-center text-lg font-semibold"
+                          />
+                          <p className="text-xs text-gray-500 text-center">
+                            {formData.maxOccupancy}{" "}
+                            {formData.maxOccupancy === 1 ? "person" : "people"}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 border-2 border-blue-200 rounded-xl bg-white">
+                          <input
+                            type="checkbox"
+                            id="requiresScreening"
+                            name="requiresScreening"
+                            checked={formData.requiresScreening}
+                            onChange={handleInputChange}
+                            className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                          />
+                          <div>
+                            <label
+                              htmlFor="requiresScreening"
+                              className="text-sm font-medium text-gray-700"
+                            >
+                              Require tenant screening
+                            </label>
+                            <p className="text-xs text-gray-500">
+                              Recommended for better tenant matches
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 5: Lease Rules */}
+              {currentStep === 5 && (
+                <div className="space-y-8">
+                  {/* Add Rules Section */}
+                  <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Shield className="h-6 w-6 text-green-600" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">
+                          Add House Rules
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          Set clear expectations for tenants
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="text-sm font-semibold text-gray-700">
+                          Rule Category
+                        </label>
+                        <select
+                          value={formData.newLeaseRuleCategory}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              newLeaseRuleCategory: e.target.value,
+                            }))
+                          }
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
+                        >
+                          {leaseRuleCategories.map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-sm font-semibold text-gray-700">
+                          Rule Text (7 words max)
+                        </label>
+                        <Input
+                          value={formData.newLeaseRule}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              newLeaseRule: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g., No smoking inside the unit"
+                          onKeyPress={(e) =>
+                            e.key === "Enter" &&
+                            (e.preventDefault(), addLeaseRule())
+                          }
+                          className="h-12"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>
+                            {
+                              formData.newLeaseRule
+                                .split(/\s+/)
+                                .filter((w) => w).length
+                            }
+                            /7 words
+                          </span>
+                          <span>Keep it clear and concise</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={addLeaseRule}
+                      disabled={
+                        formData.leaseRules.length >= 10 ||
+                        !formData.newLeaseRule.trim()
+                      }
+                      className="w-full mt-4 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Rule ({formData.leaseRules.length}/10)
+                    </Button>
+                  </div>
+
+                  {/* Rules Display */}
+                  {formData.leaseRules.length > 0 && (
+                    <div className="bg-white rounded-2xl p-6 border-2 border-green-200">
+                      <div className="flex items-center gap-3 mb-6">
+                        <CheckCircle className="h-6 w-6 text-green-600" />
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-lg">
+                            Your House Rules
+                          </h3>
+                          <p className="text-gray-600 text-sm">
+                            {formData.leaseRules.length} rules added
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {leaseRuleCategories.map((category) => {
+                          const categoryRules =
+                            groupedLeaseRules[category.id] || [];
+                          if (categoryRules.length === 0) return null;
+
+                          return (
+                            <div
+                              key={category.id}
+                              className="border-2 border-gray-100 rounded-xl p-4 bg-gray-50"
+                            >
+                              <h4 className="font-medium text-gray-900 text-sm mb-3 pb-2 border-b">
+                                {category.name}
+                              </h4>
+                              <div className="space-y-2">
+                                {categoryRules.map((rule) => (
+                                  <div
+                                    key={rule.id}
+                                    className="flex justify-between items-center text-sm bg-white rounded-lg px-3 py-2 border"
+                                  >
+                                    <span className="text-gray-700 flex-1">
+                                      {rule.text}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() => removeLeaseRule(rule.id)}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      </Card>
+
+        {/* Sidebar - 1/3 width */}
+        <div className="space-y-6">
+          {/* Progress & Guidelines */}
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-blue-50">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Lightbulb className="h-5 w-5 text-green-600" />
+                <h3 className="font-semibold text-gray-900">Pro Tip</h3>
+              </div>
+              <p className="text-sm text-gray-700 mb-4">
+                {currentStepData.guideline}
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Progress</span>
+                  <span className="font-semibold text-green-600">
+                    {Math.round(((currentStep - 1) / (steps.length - 1)) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
+                    }}
+                  ></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Stats */}
+          <Card className="border-0 shadow-lg">
+            <CardContent className="p-6">
+              <h4 className="font-semibold text-gray-900 mb-4">Quick Stats</h4>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Amenities Selected</span>
+                  <span className="font-semibold">
+                    {formData.amenities.length}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Photos Uploaded</span>
+                  <span className="font-semibold">
+                    {formData.otherImages.length + (formData.mainImage ? 1 : 0)}
+                    /7
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">House Rules</span>
+                  <span className="font-semibold">
+                    {formData.leaseRules.length}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          
+        </div>
+      </div>
     );
   };
 
-  // Render step content
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
-                <Home className="h-5 w-5" />
-              </div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Basic Information
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label
-                  htmlFor="label"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Unit Label/Name *
-                </label>
-                <Input
-                  id="label"
-                  name="label"
-                  value={formData.label}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Unit 3A, Studio B"
-                  maxLength={50}
-                  required
-                />
-                <p className="text-xs text-gray-500">
-                  {formData.label.length}/50 characters
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label
-                  htmlFor="floorNumber"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Floor Number
-                </label>
-                <Input
-                  id="floorNumber"
-                  name="floorNumber"
-                  required
-                  type="number"
-                  min="0"
-                  max="200"
-                  value={formData.floorNumber}
-                  onChange={handleInputChange}
-                  placeholder="e.g., 3"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label
-                  htmlFor="description"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Description * (30 words max)
-                </label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Describe the unit, its features, and what makes it special..."
-                  rows={4}
-                  required
-                />
-                <p className="text-xs text-gray-500">
-                  {getWordCount(formData.description)}/30 words
-                </p>
-              </div>
-            </div>
-          </Card>
-        );
-      case 2:
-        return renderAmenitiesStep();
-      case 3:
-        return (
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
-                <ImageIcon className="h-5 w-5" />
-              </div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Unit Images
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Main Image */}
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-2">
-                    Main Image *
-                  </label>
-                  <p className="text-xs text-gray-500 mb-3">
-                    This will be the primary image displayed for your unit
-                    listing.
-                  </p>
-
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleMainImageChange}
-                    accept="image/*"
-                    className="hidden"
-                  />
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Choose Main Image
-                  </Button>
-                </div>
-
-                {formData.mainImagePreview && (
-                  <div className="border rounded-lg p-4 bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={formData.mainImagePreview}
-                        alt="Main preview"
-                        className="w-16 h-16 object-cover rounded"
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-700">
-                          Main Image
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formData.mainImage?.name}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            mainImage: null,
-                            mainImagePreview: "",
-                          }))
-                        }
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Additional Images */}
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-2">
-                    Additional Images (6 required) *
-                  </label>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Show different angles and features of your unit. Exactly 6
-                    images are required.
-                  </p>
-
-                  <input
-                    type="file"
-                    ref={otherImagesInputRef}
-                    onChange={handleOtherImagesChange}
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                  />
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => otherImagesInputRef.current?.click()}
-                    disabled={formData.otherImages.length >= 6}
-                    className="w-full"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Add Additional Images ({formData.otherImages.length}/6)
-                  </Button>
-                </div>
-
-                {formData.otherImagesPreviews.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {formData.otherImagesPreviews.map((preview, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={preview}
-                          alt={`Additional ${index + 1}`}
-                          className="w-full h-20 object-cover rounded"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-1 right-1 h-5 w-5 bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => removeOtherImage(index)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {formData.otherImages.length > 0 &&
-                  formData.otherImages.length < 6 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <p className="text-amber-800 text-sm">
-                        <strong>Notice:</strong> You need to upload{" "}
-                        {6 - formData.otherImages.length} more image(s) to
-                        complete the requirement.
-                      </p>
-                    </div>
-                  )}
-
-                {formData.otherImages.length === 6 && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                    <p className="text-emerald-800 text-sm">
-                      <strong>Perfect!</strong> You have uploaded all 6 required
-                      additional images.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        );
-      case 4:
-        return (
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-amber-100 text-amber-700">
-                <DollarSign className="h-5 w-5" />
-              </div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Pricing & Occupancy
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label
-                    htmlFor="targetPrice"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Monthly Rent (₱) *
-                  </label>
-                  <Input
-                    id="targetPrice"
-                    name="targetPrice"
-                    type="number"
-                    min="1"
-                    max="100000"
-                    step="0.01"
-                    value={formData.targetPrice}
-                    onChange={handleInputChange}
-                    placeholder="e.g., 15000"
-                    required
-                  />
-                  <p className="text-xs text-gray-500">
-                    Must be between ₱1 and ₱100,000
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="securityDeposit"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Security Deposit (₱)
-                  </label>
-                  <Input
-                    id="securityDeposit"
-                    name="securityDeposit"
-                    type="number"
-                    min="0"
-                    max="100000"
-                    step="0.01"
-                    value={formData.securityDeposit}
-                    onChange={handleInputChange}
-                    placeholder="e.g., 10000"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Optional, max ₱100,000
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label
-                    htmlFor="maxOccupancy"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Maximum Occupancy *
-                  </label>
-                  <Input
-                    id="maxOccupancy"
-                    name="maxOccupancy"
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={formData.maxOccupancy}
-                    onChange={handleInputChange}
-                    required
-                  />
-                  <p className="text-xs text-gray-500">1-20 people</p>
-                </div>
-
-                <div className="flex items-center gap-3 p-4 border rounded-lg">
-                  <input
-                    type="checkbox"
-                    id="requiresScreening"
-                    name="requiresScreening"
-                    checked={formData.requiresScreening}
-                    onChange={handleInputChange}
-                    className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
-                  />
-                  <div>
-                    <label
-                      htmlFor="requiresScreening"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Require tenant screening
-                    </label>
-                    <p className="text-xs text-gray-500">
-                      Tenants must complete screening before applying
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        );
-      case 5:
-        return (
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
-                <Shield className="h-5 w-5" />
-              </div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Lease Rules
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Add Rule Form */}
-              <div className="lg:col-span-1 space-y-4">
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">
-                      Category
-                    </label>
-                    <select
-                      value={formData.newLeaseRuleCategory}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          newLeaseRuleCategory: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 rounded-md border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-                    >
-                      {leaseRuleCategories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">
-                      Rule Text (7 words max)
-                    </label>
-                    <Input
-                      value={formData.newLeaseRule}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          newLeaseRule: e.target.value,
-                        }))
-                      }
-                      placeholder="e.g., No smoking inside the unit"
-                      onKeyPress={(e) =>
-                        e.key === "Enter" &&
-                        (e.preventDefault(), addLeaseRule())
-                      }
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      {
-                        formData.newLeaseRule.split(/\s+/).filter((w) => w)
-                          .length
-                      }
-                      /7 words
-                    </p>
-                  </div>
-
-                  <Button
-                    type="button"
-                    onClick={addLeaseRule}
-                    disabled={
-                      formData.leaseRules.length >= 10 ||
-                      !formData.newLeaseRule.trim()
-                    }
-                    className="w-full"
-                  >
-                    Add Rule ({formData.leaseRules.length}/10)
-                  </Button>
-                </div>
-
-                {formData.leaseRules.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-sm text-gray-600 text-center">
-                      {formData.leaseRules.length} rule
-                      {formData.leaseRules.length !== 1 ? "s" : ""} added
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Rules List */}
-              <div className="lg:col-span-2">
-                {formData.leaseRules.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Shield className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p>No lease rules added yet</p>
-                    <p className="text-sm">
-                      Add rules to specify tenant expectations
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                    {leaseRuleCategories.map((category) => {
-                      const categoryRules =
-                        groupedLeaseRules[category.id] || [];
-                      if (categoryRules.length === 0) return null;
-
-                      return (
-                        <div
-                          key={category.id}
-                          className="border rounded-lg p-3"
-                        >
-                          <h4 className="font-medium text-gray-900 text-sm mb-2">
-                            {category.name}
-                          </h4>
-                          <div className="space-y-1">
-                            {categoryRules.map((rule) => (
-                              <div
-                                key={rule.id}
-                                className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1"
-                              >
-                                <span className="text-gray-700 flex-1">
-                                  {rule.text}
-                                </span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5"
-                                  onClick={() => removeLeaseRule(rule.id)}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link to={`/landlord/units/${propertyId}`}>
-          <Button variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Create a New Unit
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Step {currentStep} of {steps.length}
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-cyan-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header with Logo and Exit */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <Zap className="w-8 h-8 text-green-500" fill="currentColor" />
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                RentEase
+              </span>
+              <span className="bg-green-100 text-green-700 font-medium rounded-full text-xs px-2 py-1 border border-green-200">
+                Create Unit
+              </span>
+            </div>
+          </div>
+
+          <Link to={`/landlord/units/${propertyId}`}>
+            <Button
+              variant="ghost"
+              className="text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg border border-gray-300"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Units
+            </Button>
+          </Link>
         </div>
+
+        {/* Progress Bar */}
+        {renderProgressBar()}
+
+        <form onSubmit={handleSubmit}>
+          {renderStepContent()}
+
+          {/* Navigation Buttons */}
+          <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={prevStep}
+              disabled={currentStep === 1}
+              className="flex items-center gap-2 px-6 py-3"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+
+            {currentStep < steps.length ? (
+              <Button
+                type="submit"
+                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-lg"
+              >
+                Continue to {steps[currentStep]?.title}
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                className="px-8 py-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-lg"
+              >
+                Review & Publish Unit
+              </Button>
+            )}
+          </div>
+        </form>
+
+        {/* Confirmation Dialog */}
+        {showConfirmation && renderConfirmation()}
       </div>
-
-      {/* Compact Progress Bar */}
-      {renderProgressBar()}
-
-      <form onSubmit={handleSubmit}>
-        {renderStepContent()}
-
-        {/* Navigation Buttons */}
-        <div className="flex justify-between pt-6">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={prevStep}
-            disabled={currentStep === 1}
-            className="flex items-center gap-1"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous
-          </Button>
-
-          {currentStep < steps.length ? (
-            <Button
-              type="submit"
-              className="flex items-center gap-1 bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700"
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              type="submit"
-              className="bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700"
-            >
-              Review & Create Unit
-            </Button>
-          )}
-        </div>
-      </form>
-
-      {/* Confirmation Dialog */}
-      {showConfirmation && renderConfirmation()}
     </div>
   );
 };

@@ -13,6 +13,7 @@ export const handlePaymongoWebhook = async (req, res) => {
 
     // Only handle successful checkout payments
     if (eventType !== "checkout_session.payment.paid") {
+      console.log("ℹ️ Payment not yet completed or irrelevant event. Ignored.");
       return res.status(200).send("Event ignored");
     }
 
@@ -42,15 +43,17 @@ export const handlePaymongoWebhook = async (req, res) => {
     // --- Fetch listing + ensure it exists ---
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
-      include: { unit: { select: { id: true, propertyId: true } } },
+      include: { unit: { select: { id: true, listedAt: true, propertyId: true } } },
     });
+
     if (!listing) {
       console.warn("⚠️ Listing not found for webhook:", listingId);
       return res.status(404).send("Listing not found");
     }
 
-    // --- Atomic transaction (update listing + mark unit as listed) ---
+    // --- Atomic transaction (update listing + mark unit as listed if paid) ---
     const updatedListing = await prisma.$transaction(async (tx) => {
+      // ✅ Update listing details (payment confirmed)
       const updated = await tx.listing.update({
         where: { id: listingId },
         data: {
@@ -76,16 +79,20 @@ export const handlePaymongoWebhook = async (req, res) => {
         },
       });
 
-      await tx.unit.update({
-        where: { id: unitId },
-        data: { listedAt: now },
-      });
+      // ✅ Only set listedAt if it's currently null (not yet paid/listed)
+      if (!listing.unit.listedAt) {
+        await tx.unit.update({
+          where: { id: unitId },
+          data: { listedAt: now },
+        });
+      }
 
       return updated;
     });
 
     console.log("✅ Listing activated via webhook:", updatedListing.id);
     return res.status(200).send("Webhook processed successfully");
+
   } catch (err) {
     console.error("❌ Error in PayMongo Webhook:", err?.response?.data || err);
     return res.status(500).send("Webhook error");

@@ -8,7 +8,7 @@ interface User {
   firstName?: string;
   middleName?: string;
   lastName?: string;
-  avatarUrl?: string;
+  avatarUrl?: string ;
   birthdate?: string;
   gender?: string;
   bio?: string;

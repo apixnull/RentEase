@@ -275,6 +275,7 @@ export const createListingWithPayment = async (req, res) => {
       .json({ error: "Failed to create listing with payment" });
   }
 };
+
 // ---------------------------------------------------------
 // GET SPECIFIC LISTING FOR LANDLORD (with Property & Unit info)
 // ---------------------------------------------------------

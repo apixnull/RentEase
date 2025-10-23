@@ -21,6 +21,24 @@ import ReviewUnitForListing from "./pages/private/landlord/listing/ReviewUnitFor
 import { ListingDetails } from "./pages/private/landlord/listing/ListingDetails";
 import ListingPaymentSuccess from "./pages/private/landlord/listing/ListingPaymentSuccess";
 import ViewUnitDetails from "./pages/private/tenant/browse-unit/ViewUnitDetails.tsx";
+import BrowseUnitLayout from "./pages/private/tenant/browse-unit/BrowseUnitLayout.tsx";
+import LandlordMessages from "./pages/private/landlord/messages/LandlordMessages.tsx";
+import TenantMessages from "./pages/private/tenant/messages/TenantMessages.tsx";
+import ViewChannelMessages from "./pages/private/tenant/messages/ViewChannelMessagesTenant.tsx";
+import ViewChannelMessagesLandlord from "./pages/private/landlord/messages/ViewChannelMessagesLandlord.tsx";
+import Leases from "./pages/private/landlord/lease/Leases.tsx";
+import ViewSpecificLease from "./pages/private/landlord/lease/ViewSpecificLease.tsx";
+import MyLease from "./pages/private/tenant/lease/MyLease.tsx";
+import ScreeningForm from "./pages/private/tenant/screening/ScreeningForm.tsx";
+import Maintenance from "./pages/private/landlord/maintenance/Maintenance.tsx";
+import Tenants from "./pages/private/landlord/tenants/Tenants.tsx";
+import Financials from "./pages/private/landlord/financials/Financials.tsx";
+import Reports from "./pages/private/landlord/reports/Reports.tsx";
+import TenantScreeningLandlord from "./pages/private/landlord/screening/TenantScreeningLandlord.tsx";
+import TenantScreeningTenant from "./pages/private/tenant/screening/TenantScreeningTenant.tsx";
+import ViewSpecificScreeningLandlord from "./pages/private/landlord/screening/ViewSpecificScreeningLandlord.tsx";
+import ViewSpecificScreeningTenant from "./pages/private/tenant/screening/ViewSpecificScreeningTenant.tsx";
+import CreateLease from "./pages/private/landlord/lease/CreateLease.tsx";
 
 
 // ------------------------------- Lazy Imports
@@ -49,7 +67,7 @@ const Onboarding = lazy(() => import("./pages/authentication/Onboarding"));
 
 // Private pages - Landlord
 const LandlordDashboard = lazy(
-  () => import("./pages/private/landlord/LandlordDashboard")
+  () => import("./pages/private/landlord/dashboard/LandlordDashboard.tsx")
 );
 const CreateProperty = lazy(
   () => import("./pages/private/landlord/property/CreateProperty")
@@ -77,7 +95,6 @@ const AdminDashboard = lazy(
 
 // Shared private pages
 const AccountProfile = lazy(() => import("./pages/private/AccountProfile"));
-const Messages = lazy(() => import("./pages/private/Messages"));
 
 // Fallbacks
 const NotFound = lazy(() => import("./pages/fallbacks/NotFound"));
@@ -94,6 +111,8 @@ const Loader = () => (
 
 // ------------------------------- ROUTES SETUP
 const router = createBrowserRouter([
+
+  // public routes
   {
     path: "/",
     element: <Suspense fallback={<Loader />}><PublicLayout /></Suspense>,
@@ -103,6 +122,8 @@ const router = createBrowserRouter([
       { path: "features", element: <Suspense fallback={<Loader />}><Features /></Suspense> },
     ],
   },
+
+  // auth routes
   {
     path: "auth",
     children: [
@@ -114,6 +135,8 @@ const router = createBrowserRouter([
       { path: "onboarding", element: <Suspense fallback={<Loader />}><Onboarding /></Suspense> },
     ],
   },
+
+  // landlord routes
   {
     path: "landlord",
     element: <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}><LandlordLayout /></Suspense></ProtectedRoute>,
@@ -123,12 +146,10 @@ const router = createBrowserRouter([
 
       // properties
       { path: "properties", element: <Suspense fallback={<Loader />}><DisplayProperties /></Suspense> },                                                        // display all properties 
-      { path: "properties/create", element: <Suspense fallback={<Loader />}><CreateProperty /></Suspense> },                                                    // create property
       { path: "properties/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplaySpecificProperty /></PropertyLayout></Suspense> },     // display specific property
 
       // units
       { path: "units/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplayUnits /></PropertyLayout></Suspense> },                     // display all units 
-      { path: "units/:propertyId/create", element: <Suspense fallback={<Loader />}><CreateUnit /></Suspense> },                                                 // create a unit 
       { path: "units/:propertyId/:unitId", element: <Suspense fallback={<Loader />}><DisplaySpecificUnit /></Suspense> },                                       // display specific unit 
         
       // listing
@@ -136,23 +157,81 @@ const router = createBrowserRouter([
       { path: "listing/:unitId/review", element: ( <Suspense fallback={<Loader />}> <ReviewUnitForListing /> </Suspense>) },                                    // ✅ review specific unit before creating a listing
       { path: "listing/:listingId/success",  element: ( <Suspense fallback={<Loader />}> <ListingPaymentSuccess /> </Suspense>) },
       { path: "listing/:listingId/details", element: (<Suspense fallback={<Loader />}> <ListingDetails /></Suspense> ), },                                      // ✅ display specific listing details (property + unit info)
+
       // account
-      { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },  
-      { path: "messages", element: <Suspense fallback={<Loader />}><Messages /></Suspense> },
-    ],
+      { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },                                                              // display all account profile
+      
+      // messages
+      { path: "messages", element: <Suspense fallback={<Loader />}><LandlordMessages /></Suspense> },                                                           // display all channel of the landlord
+      { path: "messages/:channelId", element: <Suspense fallback={<Loader />}><ViewChannelMessagesLandlord /></Suspense> },                                     // view specific specific channel
+
+      // screening  
+      { path: "screening", element: <Suspense fallback={<Loader />}><TenantScreeningLandlord /></Suspense>},                                                      // display all tenant screening report
+      { path: "screening/:screeningId/details", element: <Suspense fallback={<Loader />}><ViewSpecificScreeningLandlord /></Suspense>},                                         // view specific screening 
+
+      // leases
+      { path: "leases", element: <Suspense fallback={<Loader />}><Leases /></Suspense>},                                                                        // display all leases
+      { path: "leases/create", element: <Suspense fallback={<Loader />}><CreateLease /></Suspense>},                                                  // create a new lease
+      { path: "leases/:leaseId/details", element: <Suspense fallback={<Loader />}><ViewSpecificLease /></Suspense>},                                                    // display specific lease 
+      
+      // maintenance
+      { path: "maintenance", element: <Suspense fallback={<Loader />}><Maintenance /></Suspense>},                                                    // display specific lease 
+
+      // tenants 
+      { path: "tenants", element: <Suspense fallback={<Loader />}><Tenants /></Suspense>},                                                    // display specific lease 
+
+      // financials
+      { path: "financials", element: <Suspense fallback={<Loader />}><Financials /></Suspense>},                                                    // display specific lease 
+
+      // reports 
+      { path: "reports", element: <Suspense fallback={<Loader />}><Reports /></Suspense>},                                                    // display specific lease 
+
+
+
+    ],    
   },
+
+  // create units  
+  { path: "landlord/units/:propertyId/create", element: ( <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}> <CreateUnit /> </Suspense></ProtectedRoute> ), },
+  // create property
+  { path: "landlord/properties/create", element: ( <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}> <CreateProperty /></Suspense></ProtectedRoute>), },
+
+  // tenant routes
   {
     path: "tenant",
     element: <ProtectedRoute allowedRoles={["TENANT"]}><Suspense fallback={<Loader />}><TenantLayout /></Suspense></ProtectedRoute>,
     children: [
       { index: true, element: <Suspense fallback={<Loader />}><TenantDashboard /></Suspense> },
+
+      // account account
       { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },
-      { path: "messages", element: <Suspense fallback={<Loader />}><Messages /></Suspense> },
+
+      // messages
+      { path: "messages", element: <Suspense fallback={<Loader />}><TenantMessages /></Suspense> },
+      { path: "messages/:channelId", element: <Suspense fallback={<Loader />}><ViewChannelMessages /></Suspense> },
+
+      // lease
+      { path: "my-lease", element: <Suspense fallback={<Loader />}><MyLease /></Suspense> },
+
+      // tenant screening
+      { path: "screening", element: <Suspense fallback={<Loader />}><TenantScreeningTenant /></Suspense> },
+      { path: "screening/:screeningId/details", element: <Suspense fallback={<Loader />}><ViewSpecificScreeningTenant /></Suspense> }, // view specific screening detials tenant perspective
+
     ],
   },
-  { path: "tenant/browse-unit", element: <ProtectedRoute allowedRoles={["TENANT"]}><Suspense fallback={<Loader />}><BrowseProperties /></Suspense></ProtectedRoute>},
-  { path: "tenant/browse-unit/:listingId/details", element: <ProtectedRoute allowedRoles={["TENANT"]}><Suspense fallback={<Loader />}><ViewUnitDetails/></Suspense></ProtectedRoute>},
 
+  // browse unit
+  { path: "tenant/browse-unit",element: <ProtectedRoute allowedRoles={["TENANT"]}><BrowseUnitLayout /></ProtectedRoute>,
+    children: [
+      { index: true, element: <Suspense fallback={<Loader />}><BrowseProperties /></Suspense> },
+      { path: ":listingId/details", element: <Suspense fallback={<Loader />}><ViewUnitDetails /></Suspense> },
+    ],
+  },
+
+  // fill up lease
+  { path: "tenant/screening/:screeningId/fill", element: ( <ProtectedRoute allowedRoles={["TENANT"]}><Suspense fallback={<Loader />}> <ScreeningForm /></Suspense></ProtectedRoute> ),},
+
+  // admin routes
   {
     path: "admin",
     element: <ProtectedRoute allowedRoles={["ADMIN"]}><Suspense fallback={<Loader />}><AdminLayout /></Suspense></ProtectedRoute>,
