@@ -81,7 +81,6 @@ type UnitDetails = {
   unitLeaseRules: UnitLeaseRule[] | null;
   viewCount: number;
   targetPrice: number;
-  securityDeposit: number | null;
   requiresScreening: boolean;
   listedAt: string | null;
   amenities: Amenity[] | null;
@@ -690,15 +689,6 @@ const DisplaySpecificUnit = () => {
                   </div>
                   <p className="text-gray-600 font-medium">Monthly Rent</p>
                 </div>
-
-                {unit.securityDeposit && (
-                  <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
-                    <span className="text-gray-600 font-medium">Security Deposit</span>
-                    <span className="text-lg font-semibold text-gray-900">
-                      {formatCurrency(unit.securityDeposit)}
-                    </span>
-                  </div>
-                )}
 
                 {unit.requiresScreening && (
                   <div className="bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 rounded-xl p-4">

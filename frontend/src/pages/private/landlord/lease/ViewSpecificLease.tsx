@@ -6,23 +6,37 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   FileText, 
-  User, 
   Calendar, 
-  DollarSign, 
   CheckCircle, 
   Clock, 
   AlertTriangle, 
-  Ban,
-  Download,
-  Send,
-  Eye,
   Building,
-  MapPin,
   CreditCard,
-  Receipt
+  Receipt,
+  Home,
+  Circle
 } from 'lucide-react';
+import { getLeaseByIdRequest } from '@/api/landlord/leaseApi';
+import { markPaymentAsPaidRequest } from '@/api/landlord/paymentApi';
 
 interface Lease {
   id: string;
@@ -36,28 +50,28 @@ interface Lease {
   endDate: string | null;
   rentAmount: number;
   securityDeposit: number | null;
-  advanceMonths: number;
   interval: 'DAILY' | 'WEEKLY' | 'MONTHLY';
   dueDate: number;
   status: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'TERMINATED' | 'CANCELLED';
-  totalPaymentsMade: number;
-  lastPaymentDate: string | null;
   leaseDocumentUrl: string | null;
-  landlordSignatureUrl: string | null;
-  tenantSignatureUrl: string | null;
   createdAt: string;
   updatedAt: string;
   property: {
     id: string;
     title: string;
-    type: string;
     street: string;
     barangay: string;
+    zipCode: string;
+    city: {
+      name: string;
+    };
+    municipality: string | null;
   };
   unit: {
     id: string;
     label: string;
-    status: string;
+    unitCondition: string;
+    occupiedAt: string;
   };
   tenant: {
     id: string;
@@ -65,146 +79,104 @@ interface Lease {
     lastName: string;
     email: string;
     phoneNumber: string | null;
+    avatarUrl: string | null;
   };
-  landlord: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
+  payments: Payment[];
 }
 
 interface Payment {
   id: string;
-  leaseId: string;
   amount: number;
+  dueDate: string;
   paidAt: string | null;
   method: string | null;
-  providerTxnId: string | null;
-  paymentProofUrl: string | null;
   status: 'PENDING' | 'PAID';
   timingStatus: 'ONTIME' | 'LATE' | 'ADVANCE' | null;
-  note: string | null;
+  type: string | null;
   reminderStage: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface MarkAsPaidForm {
+  paidAt: string;
+  method: string;
+  type: string;
+  timingStatus: string;
+}
+
+interface RecordPaymentForm {
+  amount: number;
+  dueDate: string;
+  paidAt: string;
+  method: string;
+  type: string;
+  status: 'PENDING' | 'PAID';
 }
 
 const ViewSpecificLease = () => {
   const { leaseId } = useParams<{ leaseId: string }>();
   const navigate = useNavigate();
   const [lease, setLease] = useState<Lease | null>(null);
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
+  const [markAsPaidModal, setMarkAsPaidModal] = useState<{
+    isOpen: boolean;
+    payment: Payment | null;
+  }>({
+    isOpen: false,
+    payment: null,
+  });
+  const [recordPaymentModal, setRecordPaymentModal] = useState(false);
+  const [markAsPaidForm, setMarkAsPaidForm] = useState<MarkAsPaidForm>({
+    paidAt: new Date().toISOString().split('T')[0],
+    method: '',
+    type: 'RENT',
+    timingStatus: 'ONTIME'
+  });
+  const [recordPaymentForm, setRecordPaymentForm] = useState<RecordPaymentForm>({
+    amount: 0,
+    dueDate: new Date().toISOString().split('T')[0],
+    paidAt: new Date().toISOString().split('T')[0],
+    method: '',
+    type: 'RENT',
+    status: 'PENDING',
+  });
+  const [submitting, setSubmitting] = useState(false);
 
-  // Mock data - Replace with actual API calls
+  // Initialize active tab from session storage
+  useEffect(() => {
+    if (leaseId) {
+      const savedTab = sessionStorage.getItem(`lease-${leaseId}-activeTab`);
+      if (savedTab && (savedTab === 'info' || savedTab === 'payments')) {
+        setActiveTab(savedTab);
+      }
+    }
+  }, [leaseId]);
+
+  // Save active tab to session storage when it changes
+  useEffect(() => {
+    if (leaseId) {
+      sessionStorage.setItem(`lease-${leaseId}-activeTab`, activeTab);
+    }
+  }, [activeTab, leaseId]);
+
+  // Fetch lease data
   useEffect(() => {
     const fetchLeaseData = async () => {
+      if (!leaseId) return;
+
       try {
         setLoading(true);
-        // Mock lease data
-        const mockLease: Lease = {
-          id: '1',
-          propertyId: '1',
-          unitId: '1',
-          tenantId: '1',
-          landlordId: '1',
-          leaseNickname: 'John Sunset Lease',
-          leaseType: 'STANDARD',
-          startDate: '2024-01-01T00:00:00.000Z',
-          endDate: '2024-12-31T23:59:59.999Z',
-          rentAmount: 1500,
-          securityDeposit: 1500,
-          advanceMonths: 1,
-          interval: 'MONTHLY',
-          dueDate: 1,
-          status: 'ACTIVE',
-          totalPaymentsMade: 12,
-          lastPaymentDate: '2024-12-01T00:00:00.000Z',
-          leaseDocumentUrl: 'https://example.com/lease.pdf',
-          landlordSignatureUrl: 'https://example.com/landlord-sig.png',
-          tenantSignatureUrl: 'https://example.com/tenant-sig.png',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-12-01T00:00:00.000Z',
-          property: {
-            id: '1',
-            title: 'Sunset Apartments',
-            type: 'APARTMENT',
-            street: '123 Sunset Blvd',
-            barangay: 'Barangay 1'
-          },
-          unit: {
-            id: '1',
-            label: 'A101',
-            status: 'OCCUPIED'
-          },
-          tenant: {
-            id: '1',
-            firstName: 'John',
-            lastName: 'Doe',
-            email: 'john.doe@email.com',
-            phoneNumber: '+1234567890'
-          },
-          landlord: {
-            id: '1',
-            firstName: 'Jane',
-            lastName: 'Landlord',
-            email: 'jane.landlord@email.com'
-          }
-        };
-
-        // Mock payments data
-        const mockPayments: Payment[] = [
-          {
-            id: '1',
-            leaseId: '1',
-            amount: 1500,
-            paidAt: '2024-12-01T00:00:00.000Z',
-            method: 'GCASH',
-            providerTxnId: 'GC123456789',
-            paymentProofUrl: 'https://example.com/payment1.png',
-            status: 'PAID',
-            timingStatus: 'ONTIME',
-            note: 'December rent payment',
-            reminderStage: 0,
-            createdAt: '2024-12-01T00:00:00.000Z',
-            updatedAt: '2024-12-01T00:00:00.000Z'
-          },
-          {
-            id: '2',
-            leaseId: '1',
-            amount: 1500,
-            paidAt: '2024-11-01T00:00:00.000Z',
-            method: 'BANK_TRANSFER',
-            providerTxnId: 'BT987654321',
-            paymentProofUrl: 'https://example.com/payment2.png',
-            status: 'PAID',
-            timingStatus: 'ONTIME',
-            note: 'November rent payment',
-            reminderStage: 0,
-            createdAt: '2024-11-01T00:00:00.000Z',
-            updatedAt: '2024-11-01T00:00:00.000Z'
-          },
-          {
-            id: '3',
-            leaseId: '1',
-            amount: 1500,
-            paidAt: null,
-            method: null,
-            providerTxnId: null,
-            paymentProofUrl: null,
-            status: 'PENDING',
-            timingStatus: null,
-            note: 'January rent - due soon',
-            reminderStage: 1,
-            createdAt: '2024-12-15T00:00:00.000Z',
-            updatedAt: '2024-12-15T00:00:00.000Z'
-          }
-        ];
-
-        setLease(mockLease);
-        setPayments(mockPayments);
+        const response = await getLeaseByIdRequest(leaseId);
+        setLease(response.data.lease);
+        // Set default amount for record payment form
+        if (response.data.lease) {
+          setRecordPaymentForm(prev => ({
+            ...prev,
+            amount: response.data.lease.rentAmount
+          }));
+        }
       } catch (error) {
         console.error('Error fetching lease data:', error);
       } finally {
@@ -215,39 +187,18 @@ const ViewSpecificLease = () => {
     fetchLeaseData();
   }, [leaseId]);
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'default';
-      case 'PENDING':
-        return 'secondary';
-      case 'COMPLETED':
-        return 'outline';
-      case 'TERMINATED':
-        return 'destructive';
-      case 'CANCELLED':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
+  // Get the latest pending payment
+  const getLatestPendingPayment = () => {
+    if (!lease?.payments?.length) return null;
+
+    const pendingPayments = lease.payments
+      .filter(payment => payment.status === 'PENDING')
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+    return pendingPayments[0] || null;
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return <CheckCircle className="w-4 h-4" />;
-      case 'PENDING':
-        return <Clock className="w-4 h-4" />;
-      case 'COMPLETED':
-        return <Calendar className="w-4 h-4" />;
-      case 'TERMINATED':
-        return <AlertTriangle className="w-4 h-4" />;
-      case 'CANCELLED':
-        return <Ban className="w-4 h-4" />;
-      default:
-        return <Clock className="w-4 h-4" />;
-    }
-  };
+
 
   const getPaymentStatusVariant = (status: string) => {
     switch (status) {
@@ -274,9 +225,9 @@ const ViewSpecificLease = () => {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'PHP'
     }).format(amount);
   };
 
@@ -289,16 +240,6 @@ const ViewSpecificLease = () => {
     });
   };
 
-  const formatDateTime = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   const calculateLeaseProgress = () => {
     if (!lease) return 0;
@@ -307,22 +248,33 @@ const ViewSpecificLease = () => {
     const end = lease.endDate ? new Date(lease.endDate) : new Date();
     const now = new Date();
     
+    if (now < start) return 0;
+    if (now > end) return 100;
+    
     const totalDuration = end.getTime() - start.getTime();
     const elapsed = now.getTime() - start.getTime();
     
     return Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
   };
 
+  const calculateLeaseDuration = () => {
+    if (!lease || !lease.endDate) return 0;
+    const start = new Date(lease.startDate);
+    const end = new Date(lease.endDate);
+    const duration = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return duration;
+  };
+
   const getLeaseTypeDisplay = (leaseType: string) => {
     switch (leaseType) {
       case 'SHORT_TERM':
-        return 'Short Term';
+        return 'SHORT TERM';
       case 'LONG_TERM':
-        return 'Long Term';
+        return 'LONG TERM';
       case 'STANDARD':
-        return 'Standard';
+        return 'STANDARD';
       case 'FIXED_TERM':
-        return 'Fixed Term';
+        return 'FIXED TERM';
       default:
         return leaseType;
     }
@@ -331,13 +283,156 @@ const ViewSpecificLease = () => {
   const getIntervalDisplay = (interval: string) => {
     switch (interval) {
       case 'DAILY':
-        return 'Daily';
+        return 'daily';
       case 'WEEKLY':
-        return 'Weekly';
+        return 'weekly';
       case 'MONTHLY':
-        return 'Monthly';
+        return 'monthly';
       default:
-        return interval;
+        return interval.toLowerCase();
+    }
+  };
+
+  const getOrdinalSuffix = (number: number) => {
+    const suffixes = ['th', 'st', 'nd', 'rd'];
+    const value = number % 100;
+    return number + (suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0]);
+  };
+
+  // Calculate timing status based on due date and paid date
+  const calculateTimingStatus = (dueDate: string, paidAt: string | null): 'ONTIME' | 'LATE' | 'ADVANCE' | null => {
+    if (!paidAt) return null;
+    
+    const due = new Date(dueDate);
+    const paid = new Date(paidAt);
+    
+    if (paid < due) return 'ADVANCE';
+    if (paid > due) return 'LATE';
+    return 'ONTIME';
+  };
+
+  // Mark as Paid functionality
+  const handleMarkAsPaid = (payment: Payment) => {
+    setMarkAsPaidModal({
+      isOpen: true,
+      payment,
+    });
+    const timingStatus = calculateTimingStatus(payment.dueDate, new Date().toISOString().split('T')[0]);
+    setMarkAsPaidForm({
+      paidAt: new Date().toISOString().split('T')[0],
+      method: '',
+      type: 'RENT',
+      timingStatus: timingStatus || 'ONTIME'
+    });
+  };
+
+  const handleMarkAsPaidSubmit = async () => {
+    if (!markAsPaidModal.payment || !leaseId) return;
+
+    // Calculate timing status
+    const timingStatus = calculateTimingStatus(
+      markAsPaidModal.payment.dueDate,
+      markAsPaidForm.paidAt
+    );
+
+    if (!confirm(`Are you sure you want to mark this payment as paid?\nAmount: ${formatCurrency(markAsPaidModal.payment.amount)}\nMethod: ${markAsPaidForm.method}\nDate: ${formatDate(markAsPaidForm.paidAt)}`)) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      // Call the API to mark payment as paid
+      await markPaymentAsPaidRequest(
+        markAsPaidModal.payment.id,
+        {
+          paidAt: markAsPaidForm.paidAt,
+          method: markAsPaidForm.method,
+          type: markAsPaidForm.type,
+          timingStatus: timingStatus || 'ONTIME',
+        }
+      );
+
+      // Refetch lease data to get updated payments
+      const response = await getLeaseByIdRequest(leaseId);
+      setLease(response.data.lease);
+
+      setMarkAsPaidModal({ isOpen: false, payment: null });
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      alert('Failed to mark payment as paid. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Record Payment functionality
+  const handleRecordPayment = () => {
+    setRecordPaymentModal(true);
+    setRecordPaymentForm({
+      amount: lease?.rentAmount || 0,
+      dueDate: new Date().toISOString().split('T')[0],
+      paidAt: new Date().toISOString().split('T')[0],
+      method: '',
+      type: 'RENT',
+      status: 'PENDING',
+    });
+  };
+
+  const handleRecordPaymentSubmit = async () => {
+    if (!lease) return;
+
+    // Calculate timing status if payment is marked as paid
+    const timingStatus = recordPaymentForm.status === 'PAID' 
+      ? calculateTimingStatus(recordPaymentForm.dueDate, recordPaymentForm.paidAt)
+      : null;
+
+    if (!confirm(`Create new payment record?\nAmount: ${formatCurrency(recordPaymentForm.amount)}\nDue Date: ${formatDate(recordPaymentForm.dueDate)}\nStatus: ${recordPaymentForm.status}`)) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      // Here you would call your API to create the payment
+      // await createPaymentRequest({
+      //   leaseId: lease.id,
+      //   amount: recordPaymentForm.amount,
+      //   dueDate: recordPaymentForm.dueDate,
+      //   paidAt: recordPaymentForm.status === 'PAID' ? recordPaymentForm.paidAt : null,
+      //   method: recordPaymentForm.method,
+      //   type: recordPaymentForm.type,
+      //   status: recordPaymentForm.status,
+      //   timingStatus,
+      // });
+
+      // For now, we'll update locally
+      const newPayment: Payment = {
+        id: `temp-${Date.now()}`,
+        amount: recordPaymentForm.amount,
+        dueDate: recordPaymentForm.dueDate,
+        paidAt: recordPaymentForm.status === 'PAID' ? recordPaymentForm.paidAt : null,
+        method: recordPaymentForm.method,
+        type: recordPaymentForm.type,
+        status: recordPaymentForm.status,
+        timingStatus,
+        reminderStage: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      setLease({
+        ...lease,
+        payments: [...lease.payments, newPayment],
+        updatedAt: new Date().toISOString(),
+      });
+
+      setRecordPaymentModal(false);
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      alert('Failed to create payment record. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -368,8 +463,10 @@ const ViewSpecificLease = () => {
   }
 
   const leaseProgress = calculateLeaseProgress();
-  const paidPayments = payments.filter(p => p.status === 'PAID');
+  const leaseDuration = calculateLeaseDuration();
+  const paidPayments = lease.payments.filter(p => p.status === 'PAID');
   const totalPaid = paidPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const latestPendingPayment = getLatestPendingPayment();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
@@ -381,522 +478,650 @@ const ViewSpecificLease = () => {
           </h1>
           <p className="text-gray-600 mt-1">Lease Agreement Details</p>
         </div>
-        
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
-          <Button size="sm" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
-            <Send className="w-4 h-4" />
-            Send Reminder
-          </Button>
-        </div>
       </div>
 
-      {/* Status Bar */}
-      <Card className="mb-6 shadow-lg border-0">
-        <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <Badge variant={getStatusVariant(lease.status)} className="text-sm px-3 py-2">
-                {getStatusIcon(lease.status)}
-                {lease.status}
-              </Badge>
-              <div>
-                <p className="text-sm text-gray-600">Lease Type</p>
-                <p className="font-semibold">{getLeaseTypeDisplay(lease.leaseType)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Duration</p>
-                <p className="font-semibold">
-                  {formatDate(lease.startDate)} - {lease.endDate ? formatDate(lease.endDate) : 'Ongoing'}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-6">
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Total Paid</p>
-                <p className="font-bold text-green-600 text-lg">{formatCurrency(totalPaid)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Payments Made</p>
-                <p className="font-bold text-blue-600 text-lg">{lease.totalPaymentsMade}</p>
-              </div>
-            </div>
+      {/* Main Content */}
+      <Card className="shadow-xl border-0">
+        <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 border-b">
+          <div className="flex items-center gap-3">
+            <FileText className="w-6 h-6 text-blue-600" />
+            <CardTitle className="text-xl">Lease Management</CardTitle>
           </div>
-          
-          {/* Progress Bar */}
-          <div className="mt-4">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Lease Progress</span>
-              <span>{leaseProgress.toFixed(1)}%</span>
-            </div>
-            <Progress value={leaseProgress} className="h-2" />
-          </div>
-        </CardContent>
-      </Card>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="w-full grid grid-cols-2 p-6 bg-transparent border-b">
+              <TabsTrigger 
+                value="info" 
+                className="data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Lease Information
+                </div>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="payments" 
+                className="data-[state=active]:bg-green-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Payments History
+                  {lease.payments.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 text-xs">
+                      {lease.payments.length}
+                    </Badge>
+                  )}
+                </div>
+              </TabsTrigger>
+            </TabsList>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Main Content - 3/4 width */}
-        <div className="lg:col-span-3">
-          <Card className="shadow-xl border-0">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 border-b">
-              <div className="flex items-center gap-3">
-                <FileText className="w-6 h-6 text-blue-600" />
-                <CardTitle className="text-xl">Lease Details</CardTitle>
+            {/* Lease Information Tab */}
+            <TabsContent value="info" className="p-6 space-y-8">
+              {/* Progress Bar */}
+              <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-indigo-50">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Lease Progress</span>
+                    <span className="text-sm font-bold text-blue-600">{leaseProgress.toFixed(1)}%</span>
+                  </div>
+                  <Progress value={leaseProgress} className="h-3 bg-blue-100" />
+                  <div className="flex justify-between text-xs text-gray-500 mt-2">
+                    <span>{formatDate(lease.startDate)}</span>
+                    <span>{lease.endDate ? formatDate(lease.endDate) : 'Present'}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Basic Lease Terms */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold">Basic lease terms and conditions</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex justify-between items-center py-2 border-b">
+                      <span className="text-sm text-gray-600">Lease Type</span>
+                      <span className="font-semibold">{getLeaseTypeDisplay(lease.leaseType)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b">
+                      <span className="text-sm text-gray-600">Rent Amount</span>
+                      <span className="font-semibold text-green-600">{formatCurrency(lease.rentAmount)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b">
+                      <span className="text-sm text-gray-600">Payment Interval</span>
+                      <span className="font-semibold capitalize">{getIntervalDisplay(lease.interval)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b">
+                      <span className="text-sm text-gray-600">Due Date</span>
+                      <span className="font-semibold">{getOrdinalSuffix(lease.dueDate)} each {getIntervalDisplay(lease.interval)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm text-gray-600">Security Deposit</span>
+                      <span className="font-semibold">{lease.securityDeposit ? formatCurrency(lease.securityDeposit) : 'None'}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Lease Period */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold">Lease Period</CardTitle>
+                    <p className="text-sm text-gray-600">Start and end dates of the lease</p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex justify-between items-center py-2 border-b">
+                      <span className="text-sm text-gray-600">Start Date</span>
+                      <span className="font-semibold">{formatDate(lease.startDate)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b">
+                      <span className="text-sm text-gray-600">End Date</span>
+                      <span className="font-semibold">{lease.endDate ? formatDate(lease.endDate) : 'No end date'}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b">
+                      <span className="text-sm text-gray-600">Duration</span>
+                      <span className="font-semibold">{leaseDuration} days</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm text-gray-600">Last Updated</span>
+                      <span className="font-semibold">{formatDate(lease.updatedAt)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="w-full grid grid-cols-2 p-6 bg-transparent border-b">
-                  <TabsTrigger 
-                    value="info" 
-                    className="data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      Lease Information
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Property & Unit Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold">Property & Unit Information</CardTitle>
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-gray-600">Details about the property and unit included in this lease</p>
+                      <Button variant="outline" size="sm">
+                        View Details
+                      </Button>
                     </div>
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="payments" 
-                    className="data-[state=active]:bg-green-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-4 h-4" />
-                      Payments History
-                      {payments.length > 0 && (
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          {payments.length}
-                        </Badge>
-                      )}
-                    </div>
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="info" className="p-6 space-y-8">
-                  {/* Property & Unit Section */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <Building className="w-5 h-5 text-blue-600" />
-                          Property Details
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Property Name</p>
-                          <p className="font-semibold">{lease.property.title}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Property Type</p>
-                          <p className="font-semibold">{lease.property.type}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Address</p>
-                          <p className="font-semibold">
-                            {lease.property.street}, {lease.property.barangay}
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <MapPin className="w-5 h-5 text-green-600" />
-                          Unit Details
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Unit Number</p>
-                          <p className="font-semibold">{lease.unit.label}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Unit Status</p>
-                          <Badge variant="outline">{lease.unit.status}</Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Tenant & Financial Section */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <User className="w-5 h-5 text-purple-600" />
-                          Tenant Information
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Full Name</p>
-                          <p className="font-semibold">
-                            {lease.tenant.firstName} {lease.tenant.lastName}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Email</p>
-                          <p className="font-semibold">{lease.tenant.email}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Phone</p>
-                          <p className="font-semibold">{lease.tenant.phoneNumber || 'N/A'}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <DollarSign className="w-5 h-5 text-green-600" />
-                          Financial Details
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Monthly Rent</p>
-                          <p className="font-semibold text-green-600">
-                            {formatCurrency(lease.rentAmount)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Security Deposit</p>
-                          <p className="font-semibold">
-                            {lease.securityDeposit ? formatCurrency(lease.securityDeposit) : 'N/A'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Advance Months</p>
-                          <p className="font-semibold">{lease.advanceMonths} month(s)</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Payment Due Date</p>
-                          <p className="font-semibold">{lease.dueDate} of each month</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Lease Terms Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Calendar className="w-5 h-5 text-orange-600" />
-                        Lease Terms
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Lease Type</p>
-                          <p className="font-semibold">{getLeaseTypeDisplay(lease.leaseType)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Payment Interval</p>
-                          <p className="font-semibold">{getIntervalDisplay(lease.interval)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Total Payments Made</p>
-                          <p className="font-semibold">{lease.totalPaymentsMade}</p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Property Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Building className="w-4 h-4 text-blue-600" />
+                        <h4 className="font-semibold text-gray-800">Property</h4>
+                      </div>
+                      <div className="space-y-2 pl-6">
+                        <p className="font-medium">{lease.property.title}</p>
+                        <p className="text-sm text-gray-600">
+                          {lease.property.street}, {lease.property.barangay}, {lease.property.city.name}, {lease.property.zipCode}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className="text-xs">
+                            CONDOMINIUM
+                          </Badge>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Start Date</p>
-                          <p className="font-semibold">{formatDate(lease.startDate)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">End Date</p>
-                          <p className="font-semibold">{lease.endDate ? formatDate(lease.endDate) : 'No end date'}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Documents Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <FileText className="w-5 h-5 text-blue-600" />
-                        Documents
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {lease.leaseDocumentUrl && (
-                          <div className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <FileText className="w-5 h-5 text-blue-500" />
-                              <div>
-                                <p className="font-medium">Lease Agreement</p>
-                                <p className="text-sm text-gray-500">Signed lease document</p>
-                              </div>
-                            </div>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4 mr-2" />
-                              View
-                            </Button>
-                          </div>
-                        )}
-                        
-                        {lease.landlordSignatureUrl && (
-                          <div className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <User className="w-5 h-5 text-green-500" />
-                              <div>
-                                <p className="font-medium">Landlord Signature</p>
-                                <p className="text-sm text-gray-500">Digital signature</p>
-                              </div>
-                            </div>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4 mr-2" />
-                              View
-                            </Button>
-                          </div>
-                        )}
-                        
-                        {lease.tenantSignatureUrl && (
-                          <div className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <User className="w-5 h-5 text-purple-500" />
-                              <div>
-                                <p className="font-medium">Tenant Signature</p>
-                                <p className="text-sm text-gray-500">Digital signature</p>
-                              </div>
-                            </div>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4 mr-2" />
-                              View
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="payments" className="p-6 space-y-6">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-semibold">Payment History</h3>
-                      <p className="text-gray-600">All transactions for this lease</p>
                     </div>
-                    <Button className="bg-green-600 hover:bg-green-700">
-                      <Receipt className="w-4 h-4 mr-2" />
-                      Record Payment
-                    </Button>
-                  </div>
 
-                  <div className="border rounded-lg">
-                    <Table>
-                      <TableHeader>
+                    {/* Unit Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Home className="w-4 h-4 text-green-600" />
+                        <h4 className="font-semibold text-gray-800">Unit</h4>
+                      </div>
+                      <div className="space-y-2 pl-6">
+                        <p className="font-medium">{lease.unit.label}</p>
+                        <p className="text-sm text-gray-600">
+                          Unit included in this lease agreement
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Tenant Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold">Tenant Information</CardTitle>
+                    <p className="text-sm text-gray-600">Your profile information</p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="font-semibold text-blue-600 text-lg">
+                          {lease.tenant.firstName.charAt(0)}{lease.tenant.lastName.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg">
+                          {lease.tenant.firstName} {lease.tenant.lastName}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="secondary" className="text-xs">
+                            <Circle className="w-2 h-2 mr-1 fill-current" />
+                            Male
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            TENANT
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-600 block mb-1">Email</label>
+                        <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                          <span className="text-gray-900">{lease.tenant.email}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Payments Tab */}
+            <TabsContent value="payments" className="p-6 space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-800">Payment Management</h3>
+                  <p className="text-gray-600">Track and manage all payment transactions</p>
+                </div>
+                <Button 
+                  className="bg-green-600 hover:bg-green-700 shadow-lg"
+                  onClick={handleRecordPayment}
+                >
+                  <Receipt className="w-4 h-4 mr-2" />
+                  Record New Payment
+                </Button>
+              </div>
+
+              {/* Payment Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-0 shadow-md">
+                  <CardContent className="p-6 text-center">
+                    <CreditCard className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">Total Payments</p>
+                    <p className="text-2xl font-bold text-blue-600">{lease.payments.length}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-0 shadow-md">
+                  <CardContent className="p-6 text-center">
+                    <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">Paid Amount</p>
+                    <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-0 shadow-md">
+                  <CardContent className="p-6 text-center">
+                    <Clock className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">Pending</p>
+                    <p className="text-2xl font-bold text-orange-600">
+                      {lease.payments.filter(p => p.status === 'PENDING').length}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-0 shadow-md">
+                  <CardContent className="p-6 text-center">
+                    <Calendar className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">On Time Rate</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {paidPayments.length > 0 
+                        ? Math.round((paidPayments.filter(p => p.timingStatus === 'ONTIME').length / paidPayments.length) * 100) 
+                        : 0}%
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Payments Table */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 border-b">
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-gray-600" />
+                    Payment History
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader className="bg-gray-50">
+                      <TableRow>
+                        <TableHead className="font-semibold">Amount</TableHead>
+                        <TableHead className="font-semibold">Due Date</TableHead>
+                        <TableHead className="font-semibold">Status</TableHead>
+                        <TableHead className="font-semibold">Method</TableHead>
+                        <TableHead className="font-semibold">Timing</TableHead>
+                        <TableHead className="font-semibold">Date Paid</TableHead>
+                        <TableHead className="font-semibold">Type</TableHead>
+                        <TableHead className="font-semibold text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lease.payments.length === 0 ? (
                         <TableRow>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Payment Method</TableHead>
-                          <TableHead>Timing</TableHead>
-                          <TableHead>Date Paid</TableHead>
-                          <TableHead>Notes</TableHead>
-                          <TableHead>Actions</TableHead>
+                          <TableCell colSpan={8} className="text-center text-gray-500 py-12">
+                            <div className="flex flex-col items-center gap-3">
+                              <CreditCard className="w-16 h-16 text-gray-300" />
+                              <p className="text-lg font-medium text-gray-600">No payments recorded yet</p>
+                              <p className="text-gray-500">Start by recording your first payment</p>
+                              <Button 
+                                className="mt-2 bg-green-600 hover:bg-green-700"
+                                onClick={handleRecordPayment}
+                              >
+                                <Receipt className="w-4 h-4 mr-2" />
+                                Record Payment
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {payments.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                              <div className="flex flex-col items-center gap-2">
-                                <CreditCard className="w-12 h-12 text-gray-300" />
-                                <p>No payments recorded yet</p>
+                      ) : (
+                        lease.payments.map((payment) => (
+                          <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
+                            <TableCell className="font-semibold text-green-600">
+                              {formatCurrency(payment.amount)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{formatDate(payment.dueDate)}</span>
+                                <span className="text-xs text-gray-500">
+                                  Due {new Date(payment.dueDate).toLocaleDateString('en-US', { weekday: 'short' })}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={getPaymentStatusVariant(payment.status)}
+                                className="font-medium px-2 py-1"
+                              >
+                                {payment.status === 'PAID' ? (
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                ) : (
+                                  <Clock className="w-3 h-3 mr-1" />
+                                )}
+                                {payment.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className={payment.method ? "font-medium" : "text-gray-400"}>
+                                {payment.method || 'Not specified'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {payment.timingStatus && (
+                                <Badge 
+                                  variant={getTimingStatusVariant(payment.timingStatus)}
+                                  className="font-medium px-2 py-1"
+                                >
+                                  {payment.timingStatus}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {payment.paidAt ? (
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{formatDate(payment.paidAt)}</span>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(payment.paidAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">Pending</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="font-medium">
+                                {payment.type || 'RENT'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex justify-end gap-2">
+                                {payment.status === 'PENDING' && payment.id === latestPendingPayment?.id && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleMarkAsPaid(payment)}
+                                    className="border-green-200 text-green-700 hover:bg-green-50"
+                                  >
+                                    Mark as Paid
+                                  </Button>
+                                )}
+                                {payment.status === 'PAID' && (
+                                  <Button variant="outline" size="sm" disabled>
+                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                    Paid
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
-                        ) : (
-                          payments.map((payment) => (
-                            <TableRow key={payment.id}>
-                              <TableCell className="font-semibold">
-                                {formatCurrency(payment.amount)}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={getPaymentStatusVariant(payment.status)}>
-                                  {payment.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {payment.method || 'Not specified'}
-                              </TableCell>
-                              <TableCell>
-                                {payment.timingStatus && (
-                                  <Badge variant={getTimingStatusVariant(payment.timingStatus)}>
-                                    {payment.timingStatus}
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {payment.paidAt ? formatDateTime(payment.paidAt) : 'Pending'}
-                              </TableCell>
-                              <TableCell>
-                                {payment.note || '-'}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-2">
-                                  {payment.paymentProofUrl && (
-                                    <Button variant="outline" size="sm">
-                                      <Eye className="w-4 h-4" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
 
-                  {/* Payment Summary */}
-                  {payments.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Payment Summary</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          <div className="text-center">
-                            <p className="text-sm text-gray-500">Total Payments</p>
-                            <p className="text-2xl font-bold text-blue-600">{payments.length}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-gray-500">Paid Amount</p>
-                            <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-gray-500">Pending Payments</p>
-                            <p className="text-2xl font-bold text-orange-600">
-                              {payments.filter(p => p.status === 'PENDING').length}
-                            </p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-gray-500">On Time Rate</p>
-                            <p className="text-2xl font-bold text-green-600">
-                              {paidPayments.length > 0 
-                                ? Math.round((paidPayments.filter(p => p.timingStatus === 'ONTIME').length / paidPayments.length) * 100) 
-                                : 0}%
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Mark as Paid Modal */}
+      <Dialog open={markAsPaidModal.isOpen} onOpenChange={(open) => setMarkAsPaidModal({ isOpen: open, payment: null })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              Mark Payment as Paid
+            </DialogTitle>
+            <DialogDescription>
+              Record payment details for {markAsPaidModal.payment && formatCurrency(markAsPaidModal.payment.amount)} due on {markAsPaidModal.payment && formatDate(markAsPaidModal.payment.dueDate)}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="paidAt" className="text-right">
+                Date Paid *
+              </Label>
+              <Input
+                id="paidAt"
+                type="date"
+                value={markAsPaidForm.paidAt}
+                onChange={(e) => setMarkAsPaidForm({ ...markAsPaidForm, paidAt: e.target.value })}
+                className="col-span-3"
+                required
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="method" className="text-right">
+                Method *
+              </Label>
+              <Select 
+                value={markAsPaidForm.method} 
+                onValueChange={(value) => setMarkAsPaidForm({ ...markAsPaidForm, method: value })}
+                required
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CASH">Cash</SelectItem>
+                  <SelectItem value="GCASH">GCash</SelectItem>
+                  <SelectItem value="PAYPAL">PayPal</SelectItem>
+                  <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                  <SelectItem value="CREDIT_CARD">Credit Card</SelectItem>
+                  <SelectItem value="DEBIT_CARD">Debit Card</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="type" className="text-right">
+                Type *
+              </Label>
+              <Select 
+                value={markAsPaidForm.type} 
+                onValueChange={(value) => setMarkAsPaidForm({ ...markAsPaidForm, type: value })}
+                required
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select payment type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="RENT">Rent</SelectItem>
+                  <SelectItem value="ADVANCE_PAYMENT">Advance Payment</SelectItem>
+                  <SelectItem value="PENALTY">Penalty</SelectItem>
+                  <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-        {/* Sidebar - 1/4 width */}
-        <div className="space-y-6">
-          {/* Quick Actions */}
-          <Card className="shadow-lg border-0">
-            <CardHeader>
-              <CardTitle className="text-lg">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start" size="sm">
-                <Send className="w-4 h-4 mr-2" />
-                Send Payment Reminder
-              </Button>
-              <Button variant="outline" className="w-full justify-start" size="sm">
-                <FileText className="w-4 h-4 mr-2" />
-                Generate Report
-              </Button>
-              <Button variant="outline" className="w-full justify-start" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Download Documents
-              </Button>
-              {lease.status === 'ACTIVE' && (
-                <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700" size="sm">
-                  <AlertTriangle className="w-4 h-4 mr-2" />
-                  Terminate Lease
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Lease Timeline */}
-          <Card className="shadow-lg border-0">
-            <CardHeader>
-              <CardTitle className="text-lg">Lease Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="font-medium text-sm">Lease Created</p>
-                    <p className="text-xs text-gray-500">{formatDateTime(lease.createdAt)}</p>
-                  </div>
+            {/* Timing Status Preview */}
+            {markAsPaidModal.payment && markAsPaidForm.paidAt && (
+              <div className="grid grid-cols-4 items-center gap-4 pt-2 border-t">
+                <Label className="text-right text-sm">Timing Status</Label>
+                <div className="col-span-3">
+                  <Badge variant={getTimingStatusVariant(calculateTimingStatus(markAsPaidModal.payment.dueDate, markAsPaidForm.paidAt))}>
+                    {calculateTimingStatus(markAsPaidModal.payment.dueDate, markAsPaidForm.paidAt) || 'Not calculated'}
+                  </Badge>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Based on due date and paid date comparison
+                  </p>
                 </div>
-                
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="font-medium text-sm">Lease Started</p>
-                    <p className="text-xs text-gray-500">{formatDateTime(lease.startDate)}</p>
-                  </div>
-                </div>
-                
-                {lease.lastPaymentDate && (
-                  <div className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                    <div>
-                      <p className="font-medium text-sm">Last Payment</p>
-                      <p className="text-xs text-gray-500">{formatDateTime(lease.lastPaymentDate)}</p>
-                    </div>
-                  </div>
-                )}
-                
-                {lease.endDate && (
-                  <div className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full mt-2"></div>
-                    <div>
-                      <p className="font-medium text-sm">Lease Ends</p>
-                      <p className="text-xs text-gray-500">{formatDateTime(lease.endDate)}</p>
-                    </div>
-                  </div>
-                )}
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setMarkAsPaidModal({ isOpen: false, payment: null })}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleMarkAsPaidSubmit}
+              disabled={!markAsPaidForm.method || submitting}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {submitting ? 'Processing...' : 'Mark as Paid'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          {/* Contact Information */}
-          <Card className="shadow-lg border-0">
-            <CardHeader>
-              <CardTitle className="text-lg">Contact Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Tenant</p>
-                <p className="text-sm">{lease.tenant.firstName} {lease.tenant.lastName}</p>
-                <p className="text-xs text-gray-500">{lease.tenant.email}</p>
-                {lease.tenant.phoneNumber && (
-                  <p className="text-xs text-gray-500">{lease.tenant.phoneNumber}</p>
-                )}
+      {/* Record Payment Modal */}
+      <Dialog open={recordPaymentModal} onOpenChange={setRecordPaymentModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-green-600" />
+              Record New Payment
+            </DialogTitle>
+            <DialogDescription>
+              Create a new payment record for this lease agreement.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount *</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  value={recordPaymentForm.amount}
+                  onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, amount: Number(e.target.value) })}
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  required
+                />
               </div>
-              <div className="pt-3 border-t">
-                <p className="text-sm font-medium text-gray-500">Landlord</p>
-                <p className="text-sm">{lease.landlord.firstName} {lease.landlord.lastName}</p>
-                <p className="text-xs text-gray-500">{lease.landlord.email}</p>
+              
+              <div className="space-y-2">
+                <Label htmlFor="status">Status *</Label>
+                <Select 
+                  value={recordPaymentForm.status} 
+                  onValueChange={(value: 'PENDING' | 'PAID') => setRecordPaymentForm({ ...recordPaymentForm, status: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="PAID">Paid</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dueDate">Due Date *</Label>
+                <Input
+                  id="dueDate"
+                  type="date"
+                  value={recordPaymentForm.dueDate}
+                  onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, dueDate: e.target.value })}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="paidAt">
+                  Paid Date {recordPaymentForm.status === 'PAID' && '*'}
+                </Label>
+                <Input
+                  id="paidAt"
+                  type="date"
+                  value={recordPaymentForm.paidAt}
+                  onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, paidAt: e.target.value })}
+                  disabled={recordPaymentForm.status === 'PENDING'}
+                  required={recordPaymentForm.status === 'PAID'}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="method">Payment Method *</Label>
+                <Select 
+                  value={recordPaymentForm.method} 
+                  onValueChange={(value) => setRecordPaymentForm({ ...recordPaymentForm, method: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">Cash</SelectItem>
+                    <SelectItem value="GCASH">GCash</SelectItem>
+                    <SelectItem value="PAYPAL">PayPal</SelectItem>
+                    <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                    <SelectItem value="CREDIT_CARD">Credit Card</SelectItem>
+                    <SelectItem value="DEBIT_CARD">Debit Card</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="type">Payment Type *</Label>
+                <Select 
+                  value={recordPaymentForm.type} 
+                  onValueChange={(value) => setRecordPaymentForm({ ...recordPaymentForm, type: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RENT">Rent</SelectItem>
+                    <SelectItem value="ADVANCE_PAYMENT">Advance Payment</SelectItem>
+                    <SelectItem value="PENALTY">Penalty</SelectItem>
+                    <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Timing Status Preview for Paid payments */}
+            {recordPaymentForm.status === 'PAID' && recordPaymentForm.paidAt && (
+              <div className="p-3 bg-gray-50 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <Label className="text-sm font-medium">Timing Status:</Label>
+                  <Badge variant={getTimingStatusVariant(calculateTimingStatus(recordPaymentForm.dueDate, recordPaymentForm.paidAt))}>
+                    {calculateTimingStatus(recordPaymentForm.dueDate, recordPaymentForm.paidAt) || 'Not calculated'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  This will be automatically calculated based on due date and paid date
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setRecordPaymentModal(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRecordPaymentSubmit}
+              disabled={!recordPaymentForm.method || !recordPaymentForm.type || submitting}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {submitting ? 'Creating...' : 'Create Payment Record'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

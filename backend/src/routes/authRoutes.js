@@ -5,23 +5,21 @@ import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 
 const router = Router();
 
-// Auth routes
-router.post("/register", register);                  // Register user
-router.post("/verify-email", verifyEmail);               // Verify email
-router.post("/resend-verification", resendVerification);       // Resend verification email
+// ----------------------------------------------------- PROPERTY 
+// PUBLIC ROUTES
+router.post("/register", register);                                                 // Register user
+router.post("/verify-email", verifyEmail);                                          // Verify email
+router.post("/resend-verification", resendVerification);                            // Resend verification email
+router.post("/forgot-password", forgotPassword);                                    // Send reset email
+router.post("/reset-password", resetPassword);                                      // Reset password
+router.post("/login", login);                                                       // Login
+router.post("/refresh", refresh);                                                   // Refresh tokens 
+router.get("/status", checkAuthStatus);                                             // Quick Check if user is login
 
-router.post("/forgot-password", forgotPassword);           // Send reset email
-router.post("/reset-password", resetPassword);            // Reset password
-
-router.post("/login", login);                     // Login, set JWT cookies
-router.post("/refresh", refresh);                       // Refresh tokens (public, uses refresh token cookie)
-
-router.get("/status", checkAuthStatus); // <-- public route to check login + role
-
-router.get("/me", requireAuthentication(["ANY_ROLE"]), getUserInfo);                         // Get current user (protected)
-router.put("/onboarding", requireAuthentication(["ANY_ROLE"]), onboarding)                  // Onboarding User (protected)
-router.put("/update-profile", requireAuthentication(["ANY_ROLE"]), updateProfile)                  // Update User (protected)
-
-router.post("/logout", logout);                    // Logout, clear cookies
+// PRIVATE ROUTES 
+router.get("/me", requireAuthentication(["ANY_ROLE"]), getUserInfo);                // Get current user 
+router.put("/onboarding", requireAuthentication(["ANY_ROLE"]), onboarding)          // Onboarding User 
+router.put("/update-profile", requireAuthentication(["ANY_ROLE"]), updateProfile)   // Update User 
+router.post("/logout", logout);                                                     // Logout, clear cookies
 
 export default router;

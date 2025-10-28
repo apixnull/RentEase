@@ -39,6 +39,7 @@ import TenantScreeningTenant from "./pages/private/tenant/screening/TenantScreen
 import ViewSpecificScreeningLandlord from "./pages/private/landlord/screening/ViewSpecificScreeningLandlord.tsx";
 import ViewSpecificScreeningTenant from "./pages/private/tenant/screening/ViewSpecificScreeningTenant.tsx";
 import CreateLease from "./pages/private/landlord/lease/CreateLease.tsx";
+import MyLeaseDetails from "./pages/private/tenant/lease/MyLeaseDetails.tsx";
 
 
 // ------------------------------- Lazy Imports
@@ -212,6 +213,7 @@ const router = createBrowserRouter([
 
       // lease
       { path: "my-lease", element: <Suspense fallback={<Loader />}><MyLease /></Suspense> },
+      { path: "my-lease/:leaseId/details", element: <Suspense fallback={<Loader />}><MyLeaseDetails /></Suspense> },
 
       // tenant screening
       { path: "screening", element: <Suspense fallback={<Loader />}><TenantScreeningTenant /></Suspense> },

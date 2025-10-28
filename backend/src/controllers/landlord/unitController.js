@@ -39,7 +39,6 @@ export const getPropertyUnits = async (req, res) => {
 
         // Pricing
         targetPrice: true,
-        securityDeposit: true,
 
         // Screening & Listing
         requiresScreening: true,
@@ -215,7 +214,6 @@ export const createUnit = async (req, res) => {
       otherImages,
       unitLeaseRules,
       targetPrice,
-      securityDeposit,
       requiresScreening,
       amenities,
     } = req.body;
@@ -283,7 +281,6 @@ export const createUnit = async (req, res) => {
         otherImages: otherImages || null,
         unitLeaseRules: unitLeaseRules || null,
         targetPrice: parsedTargetPrice,
-        securityDeposit: parsedSecurityDeposit,
         requiresScreening: requiresScreening ?? false,
         amenities: amenities
           ? { connect: amenities.map((id) => ({ id })) }

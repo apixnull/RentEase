@@ -5,7 +5,7 @@ import { handlePaymongoWebhook } from "../controllers/webhookController.js";
 
 const router = Router();
 
-// No authentication middleware — PayMongo must access this publicly
-router.post("/paymongo", express.json({ type: "*/*" }), handlePaymongoWebhook);
+// ----------------------------------------------------- LISTING
+router.post("/paymongo", express.json({ type: "*/*" }), handlePaymongoWebhook);         // Mark a listing as Paid
 
 export default router;

@@ -1,7 +1,3 @@
-// ============================================================================
-// Prisma schema — organized + annotated
-// ============================================================================
-
 // -----------------------------------------------------------------------------
 // GENERATOR & DATASOURCE
 // -----------------------------------------------------------------------------
@@ -16,31 +12,21 @@ datasource db {
   directUrl = env("DIRECT_URL") // Used for migrations and introspection
 }
 
-// ============================================================================
-// ENUM DEFINITIONS
-// ============================================================================
 
-// --------------------
-// USER enums
-// --------------------
-// Role used to gate UI & permissions (admin, landlord, tenant)
-// Possible values: ADMIN, LANDLORD, TENANT
+// -----------------------------------------------------------------------------
+// User 
+// -----------------------------------------------------------------------------
+
 enum Role {
   ADMIN
   LANDLORD
   TENANT
 }
 
-// ============================================================================
-// MODELS
-// ============================================================================ 
-// --------------------
-// USER: primary account table (auth + role + profile + contacts)
-// --------------------
 model User {
-  id           String @id @default(uuid()) // PK: UUID
-  email        String @unique // login credential
-  passwordHash String // store only hashed pw
+  id           String @id @default(uuid()) 
+  email        String @unique 
+  passwordHash String 
   role         Role
 
   // Profile details
@@ -53,7 +39,7 @@ model User {
   bio        String?
 
   // Contact info
-  phoneNumber  String? // normalized format
+  phoneNumber  String?
   messengerUrl String?
   facebookUrl  String?
   whatsappUrl  String?
@@ -71,16 +57,18 @@ model User {
   // Onboarding
   hasSeenOnboarding Boolean @default(false)
 
-  // Relations (user roles/actions)
+
+  // Property Owned by the Landlord
   Property               Property[]
   MaintenanceRequest     MaintenanceRequest[]
   Notification           Notification[]
   UnitReview             UnitReview[]
 
+
   listingsAsLandlord     Listing[]                                              // landlord’s listings
   listingsReviewed       Listing[]                @relation("ReviewedListings") // admin-reviewed listings
+
   TenantBehaviorAnalysis TenantBehaviorAnalysis[]
-  TenantChatbotSession   TenantChatbotSession[]
 
   // Lease relations
   tenantLeases   Lease[] @relation("TenantLeases")   // Leases where user is the tenant
@@ -93,6 +81,9 @@ model User {
   // all the messages sent 
   sentMessages     ChatMessage[]
 
+  // Units that this user currently occupies
+  unitsOccupied Unit[] @relation("UnitOccupant")
+
   @@index([email])
   @@index([role])
   @@index([lastLogin])
@@ -102,10 +93,9 @@ model User {
   tenantScreeningLandlord TenantScreening[] @relation("TenantScreeningsAsLandlord")
 }
 
-// --------------------
-// Amenity & Location (lookup) Models
-// --------------------
-// Amenity: seed this table (e.g., wifi, pool, aircon) during migrations
+// -----------------------------------------------------------------------------
+// Amenity 
+// -----------------------------------------------------------------------------
 model Amenity {
   id       String @id @default(uuid())
   name     String @unique // e.g., "wifi", "pool", "aircon"
@@ -115,7 +105,9 @@ model Amenity {
   units Unit[] @relation("UnitAmenities")
 }
 
-// City-level lookup for normalization
+// -----------------------------------------------------------------------------
+// City 
+// -----------------------------------------------------------------------------
 model City {
   id   String @id @default(uuid())
   name String @unique // e.g., "Cebu City", "Mandaue"
@@ -123,18 +115,18 @@ model City {
   properties Property[] // Properties located in this city
 }
 
-// Municipality-level lookup
+// -----------------------------------------------------------------------------
+// Municipality
+// -----------------------------------------------------------------------------
 model Municipality {
   id         String     @id @default(uuid())
   name       String     @unique // e.g., "Toledo", "Danao"
   properties Property[] // Properties located in this municipality
 }
 
-// --------------------
-// PROPERTY
-// --------------------
-// Property: a landlord-owned location that contains Units.
-// Address fields intentionally split (city OR municipality optional).
+// -----------------------------------------------------------------------------
+// Property
+// -----------------------------------------------------------------------------
 model Property {
   id      String @id @default(uuid())
   ownerId String // FK to users.id (landlord)
@@ -182,10 +174,9 @@ model Property {
   Lease Lease[]
 }
 
-// --------------------
-// UNIT
-// --------------------
-// Unit: rentable sub-space within a Property (room, apartment, etc.)
+// -----------------------------------------------------------------------------
+// Unit
+// -----------------------------------------------------------------------------
 model Unit {
   id         String @id @default(uuid())
   propertyId String // FK to properties.id
@@ -193,7 +184,6 @@ model Unit {
   // --- Basic Info ---
   label       String // human label (e.g., "Unit 3A")
   description String
-  status      String // AVAILABLE, OCCUPIED, MAINTENANCE
   floorNumber Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -208,13 +198,20 @@ model Unit {
 
   // --- Pricing ---
   targetPrice     Float // cannot be more than a 100,000 and less  
-  securityDeposit Float? // ----------------------------------------------------- || to be removed
 
   // --- Screening Settings ---
   requiresScreening Boolean @default(false) // true = landlord requires tenant screening
 
+  // --- Occupancy Tracking ---
+  occupiedAt   DateTime?
+  occupiedById String?
+  occupant     User? @relation("UnitOccupant", fields: [occupiedById], references: [id])
+  
   // --- Listing Status
   listedAt DateTime? // null = not listed, timestamp = listed date
+
+  // --- Physical Condition ---
+  unitCondition  String  @default("GOOD") // GOOD, NEED_MAINTENANCE, UNDER_MAINTENANCE, UNUSABLE
 
   // --- Relations ---
   property           Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -229,9 +226,9 @@ model Unit {
   ChatChannel ChatChannel[]
 }
 
-// --------------------
-// UNIT REVIEW
-// --------------------
+// -----------------------------------------------------------------------------
+// Unit Review 
+// -----------------------------------------------------------------------------
 model UnitReview {
   id       String @id @default(uuid())
   tenantId String
@@ -248,9 +245,9 @@ model UnitReview {
   @@map("unit_reviews")
 }
 
-// --------------------
-// LISTING
-// --------------------
+// -----------------------------------------------------------------------------
+// Listing
+// -----------------------------------------------------------------------------
 model Listing {
   id             String    @id @default(uuid())
   propertyId     String
@@ -299,6 +296,9 @@ model Listing {
   @@map("listings")
 }
 
+// -----------------------------------------------------------------------------
+// Lease 
+// -----------------------------------------------------------------------------
 model Lease {
   id          String   @id @default(uuid())
   propertyId  String    
@@ -315,21 +315,13 @@ model Lease {
 
   // Optional one-time details
   securityDeposit Float?    // One-time amount held until lease ends
-  advanceMonths   Int       @default(0)         // How many months prepaid rent
 
   interval        String    @default("MONTHLY") // DAILY, WEEKLY, MONTHLY
-  dueDate         Int       // 1–31 (adjust if > daysInMonth)
+  dueDate         Int       // 1–28 (adjust if > daysInMonth)
   status          String    @default("PENDING") // PENDING, ACTIVE, COMPLETED, TERMINATED, CANCELLED
-
-
-  // --- Tracking ---
-  totalPaymentsMade Int      @default(0)   // Incremented when tenant pays
-  lastPaymentDate   DateTime?              // Useful for reminders
 
   // --- Digital Documents ---
   leaseDocumentUrl     String?
-  landlordSignatureUrl String?
-  tenantSignatureUrl   String?
 
   // --- Timestamps ---
   createdAt DateTime @default(now())
@@ -351,9 +343,9 @@ model Lease {
 }
 
 
-// --------------------
-// PAYMENT: actual transactions
-// --------------------
+// -----------------------------------------------------------------------------
+// Payment
+// -----------------------------------------------------------------------------
 model Payment {
   id      String @id @default(uuid())
   leaseId String
@@ -361,14 +353,14 @@ model Payment {
   amount        Float
   paidAt        DateTime?
   method        String?  // CASH, GCASH, PAYPAL, etc.
-  paymentProofUrl String?
-
-
+  dueDate         DateTime   // when this payment is due (use for reminders)
+  
   // --- Tracking ---
   status        String @default("PENDING")  // PENDING, PAID
   timingStatus  String?                     // ONTIME, LATE, ADVANCE
-  note          String?
-  reminderStage Int     @default(0)         // 0=none, 1=pre-due, 2=due-day, 3=late notice sent
+  type String? // "RENT", "ADVANCE PAYMENT"
+  reminderStage Int     @default(0)         // 0=none, 1=pre-due, 2=due-day
+
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -381,6 +373,9 @@ model Payment {
 }
 
 
+// -----------------------------------------------------------------------------
+// Tenant Screening
+// -----------------------------------------------------------------------------
 model TenantScreening {
   id          String   @id @default(uuid())
   tenantId    String
@@ -464,11 +459,9 @@ model TenantScreening {
 }
 
 
-// --------------------
-// LEASE DOCUMENT (Legal Contract / PDF Export)
-// --------------------
-// External from core Lease/Payment system
-// Acts as a snapshot of agreement terms
+// -----------------------------------------------------------------------------
+// Lease Document
+// -----------------------------------------------------------------------------
 model LeaseDocument {
   id String @id @default(uuid())
 
@@ -574,10 +567,9 @@ model LeaseDocument {
   @@map("lease_documents")
 }
 
-// --------------------
-// Maintenance Models
-// --------------------
-// MaintenanceRequest: repairs & issues reported by tenants/landlords
+// -----------------------------------------------------------------------------
+// Maintenance
+// -----------------------------------------------------------------------------
 model MaintenanceRequest {
   // Identity & description
   id          String @id @default(uuid())
@@ -602,9 +594,9 @@ model MaintenanceRequest {
   @@map("maintenance_requests")
 }
 
-// --------------------
-// Income / Expense (simple bookkeeping)
-// --------------------
+// -----------------------------------------------------------------------------
+// Income
+// -----------------------------------------------------------------------------
 model Income {
   // Income record per property (for simple bookkeeping & reports)
   id          String   @id @default(uuid())
@@ -619,6 +611,9 @@ model Income {
   @@map("incomes")
 }
 
+// -----------------------------------------------------------------------------
+// Expense
+// -----------------------------------------------------------------------------
 model Expense {
   // Expense record per property (simple bookkeeping)
   id          String   @id @default(uuid())
@@ -633,10 +628,9 @@ model Expense {
   @@map("expenses")
 }
 
-// --------------------
-// Notifications
-// --------------------
-// Notification: lightweight inbox messages for users (store message body)
+// -----------------------------------------------------------------------------
+// Notification
+// -----------------------------------------------------------------------------
 model Notification {
   id      String  @id @default(uuid())
   userId  String
@@ -657,9 +651,9 @@ model Notification {
   @@map("notifications")
 }
 
-// ============================================================================
-// CHAT CHANNEL
-// ============================================================================
+// -----------------------------------------------------------------------------
+// Chat
+// -----------------------------------------------------------------------------
 model ChatChannel {
   id          String   @id @default(uuid())
   tenantId    String
@@ -685,10 +679,9 @@ model ChatChannel {
   @@map("chat_channels")
 }
 
-// ============================================================================
-// CHAT MESSAGE
-// ============================================================================
-
+// -----------------------------------------------------------------------------
+// Chat Messages
+// -----------------------------------------------------------------------------
 model ChatMessage {
   id        String   @id @default(uuid())
   channelId String
@@ -706,9 +699,9 @@ model ChatMessage {
 }
 
 
-// --------------------
+// -----------------------------------------------------------------------------
 // Tenant Behavior Analysis
-// --------------------
+// -----------------------------------------------------------------------------
 model TenantBehaviorAnalysis {
   id String @id @default(uuid())
 
@@ -753,24 +746,4 @@ model TenantBehaviorAnalysis {
   @@index([tenantId])
   @@index([leaseId])
   @@map("tenant_behavior_analysis")
-}
-
-// 
-// --------------------
-// Tenant Chatbot Session
-// --------------------
-// Stores AI session per tenant, deleted on logout
-model TenantChatbotSession {
-  id        String   @id @default(uuid())
-  tenantId  String
-  context   Json // stores collected info like city, municipality, amenities, etc.
-  messages  Json // array of messages: [{sender: "tenant" | "ai", text: "..."}]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  tenant User @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@map("tenant_chatbot_sessions")
 }

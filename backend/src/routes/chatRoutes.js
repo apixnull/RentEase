@@ -4,6 +4,7 @@ import { getUserChatChannels, sendMessage, sendMessageCreateChannel, getSpecific
 
 const router = Router();
 
+// ----------------------------------------------------- CHATS
 router.get("/channels", requireAuthentication(["TENANT","LANDLORD"]), getUserChatChannels);
 router.post("/:channelId/send", requireAuthentication(["TENANT","LANDLORD"]), sendMessage);
 router.post("/channels/new", requireAuthentication(["TENANT"]), sendMessageCreateChannel);

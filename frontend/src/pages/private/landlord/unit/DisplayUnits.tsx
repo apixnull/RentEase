@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building, ChevronLeft, ChevronRight, Home, Plus, Search, Star, Clock, Shield, Eye, RefreshCw, ArrowRight } from "lucide-react";
+import { Building, ChevronLeft, ChevronRight, Home, Plus, Search, Star, Clock, Eye, RefreshCw, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,6 @@ type Unit = {
   createdAt: string;
   updatedAt: string;
   targetPrice: number;
-  securityDeposit: number;
   requiresScreening: boolean;
   isListed: boolean;
   mainImageUrl?: string;
@@ -197,8 +196,7 @@ const DisplayUnits = () => {
       return (
         unit.label.toLowerCase().includes(q) ||
         String(unit.floorNumber).includes(q) ||
-        String(unit.targetPrice).includes(q) ||
-        String(unit.securityDeposit).includes(q)
+        String(unit.targetPrice).includes(q) 
       );
     });
   }, [units, unitQuery, unitStatus]);
@@ -411,17 +409,9 @@ const UnitMeta = ({ unit }: { unit: Unit }) => (
 
 const UnitFeatures = ({ unit }: { unit: Unit }) => (
   <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-3">
-    <div className="flex items-center gap-1 p-2 bg-gray-50 rounded">
-      <Shield className="h-4 w-4" />
-      {unit.securityDeposit != null ? (
-        <span>₱{unit.securityDeposit.toLocaleString()}</span>
-      ) : (
-        <span className="text-gray-400">No Deposit</span>
-      )}
-    </div>
     <div className="flex items-center justify-center p-2 bg-gray-50 rounded">
       <span className={unit.requiresScreening ? "text-emerald-600" : "text-gray-400"}>
-        {unit.requiresScreening ? "Screening" : "No Screening"}
+        {unit.requiresScreening ? "Screening Required" : "No Screening"}
       </span>
     </div>
   </div>

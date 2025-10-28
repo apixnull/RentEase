@@ -85,7 +85,6 @@ const CreateUnit = () => {
     otherImages: [] as File[],
     otherImagesPreviews: [] as string[],
     targetPrice: "",
-    securityDeposit: "",
     leaseRules: [] as LeaseRule[],
     newLeaseRule: "",
     newLeaseRuleCategory: "general",
@@ -327,13 +326,6 @@ const CreateUnit = () => {
           toast.error("Monthly rent must be between ₱1 and ₱100,000");
           return false;
         }
-        if (formData.securityDeposit) {
-          const deposit = parseFloat(formData.securityDeposit);
-          if (deposit < 0 || deposit > 100000) {
-            toast.error("Security deposit must be between ₱0 and ₱100,000");
-            return false;
-          }
-        }
         return true;
       case 5:
         if (formData.leaseRules.some((rule) => rule.text.split(/\s+/).length > 7)) {
@@ -479,9 +471,6 @@ const CreateUnit = () => {
               }))
             : null,
         targetPrice: parseFloat(formData.targetPrice),
-        securityDeposit: formData.securityDeposit
-          ? parseFloat(formData.securityDeposit)
-          : null,
         requiresScreening: formData.requiresScreening,
       };
 
@@ -975,30 +964,7 @@ const CreateUnit = () => {
                           </p>
                         </div>
 
-                        <div className="space-y-3">
-                          <label className="text-sm font-semibold text-gray-700">
-                            Security Deposit (₱)
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                              ₱
-                            </span>
-                            <Input
-                              name="securityDeposit"
-                              type="number"
-                              min="0"
-                              max="100000"
-                              step="100"
-                              value={formData.securityDeposit}
-                              onChange={handleInputChange}
-                              placeholder="10000"
-                              className="h-12 pl-8"
-                            />
-                          </div>
-                          <p className="text-xs text-gray-500">
-                            Typically 1-2 months' rent
-                          </p>
-                        </div>
+                        
                       </div>
                     </div>
 
@@ -1054,7 +1020,7 @@ const CreateUnit = () => {
                               Require tenant screening
                             </label>
                             <p className="text-xs text-gray-500">
-                              Recommended for better tenant matches
+                              This will be shown to the tenant 
                             </p>
                           </div>
                         </div>

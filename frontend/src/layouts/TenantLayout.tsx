@@ -3,7 +3,6 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
-  Wrench,
   MessageSquare,
   Settings as SettingsIcon,
   LogOut,
@@ -11,7 +10,6 @@ import {
   Menu,
   ChevronRight,
   Search,
-  CreditCard,
   User,
   Zap,
   MoreHorizontal,
@@ -48,20 +46,6 @@ const sidebarItems = [
     badge: "Active",
   },
   {
-    path: "/tenant/payments",
-    name: "Payments",
-    icon: CreditCard,
-    description: "Billing & history",
-    badge: "Due Soon",
-  },
-  {
-    path: "/tenant/maintenance",
-    name: "Maintenance",
-    icon: Wrench,
-    description: "Repair requests",
-    badge: "2 Pending",
-  },
-  {
     path: "/tenant/messages",
     name: "Messages",
     icon: MessageSquare,
@@ -75,9 +59,10 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/tenant": { name: "Dashboard" },
   "/tenant/browse-properties": { name: "Browse Properties" },
   "/tenant/my-lease": { name: "My Lease" },
+  "/tenant/my-lease/:leaseId/details": { name: "Details" , parent: "/tenant/my-lease"},
+
   "/tenant/screening": { name: "Screening" },
   "/tenant/screening/:screeningId/details": { name: "Details", parent: "/tenant/screening" },
-  "/tenant/maintenance": { name: "Maintenance" },
   "/tenant/messages": { name: "Messages" },
   "/tenant/messages/:channelId": { name: "Convo",  parent: "/tenant/messages" },
   "/tenant/settings": { name: "Settings" },
