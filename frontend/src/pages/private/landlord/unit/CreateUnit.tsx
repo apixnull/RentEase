@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { getAmenitiesRequest } from "@/api/landlord/propertyApi";
 import { supabase } from "@/lib/supabaseClient";
 import { createUnitRequest } from "@/api/landlord/unitApi";
+import { motion } from "framer-motion";
 
 // Lease rule categories
 const leaseRuleCategories = [
@@ -103,7 +104,8 @@ const CreateUnit = () => {
       title: "Unit Basics",
       description: "Tell us about your unit",
       icon: Home,
-      guideline: "Choose a clear, descriptive name that helps tenants identify your unit",
+      guideline:
+        "Choose a clear, descriptive name that helps tenants identify your unit",
     },
     {
       id: 2,
@@ -179,12 +181,15 @@ const CreateUnit = () => {
   }, {} as Record<string, LeaseRule[]>);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value, type } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
+      [name]:
+        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
@@ -245,7 +250,9 @@ const CreateUnit = () => {
     setFormData((prev) => ({
       ...prev,
       otherImages: prev.otherImages.filter((_, i) => i !== index),
-      otherImagesPreviews: prev.otherImagesPreviews.filter((_, i) => i !== index),
+      otherImagesPreviews: prev.otherImagesPreviews.filter(
+        (_, i) => i !== index
+      ),
     }));
   };
 
@@ -328,7 +335,9 @@ const CreateUnit = () => {
         }
         return true;
       case 5:
-        if (formData.leaseRules.some((rule) => rule.text.split(/\s+/).length > 7)) {
+        if (
+          formData.leaseRules.some((rule) => rule.text.split(/\s+/).length > 7)
+        ) {
           toast.error("All lease rules must be 7 words or less");
           return false;
         }
@@ -340,11 +349,14 @@ const CreateUnit = () => {
 
   // Function to generate UUID
   const generateUUID = () => {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-      const r = (Math.random() * 16) | 0;
-      const v = c == "x" ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+      /[xy]/g,
+      function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c == "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      }
+    );
   };
 
   // Function to upload image to Supabase with new folder structure
@@ -381,7 +393,9 @@ const CreateUnit = () => {
   };
 
   // Function to delete entire unit folder from Supabase (for rollback)
-  const deleteUnitFolderFromSupabase = async (unitId: string): Promise<void> => {
+  const deleteUnitFolderFromSupabase = async (
+    unitId: string
+  ): Promise<void> => {
     try {
       const { data: files, error: listError } = await supabase.storage
         .from("rentease-images")
@@ -393,8 +407,10 @@ const CreateUnit = () => {
       }
 
       if (files && files.length > 0) {
-        const filePaths = files.map((file) => `unit_images/${unitId}/${file.name}`);
-        
+        const filePaths = files.map(
+          (file) => `unit_images/${unitId}/${file.name}`
+        );
+
         const { error: deleteError } = await supabase.storage
           .from("rentease-images")
           .remove(filePaths);
@@ -402,7 +418,9 @@ const CreateUnit = () => {
         if (deleteError) {
           console.error("Error deleting files:", deleteError);
         } else {
-          console.log(`Successfully deleted ${filePaths.length} files for unit ${unitId}`);
+          console.log(
+            `Successfully deleted ${filePaths.length} files for unit ${unitId}`
+          );
         }
       }
     } catch (error) {
@@ -458,7 +476,9 @@ const CreateUnit = () => {
         label: formData.label.trim(),
         description: formData.description.trim(),
         status: "AVAILABLE" as const,
-        floorNumber: formData.floorNumber ? parseInt(formData.floorNumber) : null,
+        floorNumber: formData.floorNumber
+          ? parseInt(formData.floorNumber)
+          : null,
         maxOccupancy: formData.maxOccupancy,
         amenities: formData.amenities,
         mainImageUrl: mainImageUrl,
@@ -480,10 +500,9 @@ const CreateUnit = () => {
       setImageUploading(false);
       toast.success(response.data.message || "Unit added successfully!");
       navigate(`/landlord/units/${propertyId}/${unitId}`);
-
     } catch (error: any) {
       console.error("Error creating unit:", error);
-      
+
       // Rollback: Delete uploaded images if backend creation failed
       if (uploadedImages) {
         console.log("Rolling back: Deleting uploaded images...");
@@ -514,47 +533,7 @@ const CreateUnit = () => {
     }
   };
 
-  // Progress bar with new color scheme
-  const renderProgressBar = () => (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Create Your Unit</h1>
-          <p className="text-gray-600">
-            Step {currentStep} of {steps.length}
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-sm text-gray-500">Completion</div>
-          <div className="text-lg font-semibold text-green-600">
-            {Math.round(((currentStep - 1) / (steps.length - 1)) * 100)}%
-          </div>
-        </div>
-      </div>
-
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div
-          className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-500"
-          style={{
-            width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
-          }}
-        ></div>
-      </div>
-
-      <div className="flex justify-between mt-2">
-        {steps.map((stepItem) => (
-          <div
-            key={stepItem.id}
-            className={`text-xs font-medium ${
-              currentStep >= stepItem.id ? "text-green-600" : "text-gray-400"
-            }`}
-          >
-            {stepItem.title}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  // removed legacy progress bar in favor of left step sidebar
 
   // Confirmation Dialog with transparent background
   const renderConfirmation = () => (
@@ -563,12 +542,13 @@ const CreateUnit = () => {
         <div className="text-center">
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Ready to List Your Unit?
+            Confirm Unit Creation
           </h3>
           <p className="text-sm text-gray-600 mb-6">
-            Your unit will be published and visible to potential tenants
-            immediately after creation.
+            Review your details carefully. Once created, this unit will be saved
+            under your property but not listed yet.
           </p>
+
           <div className="flex gap-3 justify-center">
             <Button
               variant="outline"
@@ -588,7 +568,7 @@ const CreateUnit = () => {
                   {imageUploading ? "Uploading Images..." : "Creating Unit..."}
                 </>
               ) : (
-                "Publish Unit"
+                "Create Unit"
               )}
             </Button>
           </div>
@@ -603,11 +583,50 @@ const CreateUnit = () => {
     if (!currentStepData) return null;
 
     return (
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        {/* Main Content - 2/3 width */}
-        <div className="xl:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Left Steps Sidebar */}
+        <div className="hidden lg:block">
+          <Card className="rounded-2xl border-gray-200 shadow-md bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="space-y-2">
+                {steps.map((s) => (
+                  <div
+                    key={s.id}
+                    className={`flex items-center gap-3 p-2 rounded-xl transition-all ${
+                      currentStep === s.id
+                        ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
+                        : currentStep > s.id
+                        ? "bg-gray-50 text-gray-600"
+                        : "bg-gray-50 text-gray-400"
+                    }`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+                        currentStep === s.id
+                          ? "bg-emerald-500 text-white"
+                          : currentStep > s.id
+                          ? "bg-emerald-200 text-emerald-700"
+                          : "bg-gray-200 text-gray-500"
+                      }`}
+                    >
+                      {s.id}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {s.title}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content - 2/4 width */}
+        <div className="lg:col-span-2">
           <Card className="border-0 shadow-lg">
-            <CardHeader className="pb-4 border-b">
+            <CardHeader className="pb-3 border-b">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-xl bg-gradient-to-r from-green-100 to-blue-100 text-green-600">
                   <currentStepData.icon className="h-6 w-6" />
@@ -619,11 +638,14 @@ const CreateUnit = () => {
                   <CardDescription>
                     {currentStepData.description}
                   </CardDescription>
+                  <p className="mt-1 text-xs text-emerald-700">
+                    {currentStepData.guideline}
+                  </p>
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 p-4">
               {/* Step 1: Unit Basics */}
               {currentStep === 1 && (
                 <div className="space-y-6">
@@ -640,7 +662,7 @@ const CreateUnit = () => {
                         placeholder="e.g., Unit 3A, Studio B, Garden Suite"
                         maxLength={50}
                         required
-                        className="h-12 text-lg"
+                        className="h-10 text-base"
                       />
                       <p className="text-xs text-gray-500">
                         {formData.label.length}/50 characters • Be specific and
@@ -661,7 +683,7 @@ const CreateUnit = () => {
                         value={formData.floorNumber}
                         onChange={handleInputChange}
                         placeholder="e.g., 3 (leave blank for single-level)"
-                        className="h-12"
+                        className="h-10"
                       />
                     </div>
 
@@ -772,7 +794,7 @@ const CreateUnit = () => {
 
               {/* Step 3: Photos */}
               {currentStep === 3 && (
-                <div className="space-y-8">
+                <div className="space-y-6">
                   {/* Main Image Section */}
                   <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
                     <div className="flex items-center gap-3 mb-4">
@@ -921,10 +943,10 @@ const CreateUnit = () => {
 
               {/* Step 4: Pricing */}
               {currentStep === 4 && (
-                <div className="space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Pricing Section */}
-                    <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
+                    <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-5 border border-green-200">
                       <div className="flex items-center gap-3 mb-6">
                         <DollarSign className="h-6 w-6 text-green-600" />
                         <div>
@@ -955,7 +977,7 @@ const CreateUnit = () => {
                               onChange={handleInputChange}
                               placeholder="15000"
                               required
-                              className="h-12 pl-8 text-lg font-semibold"
+                              className="h-10 pl-8 text-base font-semibold"
                             />
                           </div>
                           <p className="text-xs text-gray-500">
@@ -963,13 +985,11 @@ const CreateUnit = () => {
                             units
                           </p>
                         </div>
-
-                        
                       </div>
                     </div>
 
                     {/* Occupancy & Screening */}
-                    <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-6 border border-blue-200">
+                    <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-5 border border-blue-200">
                       <div className="flex items-center gap-3 mb-6">
                         <Users className="h-6 w-6 text-blue-600" />
                         <div>
@@ -995,7 +1015,7 @@ const CreateUnit = () => {
                             value={formData.maxOccupancy}
                             onChange={handleInputChange}
                             required
-                            className="h-12 text-center text-lg font-semibold"
+                            className="h-10 text-center text-base font-semibold"
                           />
                           <p className="text-xs text-gray-500 text-center">
                             {formData.maxOccupancy}{" "}
@@ -1020,7 +1040,7 @@ const CreateUnit = () => {
                               Require tenant screening
                             </label>
                             <p className="text-xs text-gray-500">
-                              This will be shown to the tenant 
+                              This will be shown to the tenant
                             </p>
                           </div>
                         </div>
@@ -1032,14 +1052,14 @@ const CreateUnit = () => {
 
               {/* Step 5: Lease Rules */}
               {currentStep === 5 && (
-                <div className="space-y-8">
+                <div className="space-y-6">
                   {/* Add Rules Section */}
                   <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
                     <div className="flex items-center gap-3 mb-6">
                       <Shield className="h-6 w-6 text-green-600" />
                       <div>
                         <h3 className="font-semibold text-gray-900 text-lg">
-                          Add House Rules
+                          Add Lease Rules
                         </h3>
                         <p className="text-gray-600 text-sm">
                           Set clear expectations for tenants
@@ -1179,58 +1199,63 @@ const CreateUnit = () => {
           </Card>
         </div>
 
-        {/* Sidebar - 1/3 width */}
-        <div className="space-y-6">
-          {/* Progress & Guidelines */}
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-blue-50">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Lightbulb className="h-5 w-5 text-green-600" />
-                <h3 className="font-semibold text-gray-900">Pro Tip</h3>
+        {/* Right Sidebar - 1/4 width */}
+        <div className="space-y-4 lg:col-span-1">
+          {/* Advice / Guide */}
+          <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-50 to-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Lightbulb className="h-4 w-4 text-emerald-600" />
+                <h3 className="text-sm font-semibold text-gray-900">Advice</h3>
               </div>
-              <p className="text-sm text-gray-700 mb-4">
+              <p className="text-xs text-gray-700 leading-relaxed">
                 {currentStepData.guideline}
               </p>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Progress</span>
-                  <span className="font-semibold text-green-600">
-                    {Math.round(((currentStep - 1) / (steps.length - 1)) * 100)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-500"
-                    style={{
-                      width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
-                    }}
-                  ></div>
-                </div>
+          {/* Progress */}
+          <Card className="border-0 shadow-md">
+            <CardContent className="p-4">
+              <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                Progress
+              </h4>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-emerald-500 to-blue-500 h-2 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
+                  }}
+                ></div>
+              </div>
+              <div className="mt-2 text-xs text-gray-600">
+                Step {currentStep} of {steps.length}
               </div>
             </CardContent>
           </Card>
 
           {/* Quick Stats */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <h4 className="font-semibold text-gray-900 mb-4">Quick Stats</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Amenities Selected</span>
+          <Card className="border-0 shadow-md">
+            <CardContent className="p-4">
+              <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                Quick Stats
+              </h4>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Amenities</span>
                   <span className="font-semibold">
                     {formData.amenities.length}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Photos Uploaded</span>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Photos</span>
                   <span className="font-semibold">
                     {formData.otherImages.length + (formData.mainImage ? 1 : 0)}
                     /7
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">House Rules</span>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Rules</span>
                   <span className="font-semibold">
                     {formData.leaseRules.length}
                   </span>
@@ -1238,78 +1263,106 @@ const CreateUnit = () => {
               </div>
             </CardContent>
           </Card>
-
-          
         </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-cyan-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header with Logo and Exit */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Zap className="w-8 h-8 text-green-500" fill="currentColor" />
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                RentEase
-              </span>
-              <span className="bg-green-100 text-green-700 font-medium rounded-full text-xs px-2 py-1 border border-green-200">
-                Create Unit
-              </span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.08),transparent_50%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.08),transparent_50%)]" />
+
+      <div className="relative max-w-8xl mx-auto p-4 sm:p-6 lg:p-8">
+        {/* Modern Creative Header */}
+        <motion.div
+          className="relative mb-8"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <div className="absolute -top-4 -left-4 w-24 h-24 bg-gradient-to-br from-emerald-400/20 to-blue-400/20 rounded-full blur-xl" />
+          <div className="absolute -top-2 -right-2 w-16 h-16 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-lg" />
+          <div className="relative bg-white/90 backdrop-blur-sm rounded-3xl border border-white/50 shadow-xl p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 via-emerald-600 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Zap className="w-7 h-7 text-white" fill="currentColor" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      RentEase
+                    </h1>
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                  </div>
+                  <p className="text-sm text-gray-600 font-medium">
+                    Create Unit
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Link to={`/landlord/units/${propertyId}`}>
+                  <Button
+                    variant="ghost"
+                    className="group relative overflow-hidden bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100 text-red-600 hover:text-red-700 rounded-xl border border-red-200 hover:border-red-300 h-11 px-4 sm:px-6 transition-all duration-300"
+                    title="Back to Units"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <ArrowLeft className="w-4 h-4 sm:mr-2 relative z-10" />
+                    <span className="relative z-10 font-medium hidden sm:inline">
+                      Back to Units
+                    </span>
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
+        </motion.div>
 
-          <Link to={`/landlord/units/${propertyId}`}>
-            <Button
-              variant="ghost"
-              className="text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg border border-gray-300"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Units
-            </Button>
-          </Link>
-        </div>
-
-        {/* Progress Bar */}
-        {renderProgressBar()}
-
-        <form onSubmit={handleSubmit}>
+        {/* Main Content */}
+        <div>
           {renderStepContent()}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+          <div className="flex items-center justify-between gap-4 pt-6 mt-6 border-t border-gray-200">
             <Button
               type="button"
               variant="outline"
               onClick={prevStep}
               disabled={currentStep === 1}
-              className="flex items-center gap-2 px-6 py-3"
+              className="h-10 px-6 rounded-lg border-gray-300 disabled:opacity-50 text-sm"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 mr-2" />
               Previous
             </Button>
 
             {currentStep < steps.length ? (
               <Button
-                type="submit"
-                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-lg"
+                type="button"
+                onClick={nextStep}
+                className="h-10 px-6 rounded-lg bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 text-white shadow-lg transition-all duration-200 text-sm"
               >
-                Continue to {steps[currentStep]?.title}
-                <ChevronRight className="h-5 w-5" />
+                Next
+                <ChevronRight className="h-4 w-4 ml-2" />
               </Button>
             ) : (
               <Button
-                type="submit"
-                className="px-8 py-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-lg"
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="h-10 px-6 rounded-lg bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 text-white shadow-lg transition-all duration-200 disabled:opacity-50 text-sm"
               >
-                Review & Publish Unit
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Creating...
+                  </>
+                ) : (
+                  "Confirm Unit Creation"
+                )}
               </Button>
             )}
           </div>
-        </form>
+        </div>
 
         {/* Confirmation Dialog */}
         {showConfirmation && renderConfirmation()}

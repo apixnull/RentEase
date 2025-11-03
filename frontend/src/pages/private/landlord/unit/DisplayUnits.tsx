@@ -1,39 +1,41 @@
-import { useEffect, useMemo, useState } from "react";
-import { Building, ChevronLeft, ChevronRight, Home, Plus, Search, Star, Clock, Eye, RefreshCw, ArrowRight } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Building, ChevronLeft, ChevronRight, Home, Plus, Search, Star, Clock, Eye, RefreshCw, Filter, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, useParams } from "react-router-dom"; 
-import { getPropertyUnitsRequest } from "@/api/landlord/unitApi";
 
-// Updated type based on backend response
+// Updated type based on new backend response
 type Unit = {
   id: string;
   label: string;
-  status: "AVAILABLE" | "OCCUPIED" | "MAINTENANCE";
-  floorNumber: number;
+  description: string;
+  floorNumber: number | null;
+  maxOccupancy: number;
+  targetPrice: number;
+  mainImageUrl?: string;
   createdAt: string;
   updatedAt: string;
-  targetPrice: number;
-  requiresScreening: boolean;
   isListed: boolean;
-  mainImageUrl?: string;
+  occupiedAt: string | null;
   viewCount: number;
-  reviewsSummary: {
-    total: number;
-    average: number;
-  };
+  requiresScreening: boolean;
+  unitCondition: "GOOD" | "NEED_MAINTENANCE" | "UNDER_MAINTENANCE" | "UNUSABLE";
+  amenities: Array<{ id: string; name: string; category: string }>;
+  reviewStats: { totalReviews: number; averageRating: number };
 };
 
 // Helper functions
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "AVAILABLE":
+const getConditionBadgeClasses = (condition: Unit["unitCondition"]) => {
+  switch (condition) {
+    case "GOOD":
       return "bg-emerald-100 text-emerald-800 border-emerald-200";
-    case "OCCUPIED":
-      return "bg-blue-100 text-blue-800 border-blue-200";
-    case "MAINTENANCE":
+    case "NEED_MAINTENANCE":
       return "bg-amber-100 text-amber-800 border-amber-200";
+    case "UNDER_MAINTENANCE":
+      return "bg-amber-100 text-amber-800 border-amber-200";
+    case "UNUSABLE":
+      return "bg-rose-100 text-rose-800 border-rose-200";
     default:
       return "bg-gray-100 text-gray-800 border-gray-200";
   }
@@ -92,22 +94,44 @@ const LoadingSpinner = () => (
 const UnitsSubnav = ({
   unitQuery,
   setUnitQuery,
-  unitStatus,
-  setUnitStatus,
+  unitCondition,
+  setUnitCondition,
+  availability,
+  setAvailability,
+  amenities,
+  selectedAmenities,
+  setSelectedAmenities,
   filteredUnitsCount,
   onAddUnit,
 }: {
   unitQuery: string;
   setUnitQuery: (query: string) => void;
-  unitStatus: string;
-  setUnitStatus: (status: string) => void;
+  unitCondition: "ALL" | Unit["unitCondition"];
+  setUnitCondition: (c: "ALL" | Unit["unitCondition"]) => void;
+  availability: "ALL" | "AVAILABLE" | "OCCUPIED";
+  setAvailability: (v: "ALL" | "AVAILABLE" | "OCCUPIED") => void;
+  amenities: string[];
+  selectedAmenities: string[];
+  setSelectedAmenities: (names: string[]) => void;
   filteredUnitsCount: number;
   onAddUnit: () => void;
 }) => {
+  const [amenitiesOpen, setAmenitiesOpen] = useState(false);
+
+  const toggleAmenity = (name: string) => {
+    setSelectedAmenities(
+      selectedAmenities.includes(name)
+        ? selectedAmenities.filter((n) => n !== name)
+        : [...selectedAmenities, name]
+    );
+  };
+
+  const clearAmenities = () => setSelectedAmenities([]);
+
   return (
     <Card className="p-4">
       <div className="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center">
-        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+        <div className="flex flex-col md:flex-row gap-3 w-full lg:w-auto">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
             <input
@@ -118,15 +142,54 @@ const UnitsSubnav = ({
             />
           </div>
           <select
-            value={unitStatus}
-            onChange={(e) => setUnitStatus(e.target.value)}
-            className="w-full sm:w-40 px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+            value={unitCondition}
+            onChange={(e) => setUnitCondition(e.target.value as any)}
+            className="w-full md:w-48 px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
           >
-            <option value="ALL">All Statuses</option>
+            <option value="ALL">All Conditions</option>
+            <option value="GOOD">Good</option>
+            <option value="NEED_MAINTENANCE">Need Maintenance</option>
+            <option value="UNDER_MAINTENANCE">Under Maintenance</option>
+            <option value="UNUSABLE">Unusable</option>
+          </select>
+          <select
+            value={availability}
+            onChange={(e) => setAvailability(e.target.value as any)}
+            className="w-full md:w-44 px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+          >
+            <option value="ALL">All Availability</option>
             <option value="AVAILABLE">Available</option>
             <option value="OCCUPIED">Occupied</option>
-            <option value="MAINTENANCE">Maintenance</option>
           </select>
+          <div className="relative">
+            <Button
+              variant="outline"
+              className="text-sm h-9 gap-2"
+              onClick={() => setAmenitiesOpen((v) => !v)}
+            >
+              <Filter className="h-4 w-4" /> Amenities
+            </Button>
+            {amenitiesOpen && (
+              <div className="absolute z-10 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-md p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs text-gray-500">Select amenities</span>
+                  <button onClick={clearAmenities} className="text-xs text-emerald-700 hover:underline">Clear</button>
+                </div>
+                <div className="max-h-56 overflow-auto space-y-1">
+                  {amenities.map((name) => (
+                    <label key={name} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedAmenities.includes(name)}
+                        onChange={() => toggleAmenity(name)}
+                      />
+                      <span>{name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           <Button
@@ -146,60 +209,46 @@ const UnitsSubnav = ({
 };
 
 // Main PropertyUnits Component
-const DisplayUnits = () => {
+const DisplayUnits = ({ units = [], loading, error }: { units: Unit[]; loading?: boolean; error?: string | null }) => {
   const { propertyId } = useParams<{ propertyId: string }>();
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   
   // Units filters and pagination
   const [unitQuery, setUnitQuery] = useState("");
-  const [unitStatus, setUnitStatus] = useState<string>("ALL");
+  const [unitCondition, setUnitCondition] = useState<"ALL" | Unit["unitCondition"]>("ALL");
+  const [availability, setAvailability] = useState<"ALL" | "AVAILABLE" | "OCCUPIED">("ALL");
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [unitPage, setUnitPage] = useState(1);
   const unitPageSize = 8;
 
-  // Fetch units when component mounts
-  useEffect(() => {
-    if (!propertyId) return;
-
-    const controller = new AbortController();
-
-    const fetchUnits = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await getPropertyUnitsRequest(propertyId, {
-          signal: controller.signal,
-        });
-        setUnits(res.data || []);
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error("Error fetching units:", err);
-          setError(err.response?.data?.message || "Failed to load units");
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUnits();
-    return () => controller.abort();
-  }, [propertyId]);
+  const allAmenities = useMemo(() => {
+    const set = new Set<string>();
+    units.forEach(u => u.amenities.forEach(a => set.add(a.name)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [units]);
 
   const filteredUnits = useMemo(() => {
     const q = unitQuery.trim().toLowerCase();
 
     return units.filter((unit) => {
-      if (unitStatus !== "ALL" && unit.status !== unitStatus) return false;
-      if (!q) return true;
-      return (
-        unit.label.toLowerCase().includes(q) ||
-        String(unit.floorNumber).includes(q) ||
-        String(unit.targetPrice).includes(q) 
-      );
+      if (unitCondition !== "ALL" && unit.unitCondition !== unitCondition) return false;
+      if (availability === "AVAILABLE" && unit.occupiedAt) return false;
+      if (availability === "OCCUPIED" && !unit.occupiedAt) return false;
+      if (selectedAmenities.length > 0) {
+        const unitAmenityNames = new Set(unit.amenities.map(a => a.name));
+        for (const name of selectedAmenities) {
+          if (!unitAmenityNames.has(name)) return false;
+        }
+      }
+      if (q) {
+        const matches = unit.label.toLowerCase().includes(q) ||
+          (unit.floorNumber !== null && String(unit.floorNumber).includes(q)) ||
+          String(unit.targetPrice).includes(q);
+        if (!matches) return false;
+      }
+      return true;
     });
-  }, [units, unitQuery, unitStatus]);
+  }, [units, unitQuery, unitCondition, availability, selectedAmenities]);
 
   const totalUnitPages = Math.max(
     1,
@@ -211,11 +260,7 @@ const DisplayUnits = () => {
     setUnitPage(clamped);
   };
 
-  const handleRetry = () => {
-    setError(null);
-    setLoading(true);
-    window.location.reload();
-  };
+  const handleRetry = () => window.location.reload();
 
   const handleAddUnit = () => {
     navigate(`/landlord/units/${propertyId}/create`);
@@ -251,9 +296,20 @@ const DisplayUnits = () => {
           setUnitQuery(query);
           setUnitPage(1);
         }}
-        unitStatus={unitStatus}
-        setUnitStatus={(status) => {
-          setUnitStatus(status);
+        unitCondition={unitCondition}
+        setUnitCondition={(c) => {
+          setUnitCondition(c);
+          setUnitPage(1);
+        }}
+        availability={availability}
+        setAvailability={(v) => {
+          setAvailability(v);
+          setUnitPage(1);
+        }}
+        amenities={allAmenities}
+        selectedAmenities={selectedAmenities}
+        setSelectedAmenities={(names) => {
+          setSelectedAmenities(names);
           setUnitPage(1);
         }}
         filteredUnitsCount={filteredUnits.length}
@@ -301,7 +357,7 @@ const UnitsList = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {units.map((unit) => (
           <UnitCard key={unit.id} unit={unit} />
         ))}
@@ -324,20 +380,12 @@ const UnitCard = ({ unit }: { unit: Unit }) => {
   const navigate = useNavigate();
 
   return (
-    <Card className="overflow-hidden border border-gray-200 transition-all duration-200 hover:shadow-md hover:border-emerald-200 h-full flex flex-col">
+    <Card
+      onClick={() => navigate(`/landlord/units/${propertyId}/${unit.id}`)}
+      className="cursor-pointer overflow-hidden border border-gray-200 transition-all duration-200 hover:shadow-md hover:border-emerald-200 h-full flex flex-col"
+    >
       <UnitImage unit={unit} />
       <UnitDetails unit={unit} />
-      
-      <div className="mt-auto p-3 pt-0">
-        <Button 
-          onClick={() => navigate(`/landlord/units/${propertyId}/${unit.id}`)} 
-          className="w-full bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white text-xs py-2 h-8 gap-1"
-          size="sm"
-        >
-          View Details
-          <ArrowRight className="h-3 w-3" />
-        </Button>
-      </div>
     </Card>
   );
 };
@@ -346,30 +394,34 @@ const UnitImage = ({ unit }: { unit: Unit }) => {
   const badgeType = getUnitBadgeType(unit.createdAt, unit.updatedAt);
   
   return (
-    <div className="relative aspect-[4/3] bg-gray-100">
+    <div className="relative w-full bg-gray-100 overflow-hidden" style={{ height: '160px' }}>
       {unit.mainImageUrl ? (
         <img 
           src={unit.mainImageUrl} 
           alt={unit.label} 
-          className="h-full w-full object-cover" 
+          className="w-full h-full object-cover" 
+          style={{ objectFit: 'cover', objectPosition: 'center', width: '100%', height: '100%' }}
         />
       ) : (
-        <div className="h-full w-full bg-gradient-to-br from-emerald-50 to-sky-50 flex items-center justify-center">
-          <Home className="h-8 w-8 text-emerald-400" />
+        <div className="w-full h-full bg-gradient-to-br from-emerald-50 to-sky-50 flex items-center justify-center">
+          <Home className="h-7 w-7 text-emerald-400" />
         </div>
       )}
-      <div className="absolute top-2 right-2 flex flex-col gap-1">
-        <Badge variant="secondary" className={`text-xs font-medium ${getStatusColor(unit.status)}`}>
-          {unit.status}
+      <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+        <Badge variant="secondary" className={`text-[10px] font-medium ${getConditionBadgeClasses(unit.unitCondition)}`}>
+          {unit.unitCondition.replaceAll("_", " ")}
+        </Badge>
+        <Badge variant="secondary" className={`text-[10px] font-medium ${unit.occupiedAt ? "bg-blue-100 text-blue-800 border-blue-200" : "bg-emerald-100 text-emerald-800 border-emerald-200"}`}>
+          {unit.occupiedAt ? "Occupied" : "Available"}
         </Badge>
         {badgeType === "NEW" && (
-          <Badge variant="secondary" className="bg-rose-100 text-rose-800 border-rose-200 text-xs">
+          <Badge variant="secondary" className="bg-rose-100 text-rose-800 border-rose-200 text-[10px]">
             <Clock className="h-3 w-3 mr-1" />
             New
           </Badge>
         )}
         {badgeType === "UPDATED" && (
-          <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
+          <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">
             <RefreshCw className="h-3 w-3 mr-1" />
             Updated
           </Badge>
@@ -389,27 +441,33 @@ const UnitDetails = ({ unit }: { unit: Unit }) => (
 );
 
 const UnitHeader = ({ unit }: { unit: Unit }) => (
-  <div className="flex items-center justify-between mb-2">
-    <h4 className="font-semibold text-gray-900 text-base">{unit.label}</h4>
+  <div className="flex items-center justify-between mb-1">
+    <h4 className="font-semibold text-gray-900 text-sm truncate">{unit.label}</h4>
     <span className="text-emerald-700 font-bold text-sm">₱{unit.targetPrice.toLocaleString()}/mo</span>
   </div>
 );
 
 const UnitMeta = ({ unit }: { unit: Unit }) => (
-  <div className="flex items-center justify-between mb-2">
-    <div className="text-xs text-gray-600">
-      Floor {unit.floorNumber}
+  <div className="space-y-1 mb-1">
+    <div className="flex items-center justify-between">
+      <div className="text-[11px] text-gray-600">
+        {unit.floorNumber !== null ? `Floor ${unit.floorNumber}` : 'No Floor'} • Max {unit.maxOccupancy}
+      </div>
+      <div className="flex items-center gap-1">
+        <Eye className="h-3 w-3 text-gray-400" />
+        <span className="text-[11px] text-gray-500">{unit.viewCount}</span>
+      </div>
     </div>
-    <div className="flex items-center gap-1">
-      <Eye className="h-3 w-3 text-gray-400" />
-      <span className="text-xs text-gray-500">{unit.viewCount}</span>
+    <div className="flex items-center gap-1 text-[11px] text-gray-600">
+      <Calendar className="h-3 w-3 text-gray-400" />
+      <span>{unit.isListed ? "Listed" : "Not Listed"}</span>
     </div>
   </div>
 );
 
 const UnitFeatures = ({ unit }: { unit: Unit }) => (
-  <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-3">
-    <div className="flex items-center justify-center p-2 bg-gray-50 rounded">
+  <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-600 mb-2">
+    <div className="flex items-center justify-center p-1.5 bg-gray-50 rounded">
       <span className={unit.requiresScreening ? "text-emerald-600" : "text-gray-400"}>
         {unit.requiresScreening ? "Screening Required" : "No Screening"}
       </span>
@@ -420,20 +478,20 @@ const UnitFeatures = ({ unit }: { unit: Unit }) => (
 const UnitFooter = ({ unit }: { unit: Unit }) => (
   <div className="pt-2 border-t border-gray-100">
     <div className="flex items-center justify-between mb-1">
-      <StarRating rating={unit.reviewsSummary.average} showText={false} />
-      <Badge variant={unit.isListed ? "default" : "secondary"} className="text-xs">
-        {unit.isListed ? "Listed" : "Unlisted"}
+      <StarRating rating={unit.reviewStats.averageRating} showText={false} />
+      <Badge variant="secondary" className="text-[10px]">
+        {unit.amenities.length} amenities
       </Badge>
     </div>
     <div className="flex items-center justify-between">
-      {unit.reviewsSummary.total > 0 ? (
+      {unit.reviewStats.totalReviews > 0 ? (
         <>
-          <span className="text-xs text-gray-600">
-            {unit.reviewsSummary.average.toFixed(1)} ({unit.reviewsSummary.total} review{unit.reviewsSummary.total !== 1 ? 's' : ''})
+          <span className="text-[11px] text-gray-600">
+            {unit.reviewStats.averageRating.toFixed(1)} ({unit.reviewStats.totalReviews} review{unit.reviewStats.totalReviews !== 1 ? 's' : ''})
           </span>
         </>
       ) : (
-        <span className="text-xs text-gray-400">No reviews</span>
+        <span className="text-[11px] text-gray-400">No reviews</span>
       )}
     </div>
   </div>

@@ -15,8 +15,6 @@ interface User {
   phoneNumber?: string;
   messengerUrl?: string;
   facebookUrl?: string;
-  whatsappUrl?: string;
-  isVerified: boolean;
   isDisabled: boolean;
   lastLogin?: string;
   lastPasswordChange?: string,
@@ -25,8 +23,8 @@ interface User {
 
 interface AuthState {
   user: User | null;
-  loading: boolean;      // while checking session
-  validated: boolean;    // whether session check is finished
+  loading: boolean;      
+  validated: boolean;    
   setUser: (user: User | null) => void;
   clearUser: () => void;
   setLoading: (loading: boolean) => void;
@@ -35,7 +33,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  loading: true, // assume we're checking session at app start
+  loading: true, 
   validated: false,
   setUser: (user) => set({ user }),
   clearUser: () => set({ user: null }),

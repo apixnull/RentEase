@@ -1,15 +1,29 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Home, Building, MapPin } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Home, Building, MapPin, CheckCircle2, Wrench, AlertTriangle, Ban, Users, Info, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 
-import {
-  getPropertyDetailsRequest,
-} from "@/api/landlord/propertyApi";
-import type { Property } from "@/types/propertyType";
+interface CityRef { id: string; name: string }
+interface MunicipalityRef { id: string; name: string }
+interface UnitsSummary { total?: number; listed?: number; occupied?: number; good?: number; needMaintenance?: number; underMaintenance?: number; unusable?: number }
+interface PropertyAddress { street?: string; barangay?: string; zipCode?: string; city?: CityRef | null; municipality?: MunicipalityRef | null }
+interface PropertyLocation { latitude?: number | null; longitude?: number | null }
+interface PropertyMedia { mainImageUrl?: string | null; nearInstitutions?: Array<{ name: string; type: string }> | null; otherInformation?: Array<{ context: string; description: string }> | null }
+interface Property {
+  id: string;
+  title: string;
+  type: string;
+  createdAt: string;
+  updatedAt: string;
+  address?: PropertyAddress;
+  location?: PropertyLocation;
+  media?: PropertyMedia;
+  unitsSummary?: UnitsSummary;
+}
 
 // Loading Component
 const LoadingSpinner = () => (
@@ -44,19 +58,10 @@ const ErrorMessage = ({
 );
 
 // Helper functions
-const parseNearInstitutions = (nearInstitutions: string | null): Array<{name: string; type: string}> => {
-  if (!nearInstitutions) return [];
-  try {
-    return JSON.parse(nearInstitutions);
-  } catch (error) {
-    console.error("Error parsing nearInstitutions:", error);
-    return [];
-  }
-};
 
 const formatAddress = (property: Property): string => {
-  const locality = property.city?.name || property.municipality?.name || "";
-  const segments = [property.street, property.barangay, locality, property.zipCode].filter(Boolean);
+  const locality = property.address?.city?.name || property.address?.municipality?.name || "";
+  const segments = [property.address?.street, property.address?.barangay, locality, property.address?.zipCode].filter(Boolean);
   return segments.join(", ");
 };
 
@@ -81,27 +86,25 @@ const getPropertyTypeIcon = (type: string) => {
   }
 };
 
-// Google Maps Component
+// Leaflet Map Component
 const PropertyMap = ({ latitude, longitude, title }: { latitude?: number | null; longitude?: number | null; title: string }) => {
   if (!latitude || !longitude) {
     return null;
   }
 
-  const mapUrl = `https://maps.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`;
+  const center: [number, number] = [latitude, longitude];
 
   return (
     <div className="h-full bg-gray-100 rounded-lg overflow-hidden">
-      <iframe
-        width="100%"
-        height="100%"
-        frameBorder="0"
-        scrolling="no"
-        marginHeight={0}
-        marginWidth={0}
-        src={mapUrl}
-        title={`Location of ${title}`}
-        className="border-0"
-      />
+      <MapContainer center={center} zoom={15} className="h-full w-full">
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Marker position={center}>
+          <Popup>{title}</Popup>
+        </Marker>
+      </MapContainer>
     </div>
   );
 };
@@ -109,10 +112,10 @@ const PropertyMap = ({ latitude, longitude, title }: { latitude?: number | null;
 // Sub-components for PropertyOverview
 const PropertyImage = ({ property }: { property: Property }) => (
   <Card className="overflow-hidden border-0 shadow-sm">
-    <div className="h-64 bg-gray-100">
-      {property.mainImageUrl ? (
+    <div className="h-56 bg-gray-100">
+      {property.media?.mainImageUrl ? (
         <img 
-          src={property.mainImageUrl} 
+          src={property.media.mainImageUrl} 
           alt={property.title} 
           className="h-full w-full object-cover"
           onError={(e) => {
@@ -122,7 +125,7 @@ const PropertyImage = ({ property }: { property: Property }) => (
           }}
         />
       ) : null}
-      <div className={`h-full w-full bg-gradient-to-br from-emerald-100 to-sky-100 flex items-center justify-center ${property.mainImageUrl ? 'hidden' : ''}`}>
+      <div className={`h-full w-full bg-gradient-to-br from-emerald-100 to-sky-100 flex items-center justify-center ${property.media?.mainImageUrl ? 'hidden' : ''}`}>
         <Home className="h-12 w-12 text-emerald-400" />
       </div>
     </div>
@@ -131,10 +134,10 @@ const PropertyImage = ({ property }: { property: Property }) => (
 
 const PropertyMapSection = ({ property }: { property: Property }) => (
   <Card className="border-0 shadow-sm overflow-hidden">
-    <div className="h-64">
+    <div className="h-56">
       <PropertyMap 
-        latitude={property.latitude} 
-        longitude={property.longitude} 
+        latitude={property.location?.latitude} 
+        longitude={property.location?.longitude} 
         title={property.title}
       />
     </div>
@@ -143,7 +146,7 @@ const PropertyMapSection = ({ property }: { property: Property }) => (
 
 const NoMapSection = ({ property }: { property: Property }) => (
   <Card className="border-0 shadow-sm p-6 bg-gradient-to-br from-gray-50 to-white">
-    <div className="h-64 flex flex-col justify-center items-center text-center">
+    <div className="h-56 flex flex-col justify-center items-center text-center">
       <MapPin className="h-12 w-12 text-gray-300 mb-4" />
       <h3 className="text-lg font-medium text-gray-900 mb-2">Location Information</h3>
       <p className="text-gray-600 mb-4">No map coordinates available for this property</p>
@@ -181,28 +184,19 @@ const NearbyInstitutionsSection = ({ nearInstitutions }: { nearInstitutions: Arr
   </div>
 );
 
-const SummaryRow = ({ label, value, isHighlighted = false, color = "gray" }: { 
-  label: string; 
-  value: number; 
-  isHighlighted?: boolean;
-  color?: "emerald" | "blue" | "amber" | "gray";
-}) => {
-  const colorClasses = {
-    emerald: "text-emerald-600",
-    blue: "text-blue-600",
-    amber: "text-amber-600",
-    gray: "text-gray-900"
-  };
-
-  return (
-    <div className="flex justify-between items-center py-2">
-      <span className="text-gray-700">{label}</span>
-      <span className={`font-semibold text-lg ${colorClasses[color]} ${isHighlighted ? 'font-bold' : ''}`}>
-        {value}
-      </span>
+const OtherInformationSection = ({ info }: { info: Array<{ context: string; description: string }> }) => (
+  <Card className="p-6 bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+    <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2"><Info className="h-5 w-5 text-emerald-600" /> Other Information</h3>
+    <div className="space-y-3">
+      {info.map((it, idx) => (
+        <div key={idx} className="p-3 bg-white rounded-lg border border-gray-100">
+          <p className="font-medium text-gray-900">{it.context}</p>
+          <p className="text-sm text-gray-600">{it.description}</p>
+        </div>
+      ))}
     </div>
-  );
-};
+  </Card>
+);
 
 const LocationDetailItem = ({ icon, title, content, isCode = false }: { 
   icon: React.ReactNode; 
@@ -232,20 +226,30 @@ const BasicInfoSection = ({ property }: { property: Property }) => (
 );
 
 const UnitsSummarySection = ({ property }: { property: Property }) => {
-  const totalUnits = property.unitsSummary?.total || property.Unit?.length || 0;
-  const availableUnits = property.unitsSummary?.available || property.Unit?.filter(u => u.status === "AVAILABLE").length || 0;
-  const occupiedUnits = property.unitsSummary?.occupied || property.Unit?.filter(u => u.status === "OCCUPIED").length || 0;
-  const maintenanceUnits = property.unitsSummary?.maintenance || property.Unit?.filter(u => u.status === "MAINTENANCE").length || 0;
+  const s = property.unitsSummary || {};
+  const items = [
+    { label: "Total", value: s.total || 0, icon: <Users className="h-4 w-4 text-gray-500" />, color: "text-gray-800" },
+    { label: "Listed", value: s.listed || 0, icon: <Sparkles className="h-4 w-4 text-green-500" />, color: "text-green-600" },
+    { label: "Occupied", value: s.occupied || 0, icon: <Users className="h-4 w-4 text-blue-500" />, color: "text-blue-600" },
+    { label: "Good", value: s.good || 0, icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />, color: "text-emerald-600" },
+    { label: "Need Maint.", value: s.needMaintenance || 0, icon: <AlertTriangle className="h-4 w-4 text-amber-500" />, color: "text-amber-600" },
+    { label: "Under Maint.", value: s.underMaintenance || 0, icon: <Wrench className="h-4 w-4 text-amber-500" />, color: "text-amber-600" },
+    { label: "Unusable", value: s.unusable || 0, icon: <Ban className="h-4 w-4 text-rose-500" />, color: "text-rose-600" },
+  ];
 
   return (
     <Card className="p-6 bg-gradient-to-br from-gray-50 to-white border border-gray-100">
-      <h3 className="text-xl font-semibold text-gray-900 mb-6">Units Summary</h3>
-      <div className="space-y-4">
-        <SummaryRow label="Total Units" value={totalUnits} />
-        <SummaryRow label="Listed Units" value={property.unitsSummary?.listed || 0} />
-        <SummaryRow label="Available Units" value={availableUnits} isHighlighted color="emerald" />
-        <SummaryRow label="Occupied Units" value={occupiedUnits} color="blue" />
-        <SummaryRow label="Under Maintenance" value={maintenanceUnits} color="amber" />
+      <h3 className="text-xl font-semibold text-gray-900 mb-4">Units Summary</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {items.map((it) => (
+          <div key={it.label} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+            <div className="flex items-center gap-2 text-gray-700">
+              {it.icon}
+              <span className="text-sm">{it.label}</span>
+            </div>
+            <span className={`font-semibold ${it.color}`}>{it.value}</span>
+          </div>
+        ))}
       </div>
     </Card>
   );
@@ -260,11 +264,11 @@ const LocationDetailsSection = ({ property }: { property: Property }) => (
         title="Full Address"
         content={formatAddress(property)}
       />
-      {property.latitude && property.longitude && (
+      {property.location?.latitude && property.location?.longitude && (
         <LocationDetailItem 
           icon={<MapPin className="h-5 w-5 text-gray-500" />}
           title="Coordinates"
-          content={`${property.latitude.toFixed(6)}, ${property.longitude.toFixed(6)}`}
+          content={`${property.location.latitude!.toFixed(6)}, ${property.location.longitude!.toFixed(6)}`}
           isCode
         />
       )}
@@ -276,6 +280,9 @@ const LeftColumn = ({ property, nearInstitutions }: { property: Property; nearIn
   <div className="space-y-8">
     <BasicInfoSection property={property} />
     {nearInstitutions.length > 0 && <NearbyInstitutionsSection nearInstitutions={nearInstitutions} />}
+    {property.media?.otherInformation && property.media.otherInformation.length > 0 && (
+      <OtherInformationSection info={property.media.otherInformation} />
+    )}
   </div>
 );
 
@@ -296,21 +303,17 @@ const PropertyOverview = ({
   onEdit: () => void;
   onDelete: () => void;
 }) => {
-  const nearInstitutions = parseNearInstitutions(property.nearInstitutions || null);
-  const hasMap = property.latitude && property.longitude;
+  const nearInstitutions = property.media?.nearInstitutions || [];
+  const hasMap = !!(property.location?.latitude && property.location?.longitude);
   
   return (
     <div className="space-y-6">
       <Card className="p-0 overflow-hidden">
         <div className="p-6 md:p-8">
-          {/* Header Section */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
-            <div>
-              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-sky-600 text-white px-3 py-1 rounded-full text-sm font-medium mb-2">
-                {getPropertyTypeIcon(property.type)}
-                <span>{property.type.replaceAll("_", " ")}</span>
-              </div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{property.title}</h1>
+          <div className="flex items-center justify-between gap-2 mb-6">
+            <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">
+              {getPropertyTypeIcon(property.type)}
+              <span>{property.type.replaceAll("_", " ")}</span>
             </div>
             <div className="flex gap-2 shrink-0 flex-wrap">
               <Button 
@@ -350,46 +353,9 @@ const PropertyOverview = ({
   );
 };
 
-const DisplaySpecificProperty = () => {
-  const { propertyId } = useParams();
+const DisplaySpecificProperty = ({ property, loading, error }: { property: Property | null; loading?: boolean; error?: string | null }) => {
   const navigate = useNavigate();
-  const [property, setProperty] = useState<Property | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch property details
-  useEffect(() => {
-    if (!propertyId) {
-      setError("Invalid property ID");
-      setLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    const fetchProperty = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await getPropertyDetailsRequest(propertyId, {
-          signal: controller.signal,
-        });
-        setProperty(res.data);
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error("Error fetching property:", err);
-          setError(
-            err.response?.data?.message || "Failed to load property details"
-          );
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProperty();
-    return () => controller.abort();
-  }, [propertyId]);
+  
 
   const handleDelete = () => {
     if (!property?.id) return;
@@ -405,11 +371,7 @@ const DisplaySpecificProperty = () => {
     toast.success("Edit property functionality would open here");
   };
 
-  const handleRetry = () => {
-    setError(null);
-    setLoading(true);
-    window.location.reload();
-  };
+  const handleRetry = () => window.location.reload();
 
   // Render loading state
   if (loading) {

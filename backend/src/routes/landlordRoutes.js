@@ -1,9 +1,9 @@
 // file: routes/landlordRoutes.js
 import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
-import { createProperty, getAmenities, getCitiesAndMunicipalities, getLandlordProperties, getPropertyDetails, } from "../controllers/landlord/propertyController.js";
-import { createUnit, getPropertyUnits, getUnitDetails } from "../controllers/landlord/unitController.js";
-import { createListingWithPayment, getEligibleUnitsForListing, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview} from "../controllers/landlord/listingController.js";
+import { createProperty, getAmenities, getCitiesAndMunicipalities, getLandlordProperties, getPropertyDetailsAndUnits, } from "../controllers/landlord/propertyController.js";
+import { createUnit, getUnitDetails } from "../controllers/landlord/unitController.js";
+import { cancelListingPayment, createListingWithPayment, getEligibleUnitsForListing, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview} from "../controllers/landlord/listingController.js";
 import { getLandlordScreeningsList, getSpeceficScreeningLandlord, inviteTenantForScreening, landlordReviewTenantScreening} from "../controllers/landlord/tenantScreeningController.js";
 import { createLease, findTenantForLease, getAllLeases, getAllPropertiesWithUnitsAndSuggestedTenants, getLeaseById, markPaymentAsPaid } from "../controllers/landlord/leaseController.js";
 import { getAllMaintenanceRequestsByLandlord, updateMaintenanceStatus} from "../controllers/landlord/maintenanceController.js";
@@ -15,11 +15,9 @@ router.get("/property/amenities", requireAuthentication(["LANDLORD"]), getAmenit
 router.get("/property/city-municipality", requireAuthentication(["LANDLORD"]), getCitiesAndMunicipalities);           // get all city and municipality
 router.post("/property/create", requireAuthentication(["LANDLORD"]), createProperty);                                 // create a new property
 router.get("/property/properties", requireAuthentication(["LANDLORD"]), getLandlordProperties);                       // get all properties owned by landlord
-router.get("/property/:propertyId", requireAuthentication(["LANDLORD"]), getPropertyDetails);                         // get specific property details
-
+router.get("/property/:propertyId", requireAuthentication(["LANDLORD"]), getPropertyDetailsAndUnits);                         // get specific property details
 
 // ----------------------------------------------------- UNIT
-router.get("/unit/:propertyId/units", requireAuthentication(["LANDLORD"]), getPropertyUnits);                         // get all unit of that property
 router.get("/unit/:unitId", requireAuthentication(["LANDLORD"]), getUnitDetails);                                     // get specific unit details 
 router.post("/unit/:propertyId/create", requireAuthentication(["LANDLORD"]), createUnit);                             // create a new unit
 
@@ -30,7 +28,7 @@ router.get("/listing/:unitId/review", requireAuthentication(["LANDLORD"]), getUn
 router.post("/listing/:unitId/create", requireAuthentication(["LANDLORD"]), createListingWithPayment);                    // create listing + payment session
 router.get("/listing/:listingId/details", requireAuthentication(["LANDLORD"]), getLandlordSpecificListing);               // get a specific listing information
 router.get("/listing/eligible-units", requireAuthentication(["LANDLORD"]), getEligibleUnitsForListing);                   // get units that can be listed
-
+router.delete("/listing/:listingId/cancel",requireAuthentication(["LANDLORD"]), cancelListingPayment); // cancel listing + payment session
 // ----------------------------------------------------- TENANT SCREENING
 router.post("/screening/invite", requireAuthentication(["LANDLORD"]), inviteTenantForScreening);                             // landlord invites tenant for screening
 router.post("/screening/:screeningId/review", requireAuthentication(["LANDLORD"]), landlordReviewTenantScreening);           // 🧾 Landlord reviews (approve/reject) tenant screening

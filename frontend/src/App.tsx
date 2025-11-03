@@ -5,12 +5,11 @@ import { Toaster } from "sonner";
 
 // Guards
 import { AuthRedirectRoute, ProtectedRoute } from "./Guard";
+import { OnboardingRoute } from "./Guard";
 
 // Store + API
 import { useAuthStore } from "./stores/useAuthStore";
 import {
-  checkAuthStatusRequest,
-  refreshTokenRequest,
   getUserInfoRequest,
 } from "./api/authApi";
 import DisplaySpecificUnit from "./pages/private/landlord/unit/DisplaySpecificUnit";
@@ -40,6 +39,7 @@ import ViewSpecificScreeningLandlord from "./pages/private/landlord/screening/Vi
 import ViewSpecificScreeningTenant from "./pages/private/tenant/screening/ViewSpecificScreeningTenant.tsx";
 import CreateLease from "./pages/private/landlord/lease/CreateLease.tsx";
 import MyLeaseDetails from "./pages/private/tenant/lease/MyLeaseDetails.tsx";
+import AdminListing from "./pages/private/admin/listing/AdminListing.tsx";
 
 
 // ------------------------------- Lazy Imports
@@ -133,7 +133,7 @@ const router = createBrowserRouter([
       { path: "forgot-password", element: <AuthRedirectRoute><Suspense fallback={<Loader />}><ForgotPassword /></Suspense></AuthRedirectRoute> },
       { path: "reset-password/:token", element: <Suspense fallback={<Loader />}><ResetPassword /></Suspense> },
       { path: "verify-email/:token", element: <Suspense fallback={<Loader />}><VerifyEmail /></Suspense> },
-      { path: "onboarding", element: <Suspense fallback={<Loader />}><Onboarding /></Suspense> },
+      { path: "onboarding", element: <OnboardingRoute><Suspense fallback={<Loader />}><Onboarding /></Suspense></OnboardingRoute> },
     ],
   },
 
@@ -147,10 +147,10 @@ const router = createBrowserRouter([
 
       // properties
       { path: "properties", element: <Suspense fallback={<Loader />}><DisplayProperties /></Suspense> },                                                        // display all properties 
-      { path: "properties/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplaySpecificProperty /></PropertyLayout></Suspense> },     // display specific property
+      { path: "properties/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplaySpecificProperty property={null} /></PropertyLayout></Suspense> },     // display specific property
 
       // units
-      { path: "units/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplayUnits /></PropertyLayout></Suspense> },                     // display all units 
+      { path: "units/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplayUnits units={[]} /></PropertyLayout></Suspense> },                     // display all units 
       { path: "units/:propertyId/:unitId", element: <Suspense fallback={<Loader />}><DisplaySpecificUnit /></Suspense> },                                       // display specific unit 
         
       // listing
@@ -186,8 +186,6 @@ const router = createBrowserRouter([
 
       // reports 
       { path: "reports", element: <Suspense fallback={<Loader />}><Reports /></Suspense>},                                                    // display specific lease 
-
-
 
     ],    
   },
@@ -240,6 +238,8 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Suspense fallback={<Loader />}><AdminDashboard /></Suspense> },
       { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },
+      { path: "listing", element: <Suspense fallback={<Loader />}><AdminListing /></Suspense> },
+      
     ],
   },
   { path: "*", element: <Suspense fallback={<Loader />}><NotFound /></Suspense> },
@@ -260,22 +260,10 @@ const App = () => {
     const initAuth = async () => {
       setLoading(true);
       try {
-        await checkAuthStatusRequest({ signal });
         const userRes = await getUserInfoRequest({ signal });
         setUser(userRes.data.user);
-      } catch (err: any) {
-        if ([401, 403, 500].includes(err.response?.status)) {
-          try {
-            await refreshTokenRequest({ signal });
-            await checkAuthStatusRequest({ signal });
-            const userRes = await getUserInfoRequest({ signal });
-            setUser(userRes.data.user);
-          } catch {
-            setUser(null);
-          }
-        } else {
-          setUser(null);
-        }
+      } catch {
+        setUser(null);
       } finally {
         setValidated(true);
         setLoading(false);

@@ -14,6 +14,7 @@ import webhookRoutes from './routes/webhookRoutes.js'
 import chatRoutes from './routes/chatRoutes.js'
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
+import sessionMiddleware from "./middlewares/session.js";
 
 const app = express();
 
@@ -24,15 +25,17 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173', // use value from .env
-  credentials: true,                // allow cookies (important for JWT)
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
 }));
 
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // Parse incoming JSON requests automatically
-app.use(morgan("dev")); // HTTP request logger (dev = concise colorful logs)
-// app.use(globalLimiter); //Apply global limiter to all routes
-app.use(cookieParser()); // Parse cookies
+app.use(express.json());
+app.use(morgan("dev"));
+// app.use(globalLimiter);
+app.use(cookieParser());
+app.use(sessionMiddleware);
+
 // ------------------------------
 // Routes
 // ------------------------------
@@ -51,10 +54,5 @@ app.get("/", (req, res) => {
 
 
 
-
-
-// ------------------------------
-// Export app instance
-// ------------------------------
 // This app will be used in server.js to start listening on a port
 export default app;

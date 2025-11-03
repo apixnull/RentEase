@@ -1,0 +1,71 @@
+Complete Color Schema for Lifecycle Statuses
+1. WAITING_PAYMENT (Blue)
+Badge: bg-blue-100 text-blue-700 border-blue-200
+Gradient: from-blue-200/70 via-blue-100/50 to-blue-200/70
+Background: bg-blue-50 border-blue-300
+Icon Background: bg-blue-500
+Blur Effects (light): bg-blue-200/40
+Blur Effects (dark): bg-blue-300/40
+AI Recommendations Card: border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50
+AI Recommendations Icon: text-blue-600
+AI Recommendations Title: text-blue-700
+Recommendation Items: bg-white border-blue-300, bg-blue-500, text-blue-900, text-blue-800
+Button: bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700
+2. VISIBLE (Emerald Green - Full Color)
+Badge: bg-emerald-100 text-emerald-700 border-emerald-200
+Gradient: from-emerald-200/70 via-emerald-100/50 to-emerald-200/70
+Background: bg-emerald-50 border-emerald-300
+Icon Background: bg-emerald-500
+Blur Effects (light): bg-emerald-200/40
+Blur Effects (dark): bg-emerald-300/40
+Timeline (completed): bg-emerald-500, bg-emerald-50 border-emerald-200, text-emerald-900, text-emerald-700, bg-emerald-300 (timeline line)
+3. HIDDEN (Teal - Similar to VISIBLE but with gray mix)
+Badge: bg-teal-100 text-teal-700 border-teal-200
+Gradient: from-teal-200/70 via-teal-100/50 to-teal-200/70
+Background: bg-teal-50 border-teal-300
+Icon Background: bg-teal-500
+Blur Effects (light): bg-teal-200/40
+Blur Effects (dark): bg-teal-300/40
+4. EXPIRED (Gray)
+Badge: bg-gray-100 text-gray-700 border-gray-200
+Gradient: from-gray-200/70 via-gray-100/50 to-gray-200/70
+Background: bg-gray-50 border-gray-300
+Icon Background: bg-gray-500
+Blur Effects (light): bg-gray-200/40
+Blur Effects (dark): bg-gray-300/40
+5. FLAGGED (Amber/Orange)
+Badge: bg-amber-100 text-amber-700 border-amber-200
+Gradient: from-amber-200/70 via-amber-100/50 to-amber-200/70
+Background: bg-amber-50 border-amber-300
+Icon Background: bg-amber-500
+Blur Effects (light): bg-amber-200/40
+Blur Effects (dark): bg-amber-300/40
+AI Recommendations Card: border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50
+Warning Banner: bg-gradient-to-r from-amber-100 to-orange-100 border-amber-400, bg-amber-500, text-amber-900, text-amber-800
+AI Recommendations Icon: text-amber-600
+AI Recommendations Title: text-amber-900
+AI Recommendations Description: text-amber-700
+Badge: bg-amber-500 text-white border-amber-600
+Recommendation Items: bg-white border-amber-300, bg-amber-500, text-amber-900, text-amber-800
+Button: bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700
+Timeline (active): bg-amber-500 ring-4 ring-amber-200, bg-amber-50 border-2 border-amber-300, text-amber-900, text-amber-700, bg-amber-600 (badge)
+Timeline (completed): bg-amber-500, bg-amber-50 border-amber-200, text-amber-900, text-amber-700, bg-amber-300 (timeline line)
+6. BLOCKED (Red)
+Badge: bg-red-100 text-red-700 border-red-200
+Gradient: from-red-200/70 via-red-100/50 to-red-200/70
+Background: bg-red-50 border-red-300
+Icon Background: bg-red-500
+Blur Effects (light): bg-red-200/40
+Blur Effects (dark): bg-red-300/40
+AI Recommendations Card: border-2 border-red-300 bg-gradient-to-br from-red-50 to-rose-50
+Warning Banner: bg-gradient-to-r from-red-100 to-rose-100 border-red-400, bg-red-500, text-red-900, text-red-800
+AI Recommendations Icon: text-red-600
+AI Recommendations Title: text-red-900
+AI Recommendations Description: text-red-700
+Badge: bg-red-500 text-white border-red-600
+Recommendation Items: bg-white border-red-300, bg-red-500, text-red-900, text-red-800
+Button: bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700
+Timeline (active): bg-red-500 ring-4 ring-red-200, bg-red-50 border-2 border-red-300, text-red-900, text-red-700, bg-red-600 (badge)
+Timeline (completed): bg-red-500, bg-red-50 border-red-200, text-red-900, text-red-700, bg-red-300 (timeline line)
+Blocked Reason: border-red-200, text-red-600, text-red-700
+Note: VISIBLE uses full emerald green, while HIDDEN uses teal (emerald with a gray-blue mix) to maintain similarity with distinction. FLAGGED and BLOCKED use amber and red respectively, with consistent color application across badges, timelines, and AI recommendations sections.

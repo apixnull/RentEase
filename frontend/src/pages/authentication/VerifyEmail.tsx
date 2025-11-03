@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { MailCheck, Zap, Sparkles } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
 import { toast } from "sonner";
-import { getUserInfoRequest, resendVerificationRequest, verifyEmailRequest } from "@/api/authApi";
+import { resendVerificationRequest, verifyEmailRequest } from "@/api/authApi";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -174,39 +174,11 @@ const onSubmit = async (e: React.FormEvent) => {
   setLoading(true);
 
   try {
-    const res = await verifyEmailRequest({ token, otp });
-    toast.success("Email verified successfully!");
-
-    if (res.data.context === "register") {
-      // ✅ Registration flow → go to login
-      navigate("/auth/login");
-    } else if (res.data.context === "login") {
-      // ✅ Login flow → fetch user info first
-      const userRes = await getUserInfoRequest();
-      const { role, hasSeenOnboarding } = userRes.data.user;
-
-      // 🔑 Check onboarding status before routing
-      if (!hasSeenOnboarding) {
-        navigate("/auth/onboarding");
-        return;
-      }
-
-      switch (role) {
-        case "ADMIN":
-          navigate("/admin");
-          break;
-        case "LANDLORD":
-          navigate("/landlord");
-          break;
-        case "TENANT":
-          navigate("/tenant");
-          break;
-        default:
-          navigate("/");
-      }
-    }
+    await verifyEmailRequest({ token, otp });
+    toast.success("Email verified successfully! Please log in again.");
+    navigate("/auth/login");
   } catch (err: any) {
-    toast.error(err.response?.data?.message || "Invalid or expired code");
+    toast.error(err.response?.data?.message || "Invalid or expired verification code");
   } finally {
     setLoading(false);
   }

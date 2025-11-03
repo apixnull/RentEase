@@ -1,133 +1,51 @@
 import prisma from "../../libs/prismaClient.js";
 
-// ---------------------------------------------- GET ALL UNITS UNDER THAT PROPERTY ----------------------------------------------
-export const getPropertyUnits = async (req, res) => {
-  try {
-    const propertyId = req.params.propertyId;
-    const ownerId = req.user?.id;
+// ------------------------------------------------------------------------------
+// GET SPECIFIC UNIT DETAILS (for landlord dashboard)
+// Includes: unit info, amenities, property summary, occupant, listing, reviews.
+// ------------------------------------------------------------------------------
 
-    if (!ownerId) {
-      return res.status(401).json({ message: "Unauthorized: owner not found" });
-    }
-
-    if (!propertyId) {
-      return res.status(400).json({ message: "Property ID is required" });
-    }
-
-    // Verify property belongs to landlord
-    const property = await prisma.property.findFirst({
-      where: { id: propertyId, ownerId },
-      select: { id: true },
-    });
-
-    if (!property) {
-      return res
-        .status(404)
-        .json({ message: "Property not found or not accessible" });
-    }
-
-    // Fetch units with only review summary
-    const units = await prisma.unit.findMany({
-      where: { propertyId },
-      select: {
-        id: true,
-        label: true,
-        status: true,
-        floorNumber: true,
-        createdAt: true,
-        updatedAt: true,
-
-        // Pricing
-        targetPrice: true,
-
-        // Screening & Listing
-        requiresScreening: true,
-        listedAt: true,
-
-        // Media
-        mainImageUrl: true,
-
-        // Views
-        viewCount: true,
-
-        // Reviews summary only
-        _count: {
-          select: { reviews: true },
-        },
-        reviews: {
-          select: { rating: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    // Format with only average (rounded to star 1–5) + total
-    const formattedUnits = units.map((unit) => {
-      const total = unit._count.reviews;
-
-      // compute decimal avg
-      const decimalAvg =
-        total > 0
-          ? unit.reviews.reduce((sum, r) => sum + r.rating, 0) / total
-          : 0;
-
-      // round to nearest whole star (0–5)
-      const starRating = Math.round(decimalAvg);
-
-      const { reviews, _count, ...rest } = unit;
-
-      return {
-        ...rest,
-        isListed: unit.listedAt !== null,  // boolean for UI
-        reviewsSummary: {
-          total,
-          average: starRating, // 👈 only 0–5 now
-        },
-      };
-    });
-
-    return res.json(formattedUnits);
-  } catch (error) {
-    console.error("Error fetching property units:", error);
-    return res.status(500).json({ message: "Failed to fetch property units" });
-  }
-};
-
-// ---------------------------------------------- GET SPECIFIC UNIT DETAILS ----------------------------------------------
 export const getUnitDetails = async (req, res) => {
   try {
     const { unitId } = req.params;
     const ownerId = req.user?.id;
 
-    if (!ownerId) {
-      return res.status(401).json({ message: "Unauthorized: owner not found" });
-    }
-
+    // ⚠️ Validate input
     if (!unitId) {
       return res.status(400).json({ message: "Unit ID is required" });
     }
 
-    // --- Get unit with property details, amenities, and latest reviews ---
+    // 🔹 Fetch unit data with property, occupant, amenities, reviews, and latest listing
     const unit = await prisma.unit.findFirst({
       where: {
         id: unitId,
-        property: { ownerId }, // validate ownership through property
+        property: { ownerId }, // ensure landlord owns it
       },
       include: {
-        amenities: true,
+        amenities: { select: { id: true, name: true, category: true } },
+        occupant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true, // nullable
+          },
+        },
         reviews: {
           take: 10,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
             rating: true,
-            comment: true,
+            comment: true, // nullable
             createdAt: true,
             tenant: {
               select: {
                 id: true,
                 firstName: true,
                 lastName: true,
+                avatarUrl: true, // nullable
               },
             },
           },
@@ -143,6 +61,21 @@ export const getUnitDetails = async (req, res) => {
             municipality: { select: { name: true } },
           },
         },
+        listings: {
+          orderBy: { createdAt: "desc" },
+          take: 1, // latest listing only
+          select: {
+            id: true, // ✅ include listing ID
+            isFeatured: true,
+            lifecycleStatus: true,
+            visibleAt: true,
+            flaggedAt: true,
+            hiddenAt: true,
+            blockedAt: true,
+            expiresAt: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
@@ -152,46 +85,65 @@ export const getUnitDetails = async (req, res) => {
         .json({ message: "Unit not found or not accessible" });
     }
 
-    // --- Count total reviews ---
+    // 🧮 Compute review stats
     const totalReviews = await prisma.unitReview.count({
       where: { unitId: unit.id },
     });
 
-    // --- Compute average rating ---
-    const avgRating = await prisma.unitReview.aggregate({
+    const avgRatingResult = await prisma.unitReview.aggregate({
       where: { unitId: unit.id },
       _avg: { rating: true },
     });
 
-    const averageRating = avgRating._avg.rating ?? 0;
-    const starRating = Math.round(averageRating); // 1–5 stars
+    const averageRating = avgRatingResult._avg.rating ?? 0;
 
-    // --- Build property address string ---
-    const property = unit.property;
-    const fullAddress = [
-      property.street,
-      property.barangay,
-      property.city?.name || property.municipality?.name,
-      property.zipCode,
-    ]
-      .filter(Boolean)
-      .join(", ");
+    // 🧩 Extract latest listing safely
+    const latestListing = unit.listings[0] || null;
 
-    // --- Response ---
+    // ✅ Structured response
     return res.json({
-      ...unit,
-      isListed: unit.listedAt != null, // derived flag
-      listedAt: unit.listedAt, // raw datetime
-      property: {
-        id: property.id,
-        title: property.title,
-        address: fullAddress,
+      id: unit.id,
+      label: unit.label,
+      description: unit.description,
+      floorNumber: unit.floorNumber,
+      maxOccupancy: unit.maxOccupancy,
+      targetPrice: unit.targetPrice,
+      mainImageUrl: unit.mainImageUrl,
+      otherImages: unit.otherImages,
+      unitLeaseRules: unit.unitLeaseRules,
+      viewCount: unit.viewCount,
+      requiresScreening: unit.requiresScreening,
+      unitCondition: unit.unitCondition,
+      occupiedAt: unit.occupiedAt,
+      listedAt:
+        !!latestListing &&
+        ["VISIBLE", "FLAGGED", "HIDDEN"].includes(
+          latestListing.lifecycleStatus
+        ), // true if latest listing is active
+      createdAt: unit.createdAt,
+      updatedAt: unit.updatedAt,
+      amenities: unit.amenities,
+      occupant: unit.occupant,
+      property: unit.property,
+      reviews: unit.reviews,
+      reviewStats: {
+        totalReviews,
+        averageRating: Number(averageRating.toFixed(1)),
       },
-      reviewsSummary: {
-        total: totalReviews,
-        average: averageRating,
-        stars: starRating,
-      },
+      latestListing: latestListing
+        ? {
+
+            id: latestListing.id, // ✅ include listing ID
+            lifecycleStatus: latestListing.lifecycleStatus,
+            isFeatured: latestListing.isFeatured,
+            visibleAt: latestListing.visibleAt,
+            flaggedAt: latestListing.flaggedAt,
+            hiddenAt: latestListing.hiddenAt,
+            blockedAt: latestListing.blockedAt,
+            expiresAt: latestListing.expiresAt,
+            createdAt: latestListing.createdAt,
+          }
+        : null,
     });
   } catch (error) {
     console.error("Error fetching unit details:", error);
@@ -199,15 +151,15 @@ export const getUnitDetails = async (req, res) => {
   }
 };
 
-// ---------------------------------------------- CREATE NEW UNITS UNDER THAT PROPERTY ----------------------------------------------
+
+// ---------------------------------------------- CREATE NEW UNIT UNDER PROPERTY ----------------------------------------------
 export const createUnit = async (req, res) => {
   try {
     const { propertyId } = req.params;
     const {
-      id, 
+      id,
       label,
       description,
-      status,
       floorNumber,
       maxOccupancy,
       mainImageUrl,
@@ -224,14 +176,16 @@ export const createUnit = async (req, res) => {
     }
 
     // ✅ Basic validation
-    if (!propertyId || !label || !description || !status || !targetPrice) {
+    if (!propertyId || !label || !description || !targetPrice) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     // ✅ Validate property ownership
     const property = await prisma.property.findFirst({
       where: { id: propertyId, ownerId },
+      select: { id: true },
     });
+
     if (!property) {
       return res
         .status(403)
@@ -240,14 +194,15 @@ export const createUnit = async (req, res) => {
 
     // ✅ Validate other images count
     if (Array.isArray(otherImages) && otherImages.length > 6) {
-      return res
-        .status(400)
-        .json({ message: "Maximum of 6 other images allowed" });
+      return res.status(400).json({
+        message: "Maximum of 6 other images allowed",
+      });
     }
 
     // ✅ Prevent duplicate unit labels (case + space insensitive)
     const normalize = (str) => str.replace(/\s+/g, "").toLowerCase();
     const normalizedLabel = normalize(label);
+
     const existingUnits = await prisma.unit.findMany({
       where: { propertyId },
       select: { label: true },
@@ -259,22 +214,24 @@ export const createUnit = async (req, res) => {
       });
     }
 
-    // ✅ Convert values
+    // ✅ Convert and validate numeric fields
     const parsedMaxOccupancy = maxOccupancy ? Number(maxOccupancy) : 1;
     const parsedFloorNumber = floorNumber ? Number(floorNumber) : null;
     const parsedTargetPrice = Number(targetPrice);
-    const parsedSecurityDeposit = securityDeposit
-      ? Number(securityDeposit)
-      : null;
 
-    // ✅ Create unit — use provided ID if available
-    const unit = await prisma.unit.create({
+    if (parsedTargetPrice > 100000) {
+      return res
+        .status(400)
+        .json({ message: "Target price cannot exceed ₱100,000" });
+    }
+
+    // ✅ Create unit
+    const newUnit = await prisma.unit.create({
       data: {
-        id: id || undefined, // 👈 override if provided, else Prisma uses default uuid()
+        id: id || undefined,
         propertyId,
         label: label.trim(),
         description,
-        status,
         floorNumber: parsedFloorNumber,
         maxOccupancy: parsedMaxOccupancy,
         mainImageUrl: mainImageUrl || null,
@@ -291,7 +248,7 @@ export const createUnit = async (req, res) => {
 
     return res.status(201).json({
       message: "Unit created successfully",
-      id: unit.id,
+      unit: newUnit,
     });
   } catch (error) {
     console.error("Error creating unit:", error);

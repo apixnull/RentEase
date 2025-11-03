@@ -1,9 +1,29 @@
-import { type ReactNode } from "react";
+import { type ReactNode, isValidElement, cloneElement, useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Building, LayoutDashboard } from "lucide-react";
+import { Building, LayoutDashboard } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getPropertyDetailsAndUnitsRequest } from "@/api/landlord/propertyApi";
+import PropertyHeader from "./PropertyHeader.tsx";
+
+interface CityRef { id: string; name: string }
+interface MunicipalityRef { id: string; name: string }
+interface UnitsSummary { total?: number; maintenance?: number; unusable?: number }
+interface PropertyAddress { street?: string; barangay?: string; zipCode?: string; city?: CityRef | null; municipality?: MunicipalityRef | null }
+interface PropertyLocation { latitude?: number | null; longitude?: number | null }
+interface PropertyMedia { mainImageUrl?: string | null; nearInstitutions?: Array<{ name: string; type: string }> | null; otherInformation?: Array<{ context: string; description: string }> | null }
+interface Property {
+  id: string;
+  title: string;
+  type: string;
+  createdAt: string;
+  updatedAt: string;
+  address?: PropertyAddress;
+  location?: PropertyLocation;
+  media?: PropertyMedia;
+  unitsSummary?: UnitsSummary;
+}
 
 interface PropertyLayoutProps {
   children: ReactNode;
@@ -13,14 +33,14 @@ const PropertyLayout = ({ children }: PropertyLayoutProps) => {
   const { propertyId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const [property, setProperty] = useState<Property | null>(null);
+  const [units, setUnits] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Determine if we're on details or units page
   const isDetailsPage = location.pathname.includes("/properties/") && !location.pathname.includes("/units");
   const isUnitsPage = location.pathname.includes("/units");
-
-  const handleBackToProperties = () => {
-    navigate("/landlord/properties");
-  };
 
   const handleNavigateToDetails = () => {
     navigate(`/landlord/properties/${propertyId}`);
@@ -30,22 +50,38 @@ const PropertyLayout = ({ children }: PropertyLayoutProps) => {
     navigate(`/landlord/units/${propertyId}`);
   };
 
+  useEffect(() => {
+    if (!propertyId) return;
+    const controller = new AbortController();
+    const fetchAll = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const propRes = await getPropertyDetailsAndUnitsRequest(propertyId, { signal: controller.signal });
+        setProperty(propRes.data?.property ?? null);
+        setUnits(propRes.data?.units ?? []);
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          setError(err.response?.data?.message || "Failed to load property data");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };  
+    fetchAll();
+    return () => controller.abort();
+  }, [propertyId]);
+
+  const injectedChild = isValidElement(children)
+    ? cloneElement(children as any, { property, units, loading, error })
+    : children;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6">
       {/* Breadcrumb Header */}
-      <div className="flex items-center justify-between">
-    
-
-        {/* Back to Properties Button */}
-        <Button
-          variant="outline"
-          className="gap-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50"
-          onClick={handleBackToProperties}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Properties
-        </Button>
-      </div>
+      {property && (
+        <PropertyHeader property={property} />
+      )}
 
       {/* Navigation Tabs */}
       <Card className="p-1.5 border-0 shadow-sm">
@@ -81,7 +117,7 @@ const PropertyLayout = ({ children }: PropertyLayoutProps) => {
 
       {/* Page Content */}
       <div className="space-y-6">
-        {children}
+        {injectedChild}
       </div>
     </div>
   );

@@ -19,7 +19,7 @@ export const getLandlordPropertiesRequest = (options?: { signal?: AbortSignal })
   privateApi.get("/landlord/property/properties", { signal: options?.signal });
 
 // Get specific property details
-export const getPropertyDetailsRequest = (propertyId: string, options?: { signal?: AbortSignal }) =>
+export const getPropertyDetailsAndUnitsRequest = (propertyId: string, options?: { signal?: AbortSignal }) =>
   privateApi.get(`/landlord/property/${propertyId}`, { signal: options?.signal });
 
 

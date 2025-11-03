@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link, useNavigate } from "react-router-dom";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Home,
@@ -12,18 +20,12 @@ import {
   Plus,
   Calendar,
   X,
-  ChevronDown,
   Sparkles,
-  Eye,
-  Edit,
-  DollarSign,
   Wrench,
-  Star,
-  TrendingUp,
-  AlertCircle,
 } from "lucide-react";
 import { getLandlordPropertiesRequest } from "@/api/landlord/propertyApi";
 import { toast } from "sonner";
+import PageHeader from "@/components/PageHeader";
 
 type Property = {
   id: string;
@@ -31,14 +33,20 @@ type Property = {
   type: string;
   createdAt: string;
   updatedAt: string;
-  street: string;
-  barangay: string;
-  zipCode?: string | null;
-  city?: { id: string; name: string } | null;
-  municipality?: { id: string; name: string } | null;
+  address: {
+    street: string;
+    barangay: string;
+    zipCode: string;
+    city: {
+      id: string;
+      name: string;
+    };
+    municipality: { id: string; name: string } | null;
+  };
   mainImageUrl?: string | null;
   unitsSummary: {
     total: number;
+    listed: number;
     available: number;
     occupied: number;
     maintenance: number;
@@ -53,22 +61,10 @@ const PROPERTY_TYPES = [
   { value: "SINGLE_HOUSE", label: "Single House", icon: Home },
 ];
 
-// Mock data for additional features
-const mockStats = {
-  totalRevenue: 12540,
-  occupancyRate: 78,
-  pendingRequests: 3,
-  averageRating: 4.2
-};
-
-const mockQuickActions = [
-  { label: "Maintenance", icon: Wrench, color: "text-amber-500" },
-  { label: "View Reports", icon: TrendingUp, color: "text-purple-500" },
-];
 
 function formatAddress(property: Property): string {
-  const locality = property.city?.name || property.municipality?.name || "";
-  const segments = [property.street, property.barangay, locality].filter(Boolean);
+  const locality = property.address.city?.name || property.address.municipality?.name || "";
+  const segments = [property.address.street, property.address.barangay, locality].filter(Boolean);
   return segments.join(", ");
 }
 
@@ -133,7 +129,8 @@ const DisplayProperties = () => {
         });
         setProperties(res.data);
       } catch (err: any) {
-        if (err.name !== "AbortError") {
+        const isAborted = err?.name === "AbortError" || err?.code === "ERR_CANCELED";
+        if (!isAborted) {
           console.error("Error fetching properties:", err);
           toast.error("Failed to fetch properties");
         }
@@ -235,15 +232,15 @@ const DisplayProperties = () => {
   };
 
   const PropertyCard = ({ property }: { property: Property }) => {
-    const occupancyRate = property.unitsSummary.total > 0
-      ? Math.round((property.unitsSummary.occupied / property.unitsSummary.total) * 100)
-      : 0;
     const showNewBadge = shouldShowNewBadge(property);
     const dateInfo = formatDateDisplay(property);
     const hasMaintenance = property.unitsSummary.maintenance > 0;
 
     return (
-      <Card className="group w-full overflow-hidden border border-gray-200/80 hover:border-emerald-200 transition-all duration-300 hover:shadow-xl rounded-2xl bg-white/90 backdrop-blur-sm">
+      <Card 
+        className="group w-full overflow-hidden border border-gray-200/80 hover:border-emerald-200 transition-all duration-300 hover:shadow-xl rounded-2xl bg-white/90 backdrop-blur-sm cursor-pointer"
+        onClick={() => navigate(`/landlord/properties/${property.id}`)}
+      >
         {/* Image Section - Larger */}
         <div className="relative aspect-[5/3] overflow-hidden bg-gradient-to-br from-emerald-50/50 to-blue-50/50">
           {property.mainImageUrl ? (
@@ -282,33 +279,17 @@ const DisplayProperties = () => {
             </div>
           </div>
 
-          {/* Quick Actions Overlay */}
-          <div className="absolute bottom-3 left-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <Button className="flex-1 bg-white/95 backdrop-blur-sm hover:bg-white text-gray-700 border-0 shadow-lg rounded-full text-xs py-2 h-8">
-              <Eye className="h-3.5 w-3.5 mr-1" />
-              Preview
-            </Button>
-            <Button className="flex-1 bg-white/95 backdrop-blur-sm hover:bg-white text-gray-700 border-0 shadow-lg rounded-full text-xs py-2 h-8">
-              <Edit className="h-3.5 w-3.5 mr-1" />
-              Edit
-            </Button>
-          </div>
-
           {/* Bottom Gradient Overlay */}
           <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/30 to-transparent" />
         </div>
 
         {/* Content Section - Enhanced */}
         <div className="p-4 space-y-3">
-          {/* Title and Rating */}
+          {/* Title */}
           <div className="flex items-start justify-between">
             <h3 className="font-bold text-gray-900 text-lg leading-tight line-clamp-2 flex-1 pr-2">
               {property.title}
             </h3>
-            <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-full">
-              <Star className="h-3.5 w-3.5 text-amber-500 fill-current" />
-              <span className="text-sm font-semibold text-amber-700">{mockStats.averageRating}</span>
-            </div>
           </div>
 
           {/* Location */}
@@ -327,53 +308,26 @@ const DisplayProperties = () => {
             <span>{dateInfo.text}</span>
           </div>
 
-          {/* Enhanced Units Summary */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-gray-600">
-              <span>Occupancy Rate</span>
-              <span className="font-semibold">{occupancyRate}%</span>
+          {/* Units Summary */}
+          <div className="grid grid-cols-4 gap-2 p-3 bg-gradient-to-r from-emerald-50/80 to-blue-50/80 rounded-xl border border-emerald-100/50">
+            <div className="text-center">
+              <div className="font-bold text-gray-900 text-base">{property.unitsSummary.total}</div>
+              <div className="text-xs text-gray-600 mt-0.5">Total</div>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full ${
-                  occupancyRate >= 80 ? "bg-emerald-500" :
-                  occupancyRate >= 50 ? "bg-amber-500" : "bg-blue-500"
-                }`}
-                style={{ width: `${occupancyRate}%` }}
-              />
+            <div className="text-center">
+              <div className="font-bold text-emerald-600 text-base">{property.unitsSummary.listed}</div>
+              <div className="text-xs text-gray-600 mt-0.5">Listed</div>
             </div>
-            
-            <div className="grid grid-cols-4 gap-2 p-3 bg-gradient-to-r from-emerald-50/80 to-blue-50/80 rounded-xl border border-emerald-100/50">
-              <div className="text-center">
-                <div className="font-bold text-gray-900 text-base">{property.unitsSummary.total}</div>
-                <div className="text-xs text-gray-600 mt-0.5">Total</div>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-emerald-600 text-base">{property.unitsSummary.available}</div>
-                <div className="text-xs text-gray-600 mt-0.5">Available</div>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-blue-600 text-base">{property.unitsSummary.occupied}</div>
-                <div className="text-xs text-gray-600 mt-0.5">Occupied</div>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-amber-600 text-base">{property.unitsSummary.maintenance}</div>
-                <div className="text-xs text-gray-600 mt-0.5">Maint</div>
-              </div>
+            <div className="text-center">
+              <div className="font-bold text-blue-600 text-base">{property.unitsSummary.occupied}</div>
+              <div className="text-xs text-gray-600 mt-0.5">Occupied</div>
+            </div>
+            <div className="text-center">
+              <div className="font-bold text-amber-600 text-base">{property.unitsSummary.maintenance}</div>
+              <div className="text-xs text-gray-600 mt-0.5">Maint</div>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <Link to={`/landlord/properties/${property.id}`} className="flex-1">
-              <Button className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 text-white text-sm py-2.5 h-10 font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
-                View Details
-              </Button>
-            </Link>
-            <Button variant="outline" className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-10 px-3">
-              <DollarSign className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
       </Card> 
     );
@@ -388,270 +342,180 @@ const DisplayProperties = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50/20 to-blue-50/20">
-      <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Enhanced Header Section */}
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Main Header */}
-          <div className="flex-1">
-            <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-r from-emerald-500 to-blue-500 p-3 rounded-2xl shadow-xl">
-                <Home className="h-7 w-7 text-white" />
-              </div>
-              <div className="flex-1">
-                <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
-                  Your Properties
-                </h1>
-                <p className="text-base text-gray-600 mt-2">
-                  Manage your rental portfolio efficiently with real-time insights and quick actions
-                </p>
-              </div>
-            </div>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Compact Header Section */}
+      <PageHeader
+        title="Your Properties"
+        description="Manage your rental portfolio"
+        icon={(props: { className?: string }) => <Home {...props} />}
+      />
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
-              <Card className="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="bg-emerald-500 p-2 rounded-lg">
-                    <DollarSign className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-emerald-700">${mockStats.totalRevenue.toLocaleString()}</p>
-                    <p className="text-sm text-emerald-600">Monthly Revenue</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200/50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-500 p-2 rounded-lg">
-                    <TrendingUp className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-blue-700">{mockStats.occupancyRate}%</p>
-                    <p className="text-sm text-blue-600">Occupancy Rate</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="p-4 bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200/50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="bg-amber-500 p-2 rounded-lg">
-                    <AlertCircle className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-amber-700">{mockStats.pendingRequests}</p>
-                    <p className="text-sm text-amber-600">Pending Requests</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200/50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="bg-purple-500 p-2 rounded-lg">
-                    <Star className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-purple-700">{mockStats.averageRating}</p>
-                    <p className="text-sm text-purple-600">Avg. Rating</p>
-                  </div>
-                </div>
-              </Card>
-            </div>
+      {/* Enhanced Search and Filter Bar */}
+      <Card className="p-4 bg-white/90 backdrop-blur-sm border border-gray-200/60 shadow-sm rounded-xl">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          {/* Search Input */}
+          <div className="flex-1 relative min-w-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by name, location, or type..."
+              className="pl-10 h-10 text-sm"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
-          {/* Quick Actions Sidebar */}
-          <Card className="lg:w-80 p-6 bg-white/80 backdrop-blur-sm border-emerald-200/50 rounded-2xl shadow-sm">
-            <h3 className="font-bold text-gray-900 text-lg mb-4">Quick Actions</h3>
-            <div className="space-y-3">
-              {mockQuickActions.map((action, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  className="w-full justify-start gap-3 py-3 h-auto border-emerald-200/70 hover:bg-emerald-50/50 hover:border-emerald-300 transition-all duration-200 rounded-xl"
-                >
-                  <action.icon className={`h-5 w-5 ${action.color}`} />
-                  <span className="font-medium text-gray-700">{action.label}</span>
-                </Button>
-              ))}
+          {/* Filter and Count */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="text-sm text-gray-600 whitespace-nowrap">
+              <span className="font-semibold text-emerald-600">{filtered.length}</span> properties
             </div>
 
-            {/* Add Property CTA */}
+            <Select
+              value={selectedType}
+              onValueChange={(val) => {
+                setSelectedType(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-10 min-w-[160px]">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {PROPERTY_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Add Property (compact) */}
             <Button
               onClick={() => navigate("/landlord/properties/create")}
-              className="w-full mt-6 bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 gap-3 shadow-lg hover:shadow-xl transition-all duration-200 text-white py-3 rounded-xl font-semibold"
+              className="h-9 px-3 text-sm bg-emerald-600 hover:bg-emerald-700 gap-2 shadow-sm text-white rounded-md font-medium"
             >
-              <Plus className="h-5 w-5" />
-              Add New Property
+              <Plus className="h-4 w-4" />
+              Add Property
             </Button>
-          </Card>
+          </div>
         </div>
 
-        {/* Enhanced Search and Filter Bar */}
-        <Card className="p-4 bg-white/80 backdrop-blur-sm border border-emerald-200/50 shadow-sm rounded-2xl">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            {/* Search Input */}
-            <div className="flex-1 relative min-w-0">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
-                placeholder="Search properties by name, location, or type..."
-                className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-300 bg-white text-base focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Filter and Count */}
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="text-sm text-gray-600 whitespace-nowrap">
-                <span className="font-semibold text-emerald-600">{filtered.length}</span> properties
-              </div>
-              
-              <div className="relative">
-                <select
-                  value={selectedType}
-                  onChange={(e) => {
-                    setSelectedType(e.target.value);
-                    setPage(1);
-                  }}
-                  className="appearance-none bg-white border border-gray-300 rounded-xl py-2.5 pl-4 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 min-w-[140px]"
-                >
-                  {PROPERTY_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-              </div>
+        {/* Active Filter Indicator */}
+        {selectedType !== "ALL" && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-emerald-200/30">
+            <span className="text-sm text-gray-600">Active filter:</span>
+            <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full text-sm font-medium">
+              {PROPERTY_TYPES.find((t) => t.value === selectedType)?.label}
+              <button
+                onClick={() => setSelectedType("ALL")}
+                className="ml-1 hover:text-emerald-900 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
+        )}
+      </Card>
 
-          {/* Active Filter Indicator */}
-          {selectedType !== "ALL" && (
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-emerald-200/30">
-              <span className="text-sm text-gray-600">Active filter:</span>
-              <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full text-sm font-medium">
-                {PROPERTY_TYPES.find(t => t.value === selectedType)?.label}
-                <button
-                  onClick={() => setSelectedType("ALL")}
-                  className="ml-1 hover:text-emerald-900 transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
+      {/* Enhanced Properties Grid */}
+      {currentPageProperties.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+          {currentPageProperties.map((property) => (
+            <PropertyCard key={property.id} property={property} />
+          ))}
+        </div>
+      ) : (
+        <Card className="p-10 text-center border border-dashed border-gray-200 bg-white/95 backdrop-blur-sm rounded-xl">
+          <div className="mx-auto w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4 border border-emerald-100">
+            <Home className="h-8 w-8 text-emerald-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">No properties found</h3>
+          <p className="text-gray-600 text-sm mb-6 max-w-md mx-auto">
+            {selectedType !== "ALL" || query
+              ? "Try adjusting your filters or search criteria to find what you're looking for."
+              : "Start building your rental portfolio by adding your first property."}
+          </p>
+          <Button
+            onClick={() => {
+              navigate("/landlord/properties/create");
+              setSelectedType("ALL");
+              setQuery("");
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white py-2.5 px-5 rounded-md font-medium"
+          >
+            <Plus className="h-5 w-5" />
+            Add Your First Property
+          </Button>
         </Card>
+      )}
 
-        {/* Enhanced Properties Grid */}
-        {currentPageProperties.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-            {currentPageProperties.map((property) => (
-              <PropertyCard key={property.id} property={property} />
-            ))}
-          </div>
-        ) : (
-          <Card className="p-8 text-center border border-dashed border-emerald-200 bg-white/80 backdrop-blur-sm rounded-2xl">
-            <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-r from-emerald-100 to-blue-100 flex items-center justify-center mb-4 border border-emerald-200">
-              <Home className="h-8 w-8 text-emerald-500" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              No properties found
-            </h3>
-            <p className="text-gray-600 text-base mb-6 max-w-md mx-auto">
-              {selectedType !== "ALL" || query
-                ? "Try adjusting your filters or search criteria to find what you're looking for."
-                : "Start building your rental portfolio by adding your first property."}
+      {/* Enhanced Pagination */}
+      {totalPages > 1 && (
+        <Card className="p-4 bg-white/90 backdrop-blur-sm border border-gray-200/60 rounded-xl">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-gray-600">
+              Showing <span className="font-semibold text-emerald-600">{(page - 1) * propertiesPerPage + 1}-{Math.min(page * propertiesPerPage, filtered.length)}</span> of <span className="font-semibold">{filtered.length}</span> properties
             </p>
-            <Button 
-              onClick={() => {
-                navigate("/landlord/properties/create");
-                setSelectedType("ALL");
-                setQuery("");
-              }}
-              className="bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 gap-3 text-white py-3 px-6 rounded-xl font-semibold"
-            >
-              <Plus className="h-5 w-5" />
-              Add Your First Property
-            </Button>
-          </Card>
-        )}
 
-        {/* Enhanced Pagination */}
-        {totalPages > 1 && (
-          <Card className="p-4 bg-white/80 backdrop-blur-sm border border-emerald-200/50 rounded-2xl">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-emerald-600">
-                  {(page - 1) * propertiesPerPage + 1}-{Math.min(page * propertiesPerPage, filtered.length)}
-                </span> of <span className="font-semibold">{filtered.length}</span> properties
-              </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 1}
+                className="h-9 w-9 p-0 rounded-md border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(page - 1)}
-                  disabled={page === 1}
-                  className="h-10 w-10 p-0 rounded-xl border-emerald-200 hover:bg-emerald-50 disabled:opacity-50"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-
-                <div className="flex items-center gap-1">
-                  {getPageNumbers().map((pageNum, index) => {
-                    if (pageNum === -1 || pageNum === -2) {
-                      return (
-                        <span key={`ellipsis-${index}`} className="px-2 text-gray-400 text-sm">
-                          ...
-                        </span>
-                      );
-                    }
-
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map((pageNum, index) => {
+                  if (pageNum === -1 || pageNum === -2) {
                     return (
-                      <Button
-                        key={pageNum}
-                        variant={page === pageNum ? "default" : "outline"}
-                        size="sm"
-                        className={`h-10 w-10 p-0 rounded-xl text-sm font-semibold ${
-                          page === pageNum
-                            ? "bg-gradient-to-r from-emerald-500 to-blue-500 text-white shadow-lg"
-                            : "border-emerald-200 hover:bg-emerald-50"
-                        }`}
-                        onClick={() => goToPage(pageNum)}
-                      >
-                        {pageNum}
-                      </Button>
+                      <span key={`ellipsis-${index}`} className="px-2 text-gray-400 text-sm">
+                        ...
+                      </span>
                     );
-                  })}
-                </div>
+                  }
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(page + 1)}
-                  disabled={page === totalPages}
-                  className="h-10 w-10 p-0 rounded-xl border-emerald-200 hover:bg-emerald-50 disabled:opacity-50"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={page === pageNum ? "default" : "outline"}
+                      size="sm"
+                      className={`h-9 w-9 p-0 rounded-md text-sm font-medium ${page === pageNum ? "bg-emerald-600 text-white shadow-sm" : "border-gray-200 hover:bg-gray-50"}`}
+                      onClick={() => goToPage(pageNum)}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
               </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToPage(page + 1)}
+                disabled={page === totalPages}
+                className="h-9 w-9 p-0 rounded-md border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          </Card>
-        )}
-      </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

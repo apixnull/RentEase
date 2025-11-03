@@ -239,7 +239,7 @@ const LoginForm = () => {
             default:
               navigate("/"); // fallback
           }
-
+          
           return;
         } catch (infoErr) {
           setError("Failed to load user info. Please try again.");
@@ -250,7 +250,7 @@ const LoginForm = () => {
         const { status, data } = err.response;
 
         if (status === 403 && data.code === "ACCOUNT_DISABLED") {
-          navigate("/auth/disabled");
+          navigate("/disabled");
           return;
         }
 

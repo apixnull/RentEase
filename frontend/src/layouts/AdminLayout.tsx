@@ -3,7 +3,6 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
-  Building2,
   FileText,
   DollarSign,
   BarChart3,
@@ -13,8 +12,6 @@ import {
   Menu,
   ChevronRight,
   Shield,
-  AlertTriangle,
-  Activity,
   MoreHorizontal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -87,7 +84,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin/users": { name: "All Users" },
   "/admin/verifications": { name: "Verifications" },
   "/admin/properties": { name: "All Properties" },
-  "/admin/listing": { name: "Listing Requests" },
+  "/admin/listing": { name: "Listing Management" },
   "/admin/payments": { name: "All Payments" },
   "/admin/reports": { name: "Reports" },
   "/admin/logs": { name: "System Logs" },

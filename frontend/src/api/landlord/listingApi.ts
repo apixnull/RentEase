@@ -42,3 +42,12 @@ export const getEligibleUnitsForListingRequest = (options?: { signal?: AbortSign
   privateApi.get("/landlord/listing/eligible-units", {
     signal: options?.signal,
   });
+
+// Cancel listing + payment session
+export const cancelListingPaymentRequest = (
+  listingId: string,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.delete(`/landlord/listing/${listingId}/cancel`, {
+    signal: options?.signal,
+  });

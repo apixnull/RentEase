@@ -42,7 +42,6 @@ model User {
   phoneNumber  String?
   messengerUrl String?
   facebookUrl  String?
-  whatsappUrl  String?
 
   // Account status & security
   isVerified         Boolean   @default(false)
@@ -91,7 +90,63 @@ model User {
 
   tenantScreening TenantScreening[] @relation("TenantScreeningsAsTenant")
   tenantScreeningLandlord TenantScreening[] @relation("TenantScreeningsAsLandlord")
+  TenantScreeningProfile TenantScreeningProfile[]
+  landlordOffense LandlordOffense?
 }
+
+// -----------------------------------------------------------------------------
+// Tenant Screening Profile (Reusable tenant record)
+// -----------------------------------------------------------------------------
+model TenantScreeningProfile {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique // One profile per tenant
+
+  // Basic Info
+  fullName         String
+  birthdate        DateTime?
+  
+  employmentStatus String?
+  incomeSource     String?
+  monthlyIncome    Float?
+
+  // Identity & Documents
+  hasGovernmentId  Boolean? @default(false)
+  hasNbiClearance  Boolean? @default(false)
+  hasProofOfIncome Boolean? @default(false)
+
+  // Employment
+  currentEmployer   String?
+  jobPosition       String?
+  yearsEmployed     Int?
+  employmentRemarks String?
+
+  // Rental History
+  previousLandlordName    String?
+  previousLandlordContact String?
+  previousRentalAddress   String?
+  reasonForLeaving        String?
+  hadEvictionHistory      Boolean? @default(false)
+  latePaymentHistory      Boolean? @default(false)
+
+  // Lifestyle
+  smokes          Boolean? @default(false)
+  drinksAlcohol   Boolean? @default(false)
+  hasPets         Boolean? @default(false)
+  worksNightShift Boolean? @default(false)
+  hasVisitors     Boolean? @default(false)
+  noiseLevel      String?
+  otherLifestyle  String[]
+
+  // System
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation
+  tenant User @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_screening_profiles")
+}
+
 
 // -----------------------------------------------------------------------------
 // Amenity 
@@ -156,8 +211,7 @@ model Property {
   mainImageUrl     String // Featured image for the property
   nearInstitutions Json? // JSON array of nearby institutions (format at app layer) { "name": "Ayala Mall", "type": "Mall" },
 
-  // other information || update the schema first to reflect new changes
-  // otherInformation Json? // JSON array of other information format : { "context": "second Floor" : "description": "has a lot of information about the stuff and etc"}
+  otherInformation Json? // JSON array of other information format : { "context": "second Floor" : "description": "has a lot of information about the stuff and etc"}
 
   // --- Relations ---
   owner              User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -205,10 +259,6 @@ model Unit {
   // --- Occupancy Tracking ---
   occupiedAt   DateTime?
   occupiedById String?
-  occupant     User? @relation("UnitOccupant", fields: [occupiedById], references: [id])
-  
-  // --- Listing Status
-  listedAt DateTime? // null = not listed, timestamp = listed date
 
   // --- Physical Condition ---
   unitCondition  String  @default("GOOD") // GOOD, NEED_MAINTENANCE, UNDER_MAINTENANCE, UNUSABLE
@@ -219,6 +269,7 @@ model Unit {
   reviews            UnitReview[]
   MaintenanceRequest MaintenanceRequest[]
   Lease              Lease[]
+  occupant     User? @relation("UnitOccupant", fields: [occupiedById], references: [id])
 
   @@unique([propertyId, label])
   @@index([propertyId])
@@ -248,53 +299,124 @@ model UnitReview {
 // -----------------------------------------------------------------------------
 // Listing
 // -----------------------------------------------------------------------------
+// Tracks property listing lifecycle, AI moderation, sanitation actions, 
+// recommendations, and payment details.
+// -----------------------------------------------------------------------------
 model Listing {
   id             String    @id @default(uuid())
   propertyId     String
   unitId         String
   landlordId     String
+
+  // Reviewer info (admin assigned)
   reviewedBy     String?
   lastReviewedAt DateTime?
 
-  // --- Lifecycle ---
-  lifecycleStatus String    @default("WAITING_PAYMENT") // || visible and hidden means property is listed
-  // WAITING_PAYMENT → VISIBLE → HIDDEN → EXPIRED → BLOCKED
-  expiresAt       DateTime?
-  isFeatured      Boolean   @default(false)
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+  lifecycleStatus String    @default("WAITING_PAYMENT") // WAITING_PAYMENT → VISIBLE → HIDDEN → EXPIRED → FLAGGED → BLOCKED
+  visibleAt DateTime?
+  hiddenAt  DateTime?
+  expiresAt DateTime?
 
-  // --- AI Analysis Snapshot ---
+  // ---------------------------------------------------------------------------
+  // Boosting
+  // ---------------------------------------------------------------------------
+  isFeatured Boolean @default(false)
+
+  // ---------------------------------------------------------------------------
+  // AI Analysis (Admin Internal)
+  // ---------------------------------------------------------------------------
+  // AI diagnostic data — identifies potential risky or suspicious content.
   riskLevel  String? // "LOW" | "MEDIUM" | "HIGH"
-  riskReason String? // e.g. "Duplicate photos found"
+  aiAnalysis Json? // e.g. [{ "part": "price", "description": "Unusually low price detected" }]
 
-  aiAnalysis        Json? // e.g. [{ "part": "price", "description": "Target price is above market range" }]
-  aiRecommendations Json? // e.g. [{ "part": "images", "suggestion": "Upload at least 2 more photos" }]
+  // ---------------------------------------------------------------------------
+  // Sanitization Logs (Automatic AI Enforcement)
+  // ---------------------------------------------------------------------------
+  // Records AI-enforced content cleaning (e.g. scamming patterns, inappropriate words)
+  propertySanitizeLogs Json? // e.g. [{ "part": "description", "reason": "Inappropriate term", "dataUsed": "Sexy boarding house", "action": "replaced by 'female-only dorm'" }]
+  unitSanitizeLogs     Json? // e.g. [{ "part": "leaseRules", "reason": "Discriminatory phrase", "dataUsed": "No to black skin", "action": "removed completely" }]
 
-  // --- Payment Info ---
-  providerName  String? // "GCASH" | "MAYA" 
-  providerTxnId String? // PayMongo transaction or checkout ID
-  paymentAmount Float? // store in pesos (₱100.00)
+  // ---------------------------------------------------------------------------
+  // AI Suggestions (Soft, Post-Sanitization)
+  // ---------------------------------------------------------------------------
+  // Provides non-critical suggestions for better listing quality
+  aiUnitRecommendations Json? // e.g. [{ "part": "description", "suggestion": "Add more photos or details" }]
+
+  // ---------------------------------------------------------------------------
+  // Payment Info
+  // ---------------------------------------------------------------------------
+  providerName  String?  
+  providerTxnId String?  
+  paymentAmount Float?   
   paymentDate   DateTime?
-  payerPhone    String?
 
-  // --- Admin Review --- IF BLOCK
-  blockedAt     DateTime? // when admin blocked it
-  blockedReason String?
+  // ---------------------------------------------------------------------------
+  // Moderation
+  // ---------------------------------------------------------------------------
+  blockedReason String? // can be set by AI or Admin
+  blockedAt DateTime?
+
+  // admin only here 
+  imageFlags Json? // e.g. [{ "part": "mainImage", "reason": "Fake image detected", "action": "flagged" }]
+  flaggedAt DateTime?
+  flaggedReason String? // high-level summary: e.g. "Image manipulation suspected"
+
+  // ---------------------------------------------------------------------------
+  // Metadata
+  // ---------------------------------------------------------------------------
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ---------------------------------------------------------------------------
+  // Relations
+  // ---------------------------------------------------------------------------
+  unit     Unit  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  landlord User  @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("ReviewedListings", fields: [reviewedBy], references: [id])
+
+  // ---------------------------------------------------------------------------
+  // Indexes
+  // ---------------------------------------------------------------------------
+  @@index([unitId])
+  @@index([landlordId])
+  @@index([isFeatured])
+  @@index([reviewedBy])
+  @@index([lifecycleStatus])
+  @@map("listings")
+}
+
+// -----------------------------------------------------------------------------
+// LandlordOffense
+// -----------------------------------------------------------------------------
+// Aggregates all offenses made by a landlord across listings.
+// Used for behavior tracking, auto-block logic, and admin decision-making. 
+// -----------------------------------------------------------------------------
+model LandlordOffense {
+  id           String   @id @default(uuid())
+  landlordId   String   @unique   // one record per landlord
+
+  // List of offenses (append-only)
+  offenses Json // e.g. [{ "type": "Scamming Pattern", "description": "Fake address provided", "date": "2025-11-02T12:00:00Z" },]
+
+  // Number of offenses within the last 50 days (for auto-blocking)
+  recentOffenseCount Int @default(0)
+
+  // Timestamp of the latest recorded offense
+  lastOffenseAt DateTime?
+
+  // --- Relations ---
+  landlord User @relation(fields: [landlordId], references: [id], onDelete: Cascade)
 
   // --- Metadata ---
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Relations ---
-  unit     Unit  @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  landlord User  @relation(fields: [landlordId], references: [id], onDelete: Cascade)
-  reviewer User? @relation("ReviewedListings", fields: [reviewedBy], references: [id])
-
-  @@index([unitId])
-  @@index([landlordId])
-  @@index([isFeatured])
-  @@index([reviewedBy])
-  @@map("listings")
+  @@map("landlord_offenses")
 }
+
 
 // -----------------------------------------------------------------------------
 // Lease 

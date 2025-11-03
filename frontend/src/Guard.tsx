@@ -1,5 +1,5 @@
 // file: Guard.tsx
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import type { JSX } from "react";
 
@@ -14,6 +14,7 @@ export const ProtectedRoute = ({
   allowedRoles = ["ANY_ROLE"],
 }: ProtectedRouteProps) => {
   const { user, loading, validated } = useAuthStore();
+  const location = useLocation();
 
   if (loading || !validated) {
     return (
@@ -23,12 +24,17 @@ export const ProtectedRoute = ({
     );
   }
 
-  // ❌ Not logged in → kick to login
+  // ❌ Not logged in → kick to login, preserve intended path
   if (!user) {
-    return <Navigate to="/auth/login" replace />;
+    return <Navigate to="/auth/login" replace state={{ from: location }} />;
   }
 
-  if(
+  // If user hasn't completed onboarding, redirect to onboarding first
+  if (!user.hasSeenOnboarding) {
+    return <Navigate to="/auth/onboarding" replace />;
+  }
+
+  if (
     !allowedRoles.includes("ANY_ROLE") &&
     !allowedRoles.includes(user.role)
   ) {
@@ -72,4 +78,38 @@ export const AuthRedirectRoute = ({ children }: AuthRedirectRouteProps) => {
   }
 
   return children; // no user → allow access to auth pages
+};
+
+// ---------------------- OnboardingRoute ----------------------
+// Only allow authenticated users who have NOT completed onboarding.
+// If user completed onboarding, redirect them to their role home.
+export const OnboardingRoute = ({ children }: { children: JSX.Element }) => {
+  const { user, loading, validated } = useAuthStore();
+
+  if (loading || !validated) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth/login" replace />;
+  }
+
+  if (user.hasSeenOnboarding) {
+    switch (user.role) {
+      case "ADMIN":
+        return <Navigate to="/admin" replace />;
+      case "LANDLORD":
+        return <Navigate to="/landlord" replace />;
+      case "TENANT":
+        return <Navigate to="/tenant" replace />;
+      default:
+        return <Navigate to="/" replace />;
+    }
+  }
+
+  return children;
 };

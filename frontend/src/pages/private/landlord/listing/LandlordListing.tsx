@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, CreditCard, MapPin, Star, TrendingUp } from 'lucide-react';
+import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, CreditCard, MapPin, Star, TrendingUp, ArrowRight, CheckCircle2, Flag, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { getLandlordListingsRequest, getEligibleUnitsForListingRequest } from '@/api/landlord/listingApi';
+import PageHeader from '@/components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Address {
   street: string;
@@ -19,7 +21,7 @@ interface Address {
 }
 
 interface Property {
-  id: string;
+  id: string; 
   title: string;
   type: string;
   address: Address;
@@ -28,8 +30,6 @@ interface Property {
 interface Unit {
   id: string;
   label: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 interface EligibleProperty {
@@ -37,12 +37,18 @@ interface EligibleProperty {
   title: string;
   type: string;
   address: Address;
-  units: Unit[];
+  units: {
+    id: string;
+    label: string;
+    createdAt: string;
+    updatedAt: string;
+  }[];
 }
+
 
 interface Payment {
   providerName: string | null;
-  amount: number;
+  amount: number | null;
   date: string | null;
 }
 
@@ -54,7 +60,6 @@ interface Listing {
   createdAt: string;
   updatedAt: string;
   payment: Payment;
-  blockedAt: string | null;
   unit: Unit;
   property: Property;
 }
@@ -70,6 +75,7 @@ const LandlordListing = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [properties, setProperties] = useState<{id: string, title: string}[]>([]);
+  const [isActiveExpanded, setIsActiveExpanded] = useState(false);
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -78,57 +84,68 @@ const LandlordListing = () => {
   const [selectedEligibleUnit, setSelectedEligibleUnit] = useState<string>('');
   const [loadingEligible, setLoadingEligible] = useState(false);
   const [eligibleError, setEligibleError] = useState<string | null>(null);
+  const [isLifecycleExpanded, setIsLifecycleExpanded] = useState(true);
 
   const statusConfig = {
     WAITING_PAYMENT: {
       title: 'Waiting Payment',
       icon: CreditCard,
       count: 0,
-      color: 'bg-gradient-to-r from-amber-400 to-amber-500',
-      bgColor: 'bg-amber-50',
-      borderColor: 'border-amber-200',
-      textColor: 'text-amber-800',
+      color: 'bg-gradient-to-r from-blue-600 to-cyan-600',
+      bgColor: 'bg-blue-100',
+      borderColor: 'border-blue-200',
+      textColor: 'text-blue-700',
       description: 'Listings pending payment confirmation'
     },
     VISIBLE: {
       title: 'Visible',
       icon: Eye,
       count: 0,
-      color: 'bg-gradient-to-r from-emerald-400 to-green-500',
-      bgColor: 'bg-emerald-50',
+      color: 'bg-gradient-to-r from-emerald-400 to-emerald-500',
+      bgColor: 'bg-emerald-100',
       borderColor: 'border-emerald-200',
-      textColor: 'text-emerald-800',
+      textColor: 'text-emerald-700',
       description: 'Active and visible to tenants'
     },
     HIDDEN: {
       title: 'Hidden',
       icon: EyeOff,
       count: 0,
-      color: 'bg-gradient-to-r from-blue-400 to-cyan-500',
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-blue-200',
-      textColor: 'text-blue-800',
+      color: 'bg-gradient-to-r from-teal-400 to-teal-500',
+      bgColor: 'bg-teal-100',
+      borderColor: 'border-teal-200',
+      textColor: 'text-teal-700',
       description: 'Temporarily hidden from search'
     },
     EXPIRED: {
       title: 'Expired',
       icon: Clock,
       count: 0,
-      color: 'bg-gradient-to-r from-orange-400 to-amber-500',
-      bgColor: 'bg-orange-50',
-      borderColor: 'border-orange-200',
-      textColor: 'text-orange-800',
+      color: 'bg-gradient-to-r from-gray-400 to-gray-500',
+      bgColor: 'bg-gray-100',
+      borderColor: 'border-gray-200',
+      textColor: 'text-gray-700',
       description: 'Listings that have reached expiry date'
     },
     BLOCKED: {
       title: 'Blocked',
       icon: Ban,
       count: 0,
-      color: 'bg-gradient-to-r from-rose-400 to-red-500',
-      bgColor: 'bg-rose-50',
-      borderColor: 'border-rose-200',
-      textColor: 'text-rose-800',
+      color: 'bg-gradient-to-r from-red-600 to-rose-600',
+      bgColor: 'bg-red-100',
+      borderColor: 'border-red-200',
+      textColor: 'text-red-700',
       description: 'Suspended by administration'
+    },
+    FLAGGED: {
+      title: 'Flagged',
+      icon: Flag,
+      count: 0,
+      color: 'bg-gradient-to-r from-amber-600 to-orange-600',
+      bgColor: 'bg-amber-100',
+      borderColor: 'border-amber-200',
+      textColor: 'text-amber-700',
+      description: 'Flagged for review'
     }
   };
 
@@ -205,7 +222,14 @@ const LandlordListing = () => {
 
     // Filter by status
     if (status !== 'all') {
-      filtered = filtered.filter(listing => listing.lifecycleStatus === status);
+      if (status === 'active') {
+        // Active includes both VISIBLE and HIDDEN
+        filtered = filtered.filter(listing => 
+          listing.lifecycleStatus === 'VISIBLE' || listing.lifecycleStatus === 'HIDDEN'
+        );
+      } else {
+        filtered = filtered.filter(listing => listing.lifecycleStatus === status);
+      }
     }
 
     // Filter by search query
@@ -226,8 +250,21 @@ const LandlordListing = () => {
   };
 
   const handleStatusClick = (status: string) => {
-    setSelectedStatus(status);
-    applyFilters(selectedProperty, status, searchQuery);
+    if (status === 'active') {
+      setIsActiveExpanded(!isActiveExpanded);
+      setSelectedStatus(status);
+      applyFilters(selectedProperty, status, searchQuery);
+    } else {
+      setIsActiveExpanded(false);
+      setSelectedStatus(status);
+      applyFilters(selectedProperty, status, searchQuery);
+    }
+  };
+
+  const handleActiveSubStatusClick = (subStatus: 'VISIBLE' | 'HIDDEN') => {
+    setSelectedStatus(subStatus);
+    setIsActiveExpanded(false);
+    applyFilters(selectedProperty, subStatus, searchQuery);
   };
 
   const handlePropertyFilterChange = (propertyId: string) => {
@@ -251,6 +288,7 @@ const LandlordListing = () => {
     setSelectedStatus('all');
     setSearchQuery('');
     setSortOrder('newest');
+    setIsActiveExpanded(false);
     applyFilters('all', 'all', '');
   };
 
@@ -265,6 +303,14 @@ const LandlordListing = () => {
     setSelectedEligibleUnit('');
     setEligibleError(null);
   };
+
+  // Reset selections when modal opens
+  useEffect(() => {
+    if (isCreateModalOpen) {
+      setSelectedEligibleProperty('');
+      setSelectedEligibleUnit('');
+    }
+  }, [isCreateModalOpen]);
 
   const handleContinueToReview = () => {
     if (selectedEligibleUnit) {
@@ -296,11 +342,6 @@ const LandlordListing = () => {
     console.log('Pay now for listing:', listingId);
   };
 
-  const handleBoostNow = (listingId: string) => {
-    // TODO: Implement boost now functionality
-    console.log('Boost now for listing:', listingId);
-  };
-
   const getStatusBadge = (status: string) => {
     const config = statusConfig[status as keyof typeof statusConfig];
     return (
@@ -323,25 +364,14 @@ const LandlordListing = () => {
     });
   };
 
-  const formatDateTime = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   const getPaymentStatus = (listing: Listing) => {
     if (listing.lifecycleStatus === 'WAITING_PAYMENT') {
-      return { status: 'Pending', color: 'text-amber-600 bg-amber-50 border-amber-200' };
+      return { status: 'Pending', color: 'text-blue-700 bg-blue-100 border-blue-200' };
     }
     if (listing.payment.providerName && listing.payment.date) {
-      return { status: `Paid (${listing.payment.providerName})`, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+      return { status: `Paid (${listing.payment.providerName})`, color: 'text-emerald-700 bg-emerald-100 border-emerald-200' };
     }
-    return { status: 'No Payment', color: 'text-gray-600 bg-gray-50 border-gray-200' };
+    return { status: 'No Payment', color: 'text-gray-700 bg-gray-100 border-gray-200' };
   };
 
   // Calculate counts for each status
@@ -355,8 +385,6 @@ const LandlordListing = () => {
     listing => listing.lifecycleStatus === 'VISIBLE' || listing.lifecycleStatus === 'HIDDEN'
   ).length;
 
-  const featuredListings = allListings.filter(listing => listing.isFeatured).length;
-
   const selectedPropertyData = eligibleProperties.find(p => p.id === selectedEligibleProperty);
   const availableUnits = selectedPropertyData?.units || [];
 
@@ -367,16 +395,127 @@ const LandlordListing = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-emerald-50 p-4">
-        <div className="max-w-7xl mx-auto space-y-4">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white rounded-lg shadow p-4 h-24"></div>
-              ))}
-            </div>
+      <div className="min-h-screen p-4">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header Skeleton */}
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-96" />
           </div>
+
+          {/* Listing Lifecycle Management Dashboard Skeleton */}
+          <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 flex-1">
+                  <Skeleton className="h-7 w-7 rounded" />
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-64" />
+                    <Skeleton className="h-3 w-96" />
+                  </div>
+                </div>
+                <Skeleton className="h-9 w-32" />
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 space-y-3">
+              {/* Lifecycle Stages Skeleton */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="p-3 rounded-lg border-2 border-slate-200 bg-white">
+                    <div className="flex items-start gap-2.5">
+                      <Skeleton className="h-8 w-8 rounded-lg" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-3 w-20" />
+                        <Skeleton className="h-2.5 w-16" />
+                        <Skeleton className="h-5 w-8" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Filters Skeleton */}
+          <Card className="bg-white/80 backdrop-blur-sm border-blue-100">
+            <CardContent className="p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Skeleton className="h-8 flex-1 min-w-[200px]" />
+                <Skeleton className="h-8 w-[160px]" />
+                <Skeleton className="h-8 w-[120px]" />
+                <Skeleton className="h-8 w-20" />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-24 rounded-full" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Listings Table Skeleton */}
+          <Card className="bg-white/80 backdrop-blur-sm border-blue-100 overflow-hidden">
+            <CardHeader className="pb-2 pt-3 px-4 bg-gradient-to-r from-blue-50 to-transparent">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-12 rounded-full" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="border-0">
+                <Table>
+                  <TableHeader className="bg-gradient-to-r from-blue-50 to-emerald-50">
+                    <TableRow className="hover:bg-transparent border-blue-100">
+                      {[...Array(8)].map((_, i) => (
+                        <TableHead key={i} className="py-2">
+                          <Skeleton className="h-4 w-20" />
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...Array(5)].map((_, i) => (
+                      <TableRow key={i} className="border-b border-blue-50">
+                        <TableCell className="py-2">
+                          <div className="flex items-start space-x-2">
+                            <Skeleton className="h-8 w-8 rounded-lg" />
+                            <div className="space-y-1 flex-1">
+                              <Skeleton className="h-3 w-24" />
+                              <Skeleton className="h-2.5 w-32" />
+                              <Skeleton className="h-2.5 w-20" />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Skeleton className="h-3 w-40" />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Skeleton className="h-6 w-20 rounded-full" />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Skeleton className="h-5 w-20 rounded-full" />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Skeleton className="h-3 w-24" />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Skeleton className="h-3 w-24" />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <div className="flex items-center gap-1.5 justify-end">
+                            <Skeleton className="h-7 w-7 rounded" />
+                            <Skeleton className="h-7 w-7 rounded" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -402,147 +541,290 @@ const LandlordListing = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-emerald-50 p-4">
+    <div className="min-h-screen p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">
-              Listing Management
-            </h1>
-            <p className="text-gray-600 text-sm mt-1">Manage your unit listings and status</p>
-          </div>
-          
-          <Button 
-            onClick={handleCreateListing} 
-            size="sm" 
-            className="bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white shadow-lg shadow-blue-500/25"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            New Listing
-          </Button>
-        </div>
+        <PageHeader
+          title="Listing Management"
+          description="Manage your unit listings and status"
+        />
 
-        {/* Stats Cards - Smaller size and Active Listings instead of Total */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Active Listings Card */}
-          <Card 
-            className={`cursor-pointer border-2 transition-all duration-300 hover:shadow-lg ${
-              selectedStatus === 'all' 
-                ? 'border-blue-300 shadow-lg bg-gradient-to-br from-blue-50 to-cyan-50' 
-                : 'border-gray-200 hover:border-blue-200 bg-white'
-            }`}
-            onClick={() => handleStatusClick('all')}
-          >
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between">
+        {/* Listing Lifecycle Management Dashboard */}
+        <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 flex-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsLifecycleExpanded(!isLifecycleExpanded)}
+                  className="h-7 w-7 p-0 hover:bg-slate-100"
+                  title={isLifecycleExpanded ? "Collapse" : "Expand"}
+                >
+                  {isLifecycleExpanded ? (
+                    <ChevronUp className="h-4 w-4 text-slate-600" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-slate-600" />
+                  )}
+                </Button>
                 <div>
-                  <p className="text-xs font-medium text-gray-600">Active Listing</p>
-                  <p className="text-lg font-bold text-gray-900">{activeListings}</p>
-                </div>
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-full flex items-center justify-center">
-                  <TrendingUp className="h-4 w-4 text-blue-600" />
+                  <CardTitle className="text-sm font-semibold text-slate-900">Listing Lifecycle Management</CardTitle>
+                  <p className="text-xs text-slate-600 mt-0.5">Monitor and manage your listings through their lifecycle stages</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Status Cards */}
-          {Object.entries(statusConfig).map(([status, config]) => {
-            const Icon = config.icon;
-            const count = statusCounts[status] || 0;
-            return (
-              <Card 
-                key={status}
-                className={`cursor-pointer border-2 transition-all duration-300 hover:shadow-lg ${
-                  selectedStatus === status 
-                    ? `${config.borderColor} shadow-lg ${config.bgColor}` 
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
-                }`}
-                onClick={() => handleStatusClick(status)}
+              <Button 
+                onClick={handleCreateListing} 
+                size="sm" 
+                className="bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white shadow-md shadow-blue-500/25 h-9 text-sm px-4"
               >
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-gray-600">{config.title}</p>
-                      <p className={`text-lg font-bold ${config.textColor}`}>{count}</p>
+                <Plus className="h-4 w-4 mr-2" />
+                New Listing
+              </Button>
+            </div>
+          </CardHeader>
+          {isLifecycleExpanded && (
+            <CardContent className="px-4 pb-4 space-y-3">
+              {/* Lifecycle Stages */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                {/* Stage 1: Waiting Payment */}
+                <div 
+                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                    selectedStatus === 'WAITING_PAYMENT'
+                      ? 'bg-blue-50 border-blue-300 shadow-lg'
+                      : 'bg-white border-blue-200 hover:border-blue-300 hover:shadow-md'
+                  }`}
+                  onClick={() => handleStatusClick('WAITING_PAYMENT')}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+                      <CreditCard className="h-4 w-4 text-white" />
                     </div>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${config.color}`}>
-                      <Icon className="h-4 w-4 text-white" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-900">Payment Pending</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Awaiting payment</p>
+                      <p className="text-base font-bold text-blue-700 mt-1.5">{statusCounts['WAITING_PAYMENT'] || 0}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  {selectedStatus === 'WAITING_PAYMENT' && (
+                    <div className="absolute top-1.5 right-1.5">
+                      <CheckCircle2 className="h-3 w-3 text-blue-600" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Stage 2: Active (with VISIBLE/HIDDEN inside) */}
+                <div 
+                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                    selectedStatus === 'active' || selectedStatus === 'VISIBLE' || selectedStatus === 'HIDDEN'
+                      ? 'bg-emerald-50 border-emerald-400 shadow-lg'
+                      : 'bg-white border-emerald-200 hover:border-emerald-300 hover:shadow-md'
+                  }`}
+                  onClick={() => handleStatusClick('active')}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center group-hover:bg-emerald-600 transition-colors">
+                      <TrendingUp className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-900">Active</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Live listings</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <p className="text-base font-bold text-emerald-700">{activeListings}</p>
+                        <div className="flex items-center gap-1.5">
+                          <div 
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors ${
+                              selectedStatus === 'VISIBLE'
+                                ? 'bg-emerald-200 text-emerald-800'
+                                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleActiveSubStatusClick('VISIBLE');
+                            }}
+                          >
+                            <Eye className="h-2.5 w-2.5 inline mr-0.5" />
+                            {statusCounts['VISIBLE'] || 0}
+                          </div>
+                          <div 
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors ${
+                              selectedStatus === 'HIDDEN'
+                                ? 'bg-teal-200 text-teal-800'
+                                : 'bg-teal-100 text-teal-700 hover:bg-teal-200'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleActiveSubStatusClick('HIDDEN');
+                            }}
+                          >
+                            <EyeOff className="h-2.5 w-2.5 inline mr-0.5" />
+                            {statusCounts['HIDDEN'] || 0}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {(selectedStatus === 'active' || selectedStatus === 'VISIBLE' || selectedStatus === 'HIDDEN') && (
+                    <div className="absolute top-1.5 right-1.5">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Stage 3: Flagged */}
+                <div 
+                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                    selectedStatus === 'FLAGGED'
+                      ? 'bg-amber-50 border-amber-300 shadow-lg'
+                      : 'bg-white border-amber-200 hover:border-amber-300 hover:shadow-md'
+                  }`}
+                  onClick={() => handleStatusClick('FLAGGED')}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center group-hover:bg-amber-600 transition-colors">
+                      <Flag className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-900">Flagged</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Under review</p>
+                      <p className="text-base font-bold text-amber-700 mt-1.5">{statusCounts['FLAGGED'] || 0}</p>
+                    </div>
+                  </div>
+                  {selectedStatus === 'FLAGGED' && (
+                    <div className="absolute top-1.5 right-1.5">
+                      <CheckCircle2 className="h-3 w-3 text-amber-600" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Stage 4: Expired */}
+                <div 
+                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                    selectedStatus === 'EXPIRED'
+                      ? 'bg-gray-50 border-gray-300 shadow-lg'
+                      : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
+                  }`}
+                  onClick={() => handleStatusClick('EXPIRED')}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-500 flex items-center justify-center group-hover:bg-gray-600 transition-colors">
+                      <Clock className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-900">Expired</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Expired listings</p>
+                      <p className="text-base font-bold text-gray-700 mt-1.5">{statusCounts['EXPIRED'] || 0}</p>
+                    </div>
+                  </div>
+                  {selectedStatus === 'EXPIRED' && (
+                    <div className="absolute top-1.5 right-1.5">
+                      <CheckCircle2 className="h-3 w-3 text-gray-600" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Stage 5: Blocked */}
+                <div 
+                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                    selectedStatus === 'BLOCKED'
+                      ? 'bg-red-50 border-red-300 shadow-lg'
+                      : 'bg-white border-red-200 hover:border-red-300 hover:shadow-md'
+                  }`}
+                  onClick={() => handleStatusClick('BLOCKED')}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center group-hover:bg-red-600 transition-colors">
+                      <Ban className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-900">Blocked</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Suspended</p>
+                      <p className="text-base font-bold text-red-700 mt-1.5">{statusCounts['BLOCKED'] || 0}</p>
+                    </div>
+                  </div>
+                  {selectedStatus === 'BLOCKED' && (
+                    <div className="absolute top-1.5 right-1.5">
+                      <CheckCircle2 className="h-3 w-3 text-red-600" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lifecycle Flow Arrows (Visual) */}
+              <div className="hidden lg:flex items-center justify-between px-2 -mt-1">
+                <ArrowRight className="h-3 w-3 text-slate-400" />
+                <ArrowRight className="h-3 w-3 text-slate-400" />
+                <ArrowRight className="h-3 w-3 text-slate-400" />
+                <ArrowRight className="h-3 w-3 text-slate-400" />
+              </div>
+            </CardContent>
+          )}
+        </Card>
 
         {/* Filters */}
         <Card className="bg-white/80 backdrop-blur-sm border-blue-100">
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 flex flex-col sm:flex-row gap-4">
-                {/* Search */}
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search units, properties, or addresses..."
-                      value={searchQuery}
-                      onChange={(e) => handleSearchChange(e.target.value)}
-                      className="pl-10 border-blue-200 focus:border-blue-400"
-                    />
-                  </div>
+          <CardContent className="p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search - Compact design */}
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <Input
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-9 h-8 text-xs border-blue-200 focus:border-blue-400"
+                  />
                 </div>
-
-                {/* Property Filter */}
-                <div className="w-full sm:w-48">
-                  <Select value={selectedProperty} onValueChange={handlePropertyFilterChange}>
-                    <SelectTrigger className="border-blue-200">
-                      <SelectValue placeholder="All Properties" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Properties</SelectItem>
-                      {properties.map(property => (
-                        <SelectItem key={property.id} value={property.id}>
-                          {property.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Sort Order */}
-                <div className="w-full sm:w-40">
-                  <Select value={sortOrder} onValueChange={(value: 'newest' | 'oldest') => handleSortChange(value)}>
-                    <SelectTrigger className="border-blue-200">
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="newest">Newest First</SelectItem>
-                      <SelectItem value="oldest">Oldest First</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Clear Filters */}
-                <Button 
-                  variant="outline" 
-                  onClick={handleClearFilters}
-                  className="whitespace-nowrap border-blue-200 text-blue-700 hover:bg-blue-50"
-                >
-                  Clear All
-                </Button>
               </div>
+
+              {/* Property Filter */}
+              <Select value={selectedProperty} onValueChange={handlePropertyFilterChange}>
+                <SelectTrigger className="h-8 w-[160px] text-xs border-blue-200">
+                  <SelectValue placeholder="All Properties" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Properties</SelectItem>
+                  {properties.map(property => (
+                    <SelectItem key={property.id} value={property.id}>
+                      {property.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Sort Order */}
+              <Select value={sortOrder} onValueChange={(value: 'newest' | 'oldest') => handleSortChange(value)}>
+                <SelectTrigger className="h-8 w-[120px] text-xs border-blue-200">
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest</SelectItem>
+                  <SelectItem value="oldest">Oldest</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Clear Filters */}
+              <Button 
+                variant="outline" 
+                onClick={handleClearFilters}
+                className="h-8 text-xs border-blue-200 text-blue-700 hover:bg-blue-50 px-3"
+              >
+                Clear
+              </Button>
             </div>
 
             {/* Active Filters Summary */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
               <span className="font-medium text-gray-700">
                 {filteredListings.length} of {allListings.length} listings
               </span>
-              {selectedStatus !== 'all' && (
-                <Badge variant="secondary" className="ml-1 bg-blue-100 text-blue-800">
+              {selectedStatus === 'active' && (
+                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                  Active Listings
+                </Badge>
+              )}
+              {selectedStatus !== 'all' && selectedStatus !== 'active' && (
+                <Badge variant="secondary" className={`${statusConfig[selectedStatus as keyof typeof statusConfig]?.bgColor} ${statusConfig[selectedStatus as keyof typeof statusConfig]?.textColor}`}>
                   {statusConfig[selectedStatus as keyof typeof statusConfig]?.title}
                 </Badge>
               )}
@@ -565,10 +847,14 @@ const LandlordListing = () => {
 
         {/* Listings Table */}
         <Card className="bg-white/80 backdrop-blur-sm border-blue-100 overflow-hidden">
-          <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-transparent">
-            <CardTitle className="text-lg flex items-center gap-2 text-blue-900">
-              {selectedStatus === 'all' ? 'All Listings' : statusConfig[selectedStatus as keyof typeof statusConfig]?.title}
-              <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-800">
+          <CardHeader className="pb-2 pt-3 px-4 bg-gradient-to-r from-blue-50 to-transparent">
+            <CardTitle className="text-sm flex items-center gap-2 text-blue-900">
+              {selectedStatus === 'all' 
+                ? 'All Listings' 
+                : selectedStatus === 'active'
+                ? 'Active Listings'
+                : statusConfig[selectedStatus as keyof typeof statusConfig]?.title}
+              <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-800 text-xs">
                 {filteredListings.length}
               </Badge>
             </CardTitle>
@@ -599,102 +885,104 @@ const LandlordListing = () => {
                 <Table>
                   <TableHeader className="bg-gradient-to-r from-blue-50 to-emerald-50">
                     <TableRow className="hover:bg-transparent border-blue-100">
-                      <TableHead className="font-semibold text-blue-900 py-4">Unit & Property</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-4">Location</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-4">Status</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-4">Featured</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-4">Payment</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-4">Expires</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-4">Created</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-4 text-right">Actions</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Unit & Property</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Location</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Status</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Featured</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Payment</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Expires</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Created</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredListings.map((listing) => {
                       const paymentStatus = getPaymentStatus(listing);
+                      const locationText = formatAddress(listing.property.address);
                       return (
                         <TableRow 
                           key={listing.id} 
                           className="group hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-emerald-50/50 border-b border-blue-50 transition-all duration-200"
                         >
-                          <TableCell className="py-4">
-                            <div className="flex items-start space-x-3">
-                              <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-100 to-emerald-100 rounded-lg flex items-center justify-center">
-                                <Building className="h-5 w-5 text-blue-600" />
+                          <TableCell className="py-2">
+                            <div className="flex items-start space-x-2">
+                              <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-100 to-emerald-100 rounded-lg flex items-center justify-center">
+                                <Building className="h-4 w-4 text-blue-600" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="font-semibold text-gray-900 text-base truncate">
+                                <div className="font-semibold text-gray-900 text-xs truncate">
                                   {listing.unit.label}
                                 </div>
-                                <div className="text-sm text-gray-600 mt-1 truncate">
+                                <div className="text-[10px] text-gray-600 mt-0.5 truncate">
                                   {listing.property.title}
                                 </div>
-                                <div className="text-xs text-gray-500 capitalize mt-0.5">
+                                <div className="text-[10px] text-gray-500 capitalize mt-0.5">
                                   {listing.property.type.toLowerCase().replace('_', ' ')}
                                 </div>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="py-4">
-                            <div className="max-w-xs">
-                              <div className="flex items-start gap-2">
-                                <MapPin className="h-4 w-4 mt-0.5 text-blue-500 flex-shrink-0" />
-                                <span className="text-sm text-gray-700 leading-relaxed">
-                                  {formatAddress(listing.property.address)}
+                          <TableCell className="py-2">
+                            <div className="max-w-[200px]">
+                              <div className="flex items-start gap-1.5" title={locationText}>
+                                <MapPin className="h-3 w-3 mt-0.5 text-blue-500 flex-shrink-0" />
+                                <span className="text-xs text-gray-700 leading-relaxed truncate block max-w-[180px]">
+                                  {locationText.length > 40 ? `${locationText.substring(0, 40)}...` : locationText}
                                 </span>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="py-4">
+                          <TableCell className="py-2">
                             {getStatusBadge(listing.lifecycleStatus)}
                           </TableCell>
-                          <TableCell className="py-4">
+                          <TableCell className="py-2">
                             {listing.isFeatured ? (
-                              <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 px-3 py-1.5">
-                                <Star className="h-3.5 w-3.5 mr-1.5 fill-current" />
+                              <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 px-2 py-0.5 text-[10px]">
+                                <Star className="h-2.5 w-2.5 mr-1 fill-current" />
                                 Featured
                               </Badge>
                             ) : (
-                              <span className="text-gray-400 text-sm">—</span>
+                              <span className="text-gray-400 text-xs">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="py-4">
+                          <TableCell className="py-2">
                             <Badge 
                               variant="outline" 
-                              className={`${paymentStatus.color} font-medium px-3 py-1.5 text-xs`}
+                              className={`${paymentStatus.color} font-medium px-2 py-0.5 text-[10px]`}
                             >
                               {paymentStatus.status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="py-4">
-                            <div className="text-sm text-gray-600">
+                          <TableCell className="py-2">
+                            <div className="text-xs text-gray-600">
                               {listing.expiresAt ? (
-                                <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-orange-500" />
-                                  {formatDate(listing.expiresAt)}
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="h-3 w-3 text-gray-500" />
+                                  <span className="text-[10px]">{formatDate(listing.expiresAt)}</span>
                                 </div>
                               ) : (
-                                <span className="text-gray-400">—</span>
+                                <span className="text-gray-400 text-xs">—</span>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="py-4">
-                            <div className="text-sm text-gray-600">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-blue-500" />
-                                {formatDate(listing.createdAt)}
+                          <TableCell className="py-2">
+                            <div className="text-xs text-gray-600">
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="h-3 w-3 text-blue-500" />
+                                <span className="text-[10px]">{formatDate(listing.createdAt)}</span>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="py-4">
-                            <div className="flex flex-col sm:flex-row gap-2 justify-end">
+                          <TableCell className="py-2">
+                            <div className="flex items-center gap-1.5 justify-end">
                               <Button 
-                                variant="outline" 
+                                variant="ghost" 
                                 size="sm"
                                 onClick={() => handleViewDetails(listing.id)}
-                                className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                                className="h-7 w-7 p-0 border border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                                title="View Details"
                               >
-                                View Details
+                                <Info className="h-3.5 w-3.5" />
                               </Button>
                               
                               {/* Status-specific actions */}
@@ -702,9 +990,10 @@ const LandlordListing = () => {
                                 <Button 
                                   size="sm"
                                   onClick={() => handleSetVisible(listing.id)}
-                                  className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white"
+                                  className="h-7 w-7 p-0 bg-emerald-500 hover:bg-emerald-600 text-white"
+                                  title="Set Visible"
                                 >
-                                  Set Visible
+                                  <Eye className="h-3.5 w-3.5" />
                                 </Button>
                               )}
                               
@@ -712,9 +1001,10 @@ const LandlordListing = () => {
                                 <Button 
                                   size="sm"
                                   onClick={() => handleSetHidden(listing.id)}
-                                  className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
+                                  className="h-7 w-7 p-0 bg-teal-500 hover:bg-teal-600 text-white"
+                                  title="Set Hidden"
                                 >
-                                  Set Hidden
+                                  <EyeOff className="h-3.5 w-3.5" />
                                 </Button>
                               )}
                               
@@ -722,20 +1012,10 @@ const LandlordListing = () => {
                                 <Button 
                                   size="sm"
                                   onClick={() => handlePayNow(listing.id)}
-                                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                                  className="h-7 w-7 p-0 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+                                  title="Pay Now"
                                 >
-                                  Pay Now
-                                </Button>
-                              )}
-                              
-                              {/* Boost action for non-featured listings */}
-                              {!listing.isFeatured && (
-                                <Button 
-                                  size="sm"
-                                  onClick={() => handleBoostNow(listing.id)}
-                                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
-                                >
-                                  Boost Now
+                                  <CreditCard className="h-3.5 w-3.5" />
                                 </Button>
                               )}
                             </div>
@@ -752,25 +1032,25 @@ const LandlordListing = () => {
 
         {/* Create Listing Modal */}
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-          <DialogContent className="sm:max-w-md bg-gradient-to-br from-white to-blue-50/30 border-blue-100">
-            <DialogHeader className="space-y-3">
-              <DialogTitle className="text-xl bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">
+          <DialogContent className="sm:max-w-lg bg-white border border-slate-300 shadow-2xl">
+            <DialogHeader className="space-y-1 pb-4">
+              <DialogTitle className="text-xl font-semibold text-slate-900">
                 Create New Listing
               </DialogTitle>
-              <DialogDescription className="text-gray-600">
+              <DialogDescription className="text-sm text-slate-600">
                 Select a property and unit to create a new listing
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               {loadingEligible ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="text-sm text-gray-600 mt-2">Loading eligible units...</p>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-sm text-gray-600 mt-3">Loading eligible units...</p>
                 </div>
               ) : eligibleError ? (
-                <div className="text-center py-4">
-                  <p className="text-red-600 mb-4">{eligibleError}</p>
+                <div className="text-center py-6">
+                  <p className="text-red-600 mb-4 text-sm">{eligibleError}</p>
                   <Button 
                     onClick={fetchEligibleUnits} 
                     variant="outline"
@@ -780,9 +1060,9 @@ const LandlordListing = () => {
                   </Button>
                 </div>
               ) : eligibleProperties.length === 0 ? (
-                <div className="text-center py-4">
+                <div className="text-center py-6">
                   <Building className="h-12 w-12 text-blue-200 mx-auto mb-3" />
-                  <p className="text-gray-600 font-medium">No properties available for listing</p>
+                  <p className="text-gray-700 font-medium">No properties available for listing</p>
                   <p className="text-sm text-gray-500 mt-1">
                     You need to have properties with available units to create listings
                   </p>
@@ -791,59 +1071,83 @@ const LandlordListing = () => {
                 <>
                   {/* Property Selection */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Select Property</label>
-                    <Select value={selectedEligibleProperty} onValueChange={setSelectedEligibleProperty}>
-                      <SelectTrigger className="border-blue-200 focus:border-blue-400">
+                    <label className="text-sm font-semibold text-gray-900">Select Property</label>
+                    <Select 
+                      value={selectedEligibleProperty || undefined} 
+                      onValueChange={(value) => {
+                        setSelectedEligibleProperty(value);
+                        setSelectedEligibleUnit(''); // Reset unit when property changes
+                      }}
+                    >
+                      <SelectTrigger className="h-10 w-full border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
                         <SelectValue placeholder="Choose a property" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-[300px] !z-[110]" position="popper">
                         {eligibleProperties.map(property => (
-                          <SelectItem key={property.id} value={property.id}>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{property.title}</span>
-                              <span className="text-xs text-gray-500">
-                                {property.units.length} unit{property.units.length !== 1 ? 's' : ''} available
-                              </span>
-                            </div>
+                          <SelectItem 
+                            key={property.id} 
+                            value={property.id}
+                          >
+                            {property.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {/* Unit Selection */}
+                  {/* Unit Selection - Only show when property is selected */}
                   {selectedEligibleProperty && (
-                    <div className="space-y-3">
-                      <label className="text-sm font-medium text-gray-700">Select Unit</label>
-                      <Select value={selectedEligibleUnit} onValueChange={setSelectedEligibleUnit}>
-                        <SelectTrigger className="border-blue-200 focus:border-blue-400">
-                          <SelectValue placeholder="Choose a unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableUnits.map(unit => (
-                            <SelectItem key={unit.id} value={unit.id}>
-                              <div className="font-medium">{unit.label}</div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <>
+                      {/* Property Preview Card - Show when property is selected */}
                       {selectedPropertyData && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="font-semibold text-blue-900 text-sm">{selectedPropertyData.title}</div>
-                          <div className="text-xs text-blue-700 mt-1 flex items-start gap-1">
-                            <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                            {formatAddress(selectedPropertyData.address)}
+                        <div className="p-4 bg-gradient-to-br from-blue-50 to-emerald-50 rounded-lg border-2 border-blue-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-bold text-slate-900 text-base">{selectedPropertyData.title}</div>
+                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-white">
+                              {selectedPropertyData.type.toLowerCase().replace('_', ' ')}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-slate-700 flex items-start gap-2 mb-3">
+                            <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-600" />
+                            <span className="flex-1 font-medium">{formatAddress(selectedPropertyData.address)}</span>
+                          </div>
+                          <div className="pt-2 border-t border-blue-200">
+                            <p className="text-xs text-blue-700 font-semibold">
+                              {availableUnits.length} unit{availableUnits.length !== 1 ? 's' : ''} available in this property
+                            </p>
                           </div>
                         </div>
                       )}
-                    </div>
+
+                      {/* Unit Selection */}
+                      {availableUnits.length > 0 && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-gray-900">Select Unit</label>
+                          <Select 
+                            value={selectedEligibleUnit || undefined} 
+                            onValueChange={setSelectedEligibleUnit}
+                          >
+                            <SelectTrigger className="h-10 w-full border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
+                              <SelectValue placeholder="Choose a unit" />
+                            </SelectTrigger>
+                            <SelectContent className="!z-[110]" position="popper">
+                              {availableUnits.map(unit => (
+                                <SelectItem key={unit.id} value={unit.id}>
+                                  {unit.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Continue Button */}
                   <Button
                     onClick={handleContinueToReview}
                     disabled={!selectedEligibleUnit}
-                    className="w-full bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full h-11 bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white font-semibold shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   >
                     Continue to Review
                   </Button>
