@@ -11,7 +11,16 @@ AI Recommendations Icon: text-blue-600
 AI Recommendations Title: text-blue-700
 Recommendation Items: bg-white border-blue-300, bg-blue-500, text-blue-900, text-blue-800
 Button: bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700
-2. VISIBLE (Emerald Green - Full Color)
+
+2. WAITING_REVIEW (Purple/Indigo) — Currently implemented:
+Badge: bg-purple-100 text-purple-700 border-purple-200
+Gradient: bg-gradient-to-r from-purple-600 to-indigo-600
+Background: bg-purple-50 border-purple-300
+Icon Background: bg-purple-500
+Text Color: text-purple-700
+Reviewed Icon (in table): text-purple-500
+
+3. VISIBLE (Emerald Green - Full Color)
 Badge: bg-emerald-100 text-emerald-700 border-emerald-200
 Gradient: from-emerald-200/70 via-emerald-100/50 to-emerald-200/70
 Background: bg-emerald-50 border-emerald-300
@@ -19,21 +28,24 @@ Icon Background: bg-emerald-500
 Blur Effects (light): bg-emerald-200/40
 Blur Effects (dark): bg-emerald-300/40
 Timeline (completed): bg-emerald-500, bg-emerald-50 border-emerald-200, text-emerald-900, text-emerald-700, bg-emerald-300 (timeline line)
-3. HIDDEN (Teal - Similar to VISIBLE but with gray mix)
+
+4. HIDDEN (Teal - Similar to VISIBLE but with gray mix)
 Badge: bg-teal-100 text-teal-700 border-teal-200
 Gradient: from-teal-200/70 via-teal-100/50 to-teal-200/70
 Background: bg-teal-50 border-teal-300
 Icon Background: bg-teal-500
 Blur Effects (light): bg-teal-200/40
 Blur Effects (dark): bg-teal-300/40
-4. EXPIRED (Gray)
+
+5. EXPIRED (Gray)
 Badge: bg-gray-100 text-gray-700 border-gray-200
 Gradient: from-gray-200/70 via-gray-100/50 to-gray-200/70
 Background: bg-gray-50 border-gray-300
 Icon Background: bg-gray-500
 Blur Effects (light): bg-gray-200/40
 Blur Effects (dark): bg-gray-300/40
-5. FLAGGED (Amber/Orange)
+
+6. FLAGGED (Amber/Orange)
 Badge: bg-amber-100 text-amber-700 border-amber-200
 Gradient: from-amber-200/70 via-amber-100/50 to-amber-200/70
 Background: bg-amber-50 border-amber-300
@@ -50,7 +62,8 @@ Recommendation Items: bg-white border-amber-300, bg-amber-500, text-amber-900, t
 Button: bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700
 Timeline (active): bg-amber-500 ring-4 ring-amber-200, bg-amber-50 border-2 border-amber-300, text-amber-900, text-amber-700, bg-amber-600 (badge)
 Timeline (completed): bg-amber-500, bg-amber-50 border-amber-200, text-amber-900, text-amber-700, bg-amber-300 (timeline line)
-6. BLOCKED (Red)
+
+7. BLOCKED (Red)
 Badge: bg-red-100 text-red-700 border-red-200
 Gradient: from-red-200/70 via-red-100/50 to-red-200/70
 Background: bg-red-50 border-red-300

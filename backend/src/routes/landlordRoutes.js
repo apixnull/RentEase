@@ -3,7 +3,7 @@ import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 import { createProperty, getAmenities, getCitiesAndMunicipalities, getLandlordProperties, getPropertyDetailsAndUnits, } from "../controllers/landlord/propertyController.js";
 import { createUnit, getUnitDetails } from "../controllers/landlord/unitController.js";
-import { cancelListingPayment, createListingWithPayment, getEligibleUnitsForListing, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview} from "../controllers/landlord/listingController.js";
+import { cancelListingPayment, createListingWithPayment, getEligibleUnitsForListing, getLandlordListingInfoSuccess, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview} from "../controllers/landlord/listingController.js";
 import { getLandlordScreeningsList, getSpeceficScreeningLandlord, inviteTenantForScreening, landlordReviewTenantScreening} from "../controllers/landlord/tenantScreeningController.js";
 import { createLease, findTenantForLease, getAllLeases, getAllPropertiesWithUnitsAndSuggestedTenants, getLeaseById, markPaymentAsPaid } from "../controllers/landlord/leaseController.js";
 import { getAllMaintenanceRequestsByLandlord, updateMaintenanceStatus} from "../controllers/landlord/maintenanceController.js";
@@ -28,13 +28,14 @@ router.get("/listing/:unitId/review", requireAuthentication(["LANDLORD"]), getUn
 router.post("/listing/:unitId/create", requireAuthentication(["LANDLORD"]), createListingWithPayment);                    // create listing + payment session
 router.get("/listing/:listingId/details", requireAuthentication(["LANDLORD"]), getLandlordSpecificListing);               // get a specific listing information
 router.get("/listing/eligible-units", requireAuthentication(["LANDLORD"]), getEligibleUnitsForListing);                   // get units that can be listed
-router.delete("/listing/:listingId/cancel",requireAuthentication(["LANDLORD"]), cancelListingPayment); // cancel listing + payment session
+router.delete("/listing/:listingId/cancel",requireAuthentication(["LANDLORD"]), cancelListingPayment);                    // cancel listing + payment session
+router.get("/listing/:listingId/success", requireAuthentication(["LANDLORD"]), getLandlordListingInfoSuccess);            // get basic info when success 
+
 // ----------------------------------------------------- TENANT SCREENING
 router.post("/screening/invite", requireAuthentication(["LANDLORD"]), inviteTenantForScreening);                             // landlord invites tenant for screening
 router.post("/screening/:screeningId/review", requireAuthentication(["LANDLORD"]), landlordReviewTenantScreening);           // 🧾 Landlord reviews (approve/reject) tenant screening
 router.get("/screening/list", requireAuthentication(["LANDLORD"]), getLandlordScreeningsList );                              // 📋 Get all screenings of this landlord (categorized by status)
 router.get("/screening/:screeningId/details", requireAuthentication(["LANDLORD"]), getSpeceficScreeningLandlord );           // 🔍 View details of a specific tenant screening
-
 // ----------------------------------------------------- LEASE 
 router.post("/lease/create", requireAuthentication(["LANDLORD"]), createLease);                                         // 🏗️ Create a new lease
 router.get("/lease/list", requireAuthentication(["LANDLORD"]), getAllLeases);                                           // 📋 Get all leases (any status)

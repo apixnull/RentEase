@@ -16,9 +16,9 @@ export const getLandlordListings = async (req, res) => {
         lifecycleStatus: true,
         isFeatured: true,
         expiresAt: true,
+        reviewedAt: true,
         createdAt: true,
         updatedAt: true,
-
 
         // --- Payment Info (nullable) ---
         providerName: true,
@@ -55,6 +55,7 @@ export const getLandlordListings = async (req, res) => {
       createdAt: l.createdAt,
       updatedAt: l.updatedAt,
       expiresAt: l.expiresAt,
+      reviewedAt: l.reviewedAt,
 
       // --- Payment section ---
       payment: {
@@ -90,7 +91,10 @@ export const getLandlordListings = async (req, res) => {
   }
 };
 
-// GET /landlord/units/:unitId/review
+
+// -----------------------------------------------------------------------------
+// GET LANDLORD UNIT AND PROPERTY INFORMATION FOR REVIEW
+// -----------------------------------------------------------------------------
 export const getUnitForListingReview = async (req, res) => {
   const landlordId = req.user.id;
   const { unitId } = req.params;
@@ -113,7 +117,7 @@ export const getUnitForListingReview = async (req, res) => {
             street: true,
             barangay: true,
             zipCode: true,
-            ownerId: true, // only for authorization
+            ownerId: true, 
           },
         },
       },
@@ -140,9 +144,9 @@ export const getUnitForListingReview = async (req, res) => {
   }
 };
 
-// ============================================================================
+// -----------------------------------------------------------------------------
 // CREATE LISTING + PAYMENT SESSION (with optional FEATURED boost)
-// ============================================================================
+// -----------------------------------------------------------------------------
 export const createListingWithPayment = async (req, res) => {
   const landlordId = req.user.id;
   const { unitId } = req.params;
@@ -216,9 +220,9 @@ export const createListingWithPayment = async (req, res) => {
         attributes: {
           line_items: lineItems,
           payment_method_types: ["gcash", "paymaya"],
-          description: `Listing Fee for Unit: ${unit.label} - Property: ${unit.property.title} ${
-            isFeatured ? " (Featured)" : ""
-          }`,
+          description: `Listing Fee for Unit: ${unit.label} - Property: ${
+            unit.property.title
+          } ${isFeatured ? " (Featured)" : ""}`,
           show_line_items: true,
           show_description: true,
           cancel_url: `${process.env.FRONTEND_URL}/landlord/listing/${unitId}/review?cancel=${unitId}`,
@@ -278,7 +282,6 @@ export const createListingWithPayment = async (req, res) => {
 // ============================================================================
 // CANCEL LISTING + PAYMENT SESSION
 // ============================================================================
-// DELETE /landlord/listings/:listingId/cancel
 export const cancelListingPayment = async (req, res) => {
   const landlordId = req.user.id;
   const { listingId } = req.params;
@@ -325,11 +328,9 @@ export const cancelListingPayment = async (req, res) => {
     });
   }
 };
-
-
-// ---------------------------------------------------------
-// GET SPECIFIC LISTING FOR LANDLORD (with full Unit & Property info)
-// ---------------------------------------------------------
+// -----------------------------------------------------------------------------
+// GET SPECIFIC LISTING DETAILS (Refactored for new schema)
+// -----------------------------------------------------------------------------
 export const getLandlordSpecificListing = async (req, res) => {
   try {
     const { listingId } = req.params;
@@ -337,44 +338,58 @@ export const getLandlordSpecificListing = async (req, res) => {
     const listing = await prisma.listing.findFirst({
       where: {
         id: listingId,
-        landlordId: req.user.id, // only landlord’s own listing
+        landlordId: req.user.id,
       },
       select: {
-        // ---------------- Listing Fields ----------------
+        // ---------------------------------------------------------------------
+        // LISTING CORE
+        // ---------------------------------------------------------------------
         id: true,
         lifecycleStatus: true,
         visibleAt: true,
         hiddenAt: true,
-        flaggedAt: true,
-        blockedAt: true,
-        reviewedBy: true,
-        lastReviewedAt: true,
-        
         expiresAt: true,
+        blockedAt: true,
+        reviewedAt: true,
+        flaggedAt: true,
+
+        // --- Boosting ---
         isFeatured: true,
 
-        // --- AI Analysis Snapshot ---
-        aiRecommendations: true,
+        // ---------------------------------------------------------------------
+        // AI MODERATION
+        // ---------------------------------------------------------------------
+        propertySanitizeLogs: true,
+        unitSanitizeLogs: true,
 
-        // --- Payment Info ---
+        // ---------------------------------------------------------------------
+        // PAYMENT INFO
+        // ---------------------------------------------------------------------
         providerName: true,
         providerTxnId: true,
         paymentAmount: true,
         paymentDate: true,
 
-        // --- Admin Review ---
+        // ---------------------------------------------------------------------
+        // REVIEW / ADMIN MODERATION
+        // ---------------------------------------------------------------------
+        reviewedBy: true,
+        flaggedReason: true,
         blockedReason: true,
 
-        // --- Metadata ---
+        // ---------------------------------------------------------------------
+        // METADATA
+        // ---------------------------------------------------------------------
         createdAt: true,
         updatedAt: true,
 
-        // ---------------- UNIT ----------------
+        // ---------------------------------------------------------------------
+        // RELATIONSHIPS
+        // ---------------------------------------------------------------------
         unit: {
           select: {
             id: true,
             label: true,
-            // ---------------- PROPERTY ----------------
             property: {
               select: {
                 id: true,
@@ -423,7 +438,7 @@ export const getLandlordSpecificListing = async (req, res) => {
 // Excludes units that have an active, visible, or waiting-for-payment listing.
 // Eligible if:
 //   - never listed, or
-//   - last listing is BLOCKED, FLAGGED, or EXPIRED
+//   - last listing is BLOCKED or EXPIRED
 //   - (optional) expiredAt < now()
 // ============================================================================
 export const getEligibleUnitsForListing = async (req, res) => {
@@ -484,11 +499,14 @@ export const getEligibleUnitsForListing = async (req, res) => {
           return true;
 
         // ✅ Eligible if blocked or flagged (for re-list after fix)
-        if (lifecycleStatus === "BLOCKED")
-          return true;
+        if (lifecycleStatus === "BLOCKED") return true;
 
         // ❌ Not eligible if currently visible, hidden, or awaiting payment
-        if (["WAITING_PAYMENT", "VISIBLE", "HIDDEN", "FLAGGED"].includes(lifecycleStatus))
+        if (
+          ["WAITING_PAYMENT", "WAITING_REVIEW", "VISIBLE", "HIDDEN", "FLAGGED"].includes(
+            lifecycleStatus
+          )
+        )
           return false;
 
         // default fallback: not eligible
@@ -523,5 +541,71 @@ export const getEligibleUnitsForListing = async (req, res) => {
   } catch (err) {
     console.error("❌ Error in getEligibleUnitsForListing:", err);
     return res.status(500).json({ error: "Failed to fetch eligible units." });
+  }
+};
+
+// ----------------------------------------------------------------------------
+// GET LISTING BASIC INFO IF SUCCESS
+// ----------------------------------------------------------------------------
+export const getLandlordListingInfoSuccess = async (req, res) => {
+  try {
+    const { listingId } = req.params;
+
+    const listing = await prisma.listing.findFirst({
+      where: {
+        id: listingId,
+        landlordId: req.user.id,
+      },
+      select: {
+        id: true,
+        isFeatured: true,
+        unit: {
+          select: {
+            id: true,
+            label: true,
+            property: {
+              select: {
+                id: true,
+                title: true,
+                street: true,
+                barangay: true,
+                zipCode: true,
+                city: { select: { name: true } },
+                municipality: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!listing) {
+      return res.status(404).json({
+        message: "Listing not found or not owned by you.",
+      });
+    }
+
+    return res.status(200).json({
+      listingId: listing.id,
+      isFeatured: listing.isFeatured,
+      unit: {
+        id: listing.unit.id,
+        label: listing.unit.label,
+      },
+      property: {
+        id: listing.unit.property.id,
+        title: listing.unit.property.title,
+        address: {
+          street: listing.unit.property.street,
+          barangay: listing.unit.property.barangay,
+          zipCode: listing.unit.property.zipCode,
+          city: listing.unit.property.city?.name,
+          municipality: listing.unit.property.municipality?.name,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error in getLandlordListingInfoSuccess:", error);
+    return res.status(500).json({ error: "Failed to fetch listing details." });
   }
 };

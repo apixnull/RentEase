@@ -89,7 +89,7 @@ interface UnitLeaseRule {
 
 interface LatestListing {
   id: string;
-  lifecycleStatus: "WAITING_PAYMENT" | "VISIBLE" | "HIDDEN" | "EXPIRED" | "FLAGGED" | "BLOCKED";
+  lifecycleStatus: "WAITING_PAYMENT" | "WAITING_REVIEW" | "VISIBLE" | "HIDDEN" | "EXPIRED" | "FLAGGED" | "BLOCKED";
   isFeatured: boolean;
   visibleAt: string | null;
   hiddenAt: string | null;
@@ -706,6 +706,41 @@ const ListingStatusSection = ({
           <Button 
             onClick={() => navigate(`/landlord/listing/${latestListing.id}/details`)} 
             className="w-full gap-2 mt-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+          >
+            View Listing Details
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  // WAITING_REVIEW
+  if (lifecycleStatus === 'WAITING_REVIEW') {
+    return (
+      <Card className={`p-6 bg-purple-50 border-purple-300`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Listing Status</h3>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+              <Clock className="h-3 w-3 mr-1" />
+              Waiting Review
+            </Badge>
+            <Badge className={latestListing.isFeatured ? "bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-purple-200" : "bg-gray-100 text-gray-600 border-gray-200"}>
+              <Sparkles className="h-3 w-3 mr-1" />
+              {latestListing.isFeatured ? "Featured" : "Not Featured"}
+            </Badge>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="h-4 w-4 text-purple-500" />
+            <span className="text-gray-600">Created:</span>
+            <span className="font-medium text-gray-900">{formatDate(latestListing.createdAt)}</span>
+          </div>
+          <Button 
+            onClick={() => navigate(`/landlord/listing/${latestListing.id}/details`)} 
+            className="w-full gap-2 mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
           >
             View Listing Details
             <ArrowRight className="h-4 w-4" />

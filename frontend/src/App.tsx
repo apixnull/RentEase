@@ -40,6 +40,7 @@ import ViewSpecificScreeningTenant from "./pages/private/tenant/screening/ViewSp
 import CreateLease from "./pages/private/landlord/lease/CreateLease.tsx";
 import MyLeaseDetails from "./pages/private/tenant/lease/MyLeaseDetails.tsx";
 import AdminListing from "./pages/private/admin/listing/AdminListing.tsx";
+import AdminListingDetails from "./pages/private/admin/listing/specific-listing-details/AdminListingDetailsLayout.tsx";
 
 
 // ------------------------------- Lazy Imports
@@ -156,7 +157,6 @@ const router = createBrowserRouter([
       // listing
       { path: "listing", element: <Suspense fallback={<Loader />}><LandlordListing /></Suspense>},                                                              // display all landlord listings
       { path: "listing/:unitId/review", element: ( <Suspense fallback={<Loader />}> <ReviewUnitForListing /> </Suspense>) },                                    // ✅ review specific unit before creating a listing
-      { path: "listing/:listingId/success",  element: ( <Suspense fallback={<Loader />}> <ListingPaymentSuccess /> </Suspense>) },
       { path: "listing/:listingId/details", element: (<Suspense fallback={<Loader />}> <ListingDetails /></Suspense> ), },                                      // ✅ display specific listing details (property + unit info)
 
       // account
@@ -194,6 +194,9 @@ const router = createBrowserRouter([
   { path: "landlord/units/:propertyId/create", element: ( <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}> <CreateUnit /> </Suspense></ProtectedRoute> ), },
   // create property
   { path: "landlord/properties/create", element: ( <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}> <CreateProperty /></Suspense></ProtectedRoute>), },
+  // listing success
+  { path: "landlord/listing/:listingId/success",  element: ( <Suspense fallback={<Loader />}> <ListingPaymentSuccess /> </Suspense>) },
+
 
   // tenant routes
   {
@@ -238,8 +241,10 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Suspense fallback={<Loader />}><AdminDashboard /></Suspense> },
       { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },
+
+      // listing
       { path: "listing", element: <Suspense fallback={<Loader />}><AdminListing /></Suspense> },
-      
+      { path: "listing/:listingId/details", element: <Suspense fallback={<Loader />}><AdminListingDetails/></Suspense> },
     ],
   },
   { path: "*", element: <Suspense fallback={<Loader />}><NotFound /></Suspense> },

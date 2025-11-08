@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -25,10 +26,50 @@ interface Property {
   unitsSummary?: UnitsSummary;
 }
 
-// Loading Component
+// Loading Component (Skeleton)
 const LoadingSpinner = () => (
-  <div className="flex justify-center items-center py-12">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+  <div className="space-y-6">
+    <Card className="p-0 overflow-hidden">
+      <div className="p-6 md:p-8 space-y-6">
+        <div className="flex items-center justify-between gap-2">
+          <Skeleton className="h-6 w-40" />
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="overflow-hidden">
+            <Skeleton className="h-56 w-full" />
+          </Card>
+          <Card className="overflow-hidden">
+            <Skeleton className="h-56 w-full" />
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card className="p-6">
+            <div className="space-y-3">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-4/6" />
+            </div>
+          </Card>
+          <Card className="p-6">
+            <div className="space-y-3">
+              <Skeleton className="h-6 w-40" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10" />
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </Card>
   </div>
 );
 

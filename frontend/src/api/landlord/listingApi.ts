@@ -36,6 +36,18 @@ export const getLandlordSpecificListingRequest = (
     signal: options?.signal,
   });
 
+
+  
+// ✅ Get basic listing info when success
+export const getLandlordListingInfoSuccessRequest = (
+  listingId: string,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.get(`/landlord/listing/${listingId}/success`, {
+    signal: options?.signal,
+  });
+
+
   
 // ✅ Get eligible units for listing
 export const getEligibleUnitsForListingRequest = (options?: { signal?: AbortSignal }) =>

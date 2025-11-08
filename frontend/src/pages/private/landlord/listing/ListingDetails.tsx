@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -12,10 +12,11 @@ import {
   Eye,
   EyeOff,
   CheckCircle,
-  Edit,
-  Mail,
   HelpCircle,
-  ExternalLink
+  ExternalLink,
+  Shield,
+  Ban,
+  XCircle
 } from 'lucide-react';
 import { getLandlordSpecificListingRequest } from '@/api/landlord/listingApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,14 +57,17 @@ interface Unit {
   property: Property;
 }
 
-interface AiRecommendation {
-  part: string;
-  suggestion: string;
-}
-
 interface AiAnalysis {
   part: string;
   description: string;
+}
+
+interface SanitizeLog {
+  part: string;
+  action: string;
+  reason: string;
+  dataUsed: string | { text: string; category: string };
+  isScammingPattern?: boolean;
 }
 
 interface ListingData {
@@ -74,19 +78,19 @@ interface ListingData {
   flaggedAt: string | null;
   blockedAt: string | null;
   reviewedBy: string | null;
-  lastReviewedAt: string | null;
+  reviewedAt: string | null;
   expiresAt: string;
   isFeatured: boolean;
-  aiRecommendations: AiRecommendation[] | null;
   riskLevel: string | null; // "LOW" | "MEDIUM" | "HIGH"
-  riskReason: string | null;
   aiAnalysis: AiAnalysis[] | null;
-  yandexScreenshot: string | null;
+  propertySanitizeLogs: SanitizeLog[] | null;
+  unitSanitizeLogs: SanitizeLog[] | null;
   providerName: string | null;
   providerTxnId: string | null;
   paymentAmount: number | null;
   paymentDate: string | null;
   blockedReason: string | null;
+  flaggedReason: string | null;
   createdAt: string;
   updatedAt: string;
   unit: Unit;
@@ -98,7 +102,6 @@ export const ListingDetails = () => {
   const [listingData, setListingData] = useState<ListingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const aiRecommendationsRef = useRef<HTMLDivElement>(null);
 
   const fetchListingData = async () => {
     if (!listingId) return;
@@ -131,6 +134,7 @@ export const ListingDetails = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'WAITING_PAYMENT': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'WAITING_REVIEW': return 'bg-purple-100 text-purple-700 border-purple-200';
       case 'VISIBLE': return 'bg-emerald-100 text-emerald-700 border-emerald-200'; // Full emerald green - active and visible
       case 'HIDDEN': return 'bg-teal-100 text-teal-700 border-teal-200'; // Similar to VISIBLE but with gray-blue mix (teal = emerald + gray)
       case 'EXPIRED': return 'bg-gray-100 text-gray-700 border-gray-200';
@@ -143,6 +147,7 @@ export const ListingDetails = () => {
   const getStatusGradient = (status: string) => {
     switch (status) {
       case 'WAITING_PAYMENT': return 'from-blue-200/70 via-blue-100/50 to-blue-200/70';
+      case 'WAITING_REVIEW': return 'from-purple-200/70 via-purple-100/50 to-indigo-200/70';
       case 'VISIBLE': return 'from-emerald-200/70 via-emerald-100/50 to-emerald-200/70'; // Full emerald color
       case 'HIDDEN': return 'from-teal-200/70 via-teal-100/50 to-teal-200/70'; // Similar to VISIBLE but with gray-blue mix
       case 'EXPIRED': return 'from-gray-200/70 via-gray-100/50 to-gray-200/70';
@@ -155,6 +160,7 @@ export const ListingDetails = () => {
   const getStatusBackgroundColor = (status: string) => {
     switch (status) {
       case 'WAITING_PAYMENT': return 'bg-blue-50 border-blue-300';
+      case 'WAITING_REVIEW': return 'bg-purple-50 border-purple-300';
       case 'VISIBLE': return 'bg-emerald-50 border-emerald-300';
       case 'HIDDEN': return 'bg-teal-50 border-teal-300';
       case 'EXPIRED': return 'bg-gray-50 border-gray-300';
@@ -167,6 +173,7 @@ export const ListingDetails = () => {
   const getStatusIconBg = (status: string) => {
     switch (status) {
       case 'WAITING_PAYMENT': return 'bg-blue-500';
+      case 'WAITING_REVIEW': return 'bg-purple-500';
       case 'VISIBLE': return 'bg-emerald-500';
       case 'HIDDEN': return 'bg-teal-500';
       case 'EXPIRED': return 'bg-gray-500';
@@ -179,6 +186,7 @@ export const ListingDetails = () => {
   const getStatusBlurColor = (status: string, variant: 'light' | 'dark' = 'light') => {
     const colors = {
       WAITING_PAYMENT: variant === 'light' ? 'bg-blue-200/40' : 'bg-blue-300/40',
+      WAITING_REVIEW: variant === 'light' ? 'bg-purple-200/40' : 'bg-purple-300/40',
       VISIBLE: variant === 'light' ? 'bg-emerald-200/40' : 'bg-emerald-300/40',
       HIDDEN: variant === 'light' ? 'bg-teal-200/40' : 'bg-teal-300/40',
       EXPIRED: variant === 'light' ? 'bg-gray-200/40' : 'bg-gray-300/40',
@@ -194,6 +202,7 @@ export const ListingDetails = () => {
     
     switch (status) {
       case 'WAITING_PAYMENT': return listingData.createdAt;
+      case 'WAITING_REVIEW': return listingData.paymentDate;
       case 'VISIBLE': return listingData.visibleAt;
       case 'HIDDEN': return listingData.hiddenAt;
       case 'EXPIRED': return listingData.expiresAt;
@@ -207,6 +216,7 @@ export const ListingDetails = () => {
     const status = listingData?.lifecycleStatus;
     switch (status) {
       case 'WAITING_PAYMENT': return 'Created At';
+      case 'WAITING_REVIEW': return 'Waiting Review Since';
       case 'VISIBLE': return 'Visible At';
       case 'HIDDEN': return 'Hidden At';
       case 'EXPIRED': return 'Expired At';
@@ -220,6 +230,7 @@ export const ListingDetails = () => {
     const status = listingData?.lifecycleStatus;
     switch (status) {
       case 'WAITING_PAYMENT': return Calendar;
+      case 'WAITING_REVIEW': return Calendar;
       case 'VISIBLE': return Eye;
       case 'HIDDEN': return EyeOff;
       case 'EXPIRED': return Calendar;
@@ -229,9 +240,59 @@ export const ListingDetails = () => {
     }
   };
 
-  const handleEditUnit = () => {
-    if (listingData?.unit.id) {
-      navigate(`/landlord/units/${listingData.unit.id}/edit`);
+  const getStatusExplanation = (status: string) => {
+    switch (status) {
+      case 'WAITING_PAYMENT':
+        return {
+          text: 'Complete your payment to activate your listing. Once payment is confirmed, your listing will proceed to admin review.',
+          color: 'text-blue-700',
+          bg: 'bg-blue-50',
+          border: 'border-blue-200'
+        };
+      case 'WAITING_REVIEW':
+        return {
+          text: 'Your listing has been submitted and is currently under review by our admin team. This process typically takes within 24 hours, though reviews may be completed immediately depending on current workload. You will be notified once the review is complete.',
+          color: 'text-purple-700',
+          bg: 'bg-purple-50',
+          border: 'border-purple-200'
+        };
+      case 'FLAGGED':
+        return {
+          text: 'Your listing has been flagged for review. Please make the necessary changes based on the flagged reason provided below. Once you\'ve addressed the concerns, you may resubmit your listing for review.',
+          color: 'text-amber-700',
+          bg: 'bg-amber-50',
+          border: 'border-amber-200'
+        };
+      case 'BLOCKED':
+        return {
+          text: 'Your listing has been blocked due to policy violations. This action is typically not easily reversible. The listing was blocked because it did not comply with our privacy policy and community guidelines. Please review the policy guidelines and contact support if you believe this was done in error.',
+          color: 'text-red-700',
+          bg: 'bg-red-50',
+          border: 'border-red-200'
+        };
+      case 'EXPIRED':
+        return {
+          text: 'Your listing has expired and is no longer visible to renters. To continue receiving inquiries, please renew your listing by extending its duration or creating a new listing.',
+          color: 'text-gray-700',
+          bg: 'bg-gray-50',
+          border: 'border-gray-200'
+        };
+      case 'VISIBLE':
+        return {
+          text: 'Your listing is currently live and visible to all renters. It will remain active until the expiration date.',
+          color: 'text-emerald-700',
+          bg: 'bg-emerald-50',
+          border: 'border-emerald-200'
+        };
+      case 'HIDDEN':
+        return {
+          text: 'Your listing is currently hidden from public view. You can make it visible again at any time from your listing management dashboard.',
+          color: 'text-teal-700',
+          bg: 'bg-teal-50',
+          border: 'border-teal-200'
+        };
+      default:
+        return null;
     }
   };
 
@@ -253,6 +314,58 @@ export const ListingDetails = () => {
     });
   };
 
+  const getRiskLevelColor = (riskLevel: string | null) => {
+    if (!riskLevel) return 'bg-gray-100 text-gray-700 border-gray-200';
+    switch (riskLevel.toUpperCase()) {
+      case 'LOW': return 'bg-green-100 text-green-700 border-green-200';
+      case 'MEDIUM': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'HIGH': return 'bg-red-100 text-red-700 border-red-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+  const formatDataUsed = (dataUsed: string | { text: string; category: string } | null) => {
+    if (!dataUsed) return 'N/A';
+    if (typeof dataUsed === 'string') {
+      return dataUsed;
+    }
+    return dataUsed.text || 'N/A';
+  };
+
+  const formatReason = (reason: string | null) => {
+    if (!reason) return 'N/A';
+    
+    // Map backend reason values to user-friendly labels
+    const reasonMap: Record<string, string> = {
+      'inappropriate': 'Inappropriate Content',
+      'discriminatory': 'Discriminatory Language',
+      'scam': 'Scamming Pattern',
+      'fake_info': 'Fake Information',
+      'privacy': 'Privacy Violation',
+      'spam': 'Spam Content',
+      'illegal': 'Illegal Content',
+      'other': 'Other Violation',
+    };
+
+    // Check for exact match first (case-insensitive)
+    const lowerReason = reason.toLowerCase().trim();
+    if (reasonMap[lowerReason]) {
+      return reasonMap[lowerReason];
+    }
+
+    // Check if reason contains any key as a word boundary
+    for (const [key, label] of Object.entries(reasonMap)) {
+      if (lowerReason === key || lowerReason.startsWith(key + ' ') || lowerReason.includes(' ' + key)) {
+        return label;
+      }
+    }
+
+    // If no match, format snake_case or return capitalized
+    return reason.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ');
+  };
+
 
   useEffect(() => {
     if (listingId) {
@@ -260,44 +373,18 @@ export const ListingDetails = () => {
     }
   }, [listingId]);
 
-  // Auto-scroll to AI recommendations if listing is FLAGGED or WAITING_PAYMENT
-  useEffect(() => {
-    if (listingData && (listingData.lifecycleStatus === 'FLAGGED' || listingData.lifecycleStatus === 'WAITING_PAYMENT') && aiRecommendationsRef.current) {
-      // Small delay to ensure DOM is rendered
-      setTimeout(() => {
-        aiRecommendationsRef.current?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'start',
-          inline: 'nearest'
-        });
-      }, 300);
-    }
-  }, [listingData]);
 
   if (loading) {
     return (
       <div className="min-h-screen p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header Skeleton */}
-          <Skeleton className="h-20 w-full rounded-2xl" />
-          
-          {/* Unit & Property Information Skeleton */}
-          <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-lg">
-            <CardHeader>
-              <Skeleton className="h-6 w-48 mb-2" />
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <Skeleton className="h-16 w-full" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            </CardContent>
-          </Card>
+          <Skeleton className="h-28 w-full rounded-2xl" />
 
           {/* Main Content Grid Skeleton */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
             {/* Left Column - Listing Information Skeleton */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="space-y-6">
               <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
                 <CardHeader>
                   <Skeleton className="h-6 w-40 mb-2" />
@@ -322,7 +409,7 @@ export const ListingDetails = () => {
               </Card>
             </div>
 
-            {/* Right Column - AI Recommendations Skeleton */}
+            {/* Right Column - Content Sanitization Skeleton */}
             <div className="space-y-6">
               <Card className="bg-white/90 backdrop-blur-sm shadow-lg border-slate-200">
                 <CardHeader>
@@ -339,9 +426,6 @@ export const ListingDetails = () => {
                     <Skeleton className="h-24 w-full" />
                     <Skeleton className="h-24 w-full" />
                     <Skeleton className="h-24 w-full" />
-                  </div>
-                  <div className="mt-6">
-                    <Skeleton className="h-10 w-full rounded-md" />
                   </div>
                 </CardContent>
               </Card>
@@ -384,8 +468,8 @@ export const ListingDetails = () => {
   const { property } = unit;
   const daysUntilExpiry = getDaysUntilExpiry(listingData.expiresAt);
   
-  // Build lifecycle flow: CREATED → WAITING_PAYMENT → ACTIVE (VISIBLE/HIDDEN) → FLAGGED → BLOCKED
-  const lifecycleSteps: Array<{ label: string; date: string; status: 'active' | 'completed' | 'pending'; icon: any; stepType?: 'FLAGGED' | 'BLOCKED' }> = [];
+  // Build lifecycle flow: CREATED → PAYMENT → WAITING_REVIEW → VISIBLE/HIDDEN → FLAGGED → BLOCKED → EXPIRED
+  const lifecycleSteps: Array<{ label: string; date: string; status: 'active' | 'completed' | 'pending'; icon: any; stepType?: 'WAITING_REVIEW' | 'VISIBLE' | 'HIDDEN' | 'FLAGGED' | 'BLOCKED' }> = [];
   
   // Always show Created
   lifecycleSteps.push({ label: 'Created', date: listingData.createdAt, status: 'completed', icon: CheckCircle });
@@ -399,32 +483,44 @@ export const ListingDetails = () => {
       icon: Calendar 
     });
   } else {
-    // Show Payment step if payment was completed
+    // Payment
     if (listingData.paymentDate) {
       lifecycleSteps.push({ label: 'Payment', date: listingData.paymentDate, status: 'completed', icon: CheckCircle });
+      // Waiting Review (starts after payment) - don't show if already VISIBLE or HIDDEN
+      if (listingData.lifecycleStatus !== 'VISIBLE' && listingData.lifecycleStatus !== 'HIDDEN') {
+        lifecycleSteps.push({
+          label: 'Waiting Review',
+          date: listingData.paymentDate,
+          status: listingData.lifecycleStatus === 'WAITING_REVIEW' ? 'active' : 'completed',
+          icon: Calendar,
+          stepType: 'WAITING_REVIEW'
+        });
+      }
     }
-    
-    // Show VISIBLE if it occurred
+
+    // Show "Visible" step - active if current status is VISIBLE, completed otherwise
     if (listingData.visibleAt) {
       lifecycleSteps.push({ 
         label: 'Visible', 
         date: listingData.visibleAt, 
         status: listingData.lifecycleStatus === 'VISIBLE' ? 'active' : 'completed', 
-        icon: Eye 
+        icon: Eye,
+        stepType: 'VISIBLE'
       });
     }
-    
-    // Show HIDDEN if it occurred (only if it happened after VISIBLE)
+
+    // Show "Hidden" step - active if current status is HIDDEN, completed otherwise
     if (listingData.hiddenAt) {
       lifecycleSteps.push({ 
         label: 'Hidden', 
         date: listingData.hiddenAt, 
         status: listingData.lifecycleStatus === 'HIDDEN' ? 'active' : 'completed', 
-        icon: EyeOff 
+        icon: EyeOff,
+        stepType: 'HIDDEN'
       });
     }
-    
-    // Show FLAGGED if it occurred
+
+    // Flagged (intervention path)
     if (listingData.flaggedAt) {
       lifecycleSteps.push({ 
         label: 'Flagged', 
@@ -434,8 +530,8 @@ export const ListingDetails = () => {
         stepType: 'FLAGGED'
       });
     }
-    
-    // Show BLOCKED if it occurred
+
+    // Blocked (intervention path)
     if (listingData.blockedAt) {
       lifecycleSteps.push({ 
         label: 'Blocked', 
@@ -480,30 +576,54 @@ export const ListingDetails = () => {
             />
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent" />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-sky-300/60 to-transparent" />
-            
-            <div className="px-4 sm:px-6 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <motion.div
-                    whileHover={{ scale: 1.03 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 18 }}
-                    className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-500 text-white grid place-items-center shadow-md"
-                  >
-                    <Home className="h-5 w-5" />
-                  </motion.div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900 truncate">
-                        Listing Details
+
+            <div className="px-4 sm:px-6 py-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex flex-col gap-4 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <motion.div
+                      whileHover={{ scale: 1.03 }}
+                      transition={{ type: "spring", stiffness: 260, damping: 18 }}
+                      className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-500 text-white grid place-items-center shadow-md"
+                    >
+                      <Home className="h-6 w-6" />
+                    </motion.div>
+                    <div className="min-w-0 space-y-1">
+                      <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-gray-900 truncate">
+                        {unit.label || 'Listing Details'}
                       </h1>
-                      <Sparkles className="h-4 w-4 text-emerald-500" />
+                      <p className="text-sm text-gray-600 leading-5 truncate">
+                        {property.title || 'Untitled Property'}
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-600 leading-5 truncate">
-                      {unit.label} • {property.title}
-                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                    {property.type && (
+                      <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-200 capitalize">
+                        {property.type.toLowerCase()}
+                      </Badge>
+                    )}
+                    <div className="flex items-center gap-1 bg-white/70 border border-slate-200 rounded-full px-3 py-1 text-xs sm:text-sm text-slate-600">
+                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-500" />
+                      <span className="truncate max-w-[220px] sm:max-w-[360px]">
+                        {formatAddress(property) || 'Address not provided'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-white/70 border border-slate-200 rounded-full px-3 py-1 text-xs sm:text-sm text-slate-600">
+                      <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-500" />
+                      <span>Expires in {daysUntilExpiry} days</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap justify-start lg:justify-end">
+                  <Button
+                    onClick={() => navigate(`/landlord/units/${property.id}/${unit.id}`)}
+                    variant="outline"
+                    className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Full Unit Information
+                  </Button>
                   <Badge className={getStatusColor(listingData.lifecycleStatus) + " text-sm py-1.5 px-3"}>
                     {listingData.lifecycleStatus.replace(/_/g, ' ')}
                   </Badge>
@@ -518,47 +638,15 @@ export const ListingDetails = () => {
                 animate={{ scaleX: 1 }}
                 transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
                 style={{ originX: 0 }}
-                className="mt-3 h-0.5 w-full bg-gradient-to-r from-emerald-400/70 via-emerald-300/70 to-sky-400/70 rounded-full"
+                className="mt-4 h-0.5 w-full bg-gradient-to-r from-emerald-400/70 via-emerald-300/70 to-sky-400/70 rounded-full"
               />
             </div>
           </div>
         </motion.div>
 
-        {/* Unit & Property Information - Compact and Visible */}
-        <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-lg">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xl text-slate-900">Unit & Property Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Unit Label */}
-            <div>
-              <div className="flex items-center gap-2">
-                <Home className="h-4 w-4 text-blue-600" />
-                <h3 className="font-semibold text-slate-900">{unit.label || 'No label provided'}</h3>
-              </div>
-            </div>
-
-            {/* Property - Compact Row */}
-            <div className="mt-4 pt-4 border-t border-slate-200">
-              <div className="flex items-start gap-3">
-                <MapPin className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-slate-900">{property.title || 'No title provided'}</h3>
-                    <Badge variant="outline" className="text-xs bg-slate-100 text-slate-700 capitalize">
-                      {property.type ? property.type.toLowerCase() : 'N/A'}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-slate-600 truncate">{formatAddress(property) || <span className="italic text-slate-400">No address</span>}</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Listing Information (PRIMARY) */}
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
+          {/* Left Column - Listing Information */}
+          <div className="space-y-6">
             {/* Listing Details - PRIMARY */}
             <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
               <CardHeader>
@@ -566,6 +654,76 @@ export const ListingDetails = () => {
                 <CardDescription>Primary listing details and lifecycle status</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Current Status Summary */}
+                <div className={`p-4 rounded-lg border-2 ${getStatusBackgroundColor(listingData.lifecycleStatus)}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${getStatusIconBg(listingData.lifecycleStatus)} text-white`}>
+                        <CurrentLifecycleIcon className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">Current Status</p>
+                        <p className="text-sm text-slate-600">{getCurrentLifecycleLabel()}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-slate-900">
+                        {getCurrentLifecycleDate() ? formatDateTime(getCurrentLifecycleDate()!) : 'N/A'}
+                      </p>
+                      {listingData.lifecycleStatus !== 'WAITING_PAYMENT' && (
+                        <p className="text-xs text-slate-500">Expires in {daysUntilExpiry} days</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Status Explanation */}
+                  {(() => {
+                    const explanation = getStatusExplanation(listingData.lifecycleStatus);
+                    if (!explanation) return null;
+                    return (
+                      <div className={`mt-3 pt-3 border-t ${explanation.border} ${explanation.bg} rounded-lg p-3`}>
+                        <p className={`text-sm leading-relaxed ${explanation.color}`}>
+                          {explanation.text}
+                        </p>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* Only show blocked reason if status is BLOCKED */}
+                  {listingData.lifecycleStatus === 'BLOCKED' && (
+                    <div className="mt-3 pt-3 border-t border-red-300 space-y-2">
+                      <span className="text-xs font-semibold text-red-700 uppercase tracking-wide block">Blocked Reason</span>
+                      {listingData.blockedReason ? (
+                        <p className="text-sm text-red-800">{listingData.blockedReason}</p>
+                      ) : (
+                        <p className="text-sm italic text-slate-400">No reason provided</p>
+                      )}
+                      <p className="text-xs text-red-700">Review the policy guidelines and resolve all violations before requesting reinstatement.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                        onClick={() => navigate('/privacy-policy')}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Read Policy Guidelines
+                      </Button>
+                    </div>
+                  )}
+                  {/* Only show flagged reason if status is FLAGGED */}
+                  {listingData.lifecycleStatus === 'FLAGGED' && (
+                    <div className="mt-3 pt-3 border-t border-amber-300 space-y-2">
+                      <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide block">Flagged Reason</span>
+                      {listingData.flaggedReason ? (
+                        <p className="text-sm text-amber-800">{listingData.flaggedReason}</p>
+                      ) : (
+                        <p className="text-sm italic text-slate-400">No reason provided</p>
+                      )}
+                      <p className="text-xs text-amber-700">Address the requested updates and resubmit your listing to make it visible in public.</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Lifecycle Status Details */}
                 <div className="space-y-4">
                   <div>
@@ -585,6 +743,19 @@ export const ListingDetails = () => {
                         </Badge>
                       </div>
                     </div>
+                    {listingData.riskLevel && (
+                      <div className="mt-4">
+                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-slate-600" />
+                            <span className="text-sm text-slate-600">Risk Level</span>
+                          </div>
+                          <Badge className={getRiskLevelColor(listingData.riskLevel)}>
+                            {listingData.riskLevel}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Lifecycle Timeline - Vertical Design */}
@@ -600,6 +771,8 @@ export const ListingDetails = () => {
                           const isLast = index === lifecycleSteps.length - 1;
                           const isFlagged = step.stepType === 'FLAGGED';
                           const isBlocked = step.stepType === 'BLOCKED';
+                          const isVisible = step.stepType === 'VISIBLE';
+                          const isHidden = step.stepType === 'HIDDEN';
                           
                           // Determine colors based on step type
                           let iconBgColor = 'bg-slate-400';
@@ -628,6 +801,22 @@ export const ListingDetails = () => {
                               textColor = 'text-amber-900';
                               dateColor = 'text-amber-700';
                               activeBadgeColor = 'bg-amber-600';
+                            } else if (isVisible) {
+                              iconBgColor = 'bg-emerald-500';
+                              iconRingColor = 'ring-4 ring-emerald-200';
+                              contentBgColor = 'bg-emerald-50';
+                              contentBorderColor = 'border-2 border-emerald-300';
+                              textColor = 'text-emerald-900';
+                              dateColor = 'text-emerald-700';
+                              activeBadgeColor = 'bg-emerald-600';
+                            } else if (isHidden) {
+                              iconBgColor = 'bg-teal-500';
+                              iconRingColor = 'ring-4 ring-teal-200';
+                              contentBgColor = 'bg-teal-50';
+                              contentBorderColor = 'border-2 border-teal-300';
+                              textColor = 'text-teal-900';
+                              dateColor = 'text-teal-700';
+                              activeBadgeColor = 'bg-teal-600';
                             } else {
                               iconBgColor = 'bg-amber-500';
                               iconRingColor = 'ring-4 ring-amber-200';
@@ -652,6 +841,20 @@ export const ListingDetails = () => {
                               textColor = 'text-amber-900';
                               dateColor = 'text-amber-700';
                               timelineColor = 'bg-amber-300';
+                            } else if (isVisible) {
+                              iconBgColor = 'bg-emerald-500';
+                              contentBgColor = 'bg-emerald-50';
+                              contentBorderColor = 'border border-emerald-200';
+                              textColor = 'text-emerald-900';
+                              dateColor = 'text-emerald-700';
+                              timelineColor = 'bg-emerald-300';
+                            } else if (isHidden) {
+                              iconBgColor = 'bg-teal-500';
+                              contentBgColor = 'bg-teal-50';
+                              contentBorderColor = 'border border-teal-200';
+                              textColor = 'text-teal-900';
+                              dateColor = 'text-teal-700';
+                              timelineColor = 'bg-teal-300';
                             } else {
                               iconBgColor = 'bg-emerald-500';
                               contentBgColor = 'bg-emerald-50';
@@ -698,40 +901,6 @@ export const ListingDetails = () => {
                             </div>
                           );
                         })}
-                      </div>
-                      
-                      {/* Current Status Summary */}
-                      <div className={`mt-6 p-4 rounded-lg border-2 ${getStatusBackgroundColor(listingData.lifecycleStatus)}`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${getStatusIconBg(listingData.lifecycleStatus)} text-white`}>
-                              <CurrentLifecycleIcon className="h-6 w-6" />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-slate-900">Current Status</p>
-                              <p className="text-sm text-slate-600">{getCurrentLifecycleLabel()}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-slate-900">
-                              {getCurrentLifecycleDate() ? formatDateTime(getCurrentLifecycleDate()!) : 'N/A'}
-                            </p>
-                            {listingData.lifecycleStatus !== 'WAITING_PAYMENT' && (
-                              <p className="text-xs text-slate-500">Expires in {daysUntilExpiry} days</p>
-                            )}
-                          </div>
-                        </div>
-                        {/* Only show blocked reason if status is BLOCKED */}
-                        {listingData.lifecycleStatus === 'BLOCKED' && (
-                          <div className="mt-3 pt-3 border-t border-red-300">
-                            <span className="text-xs font-semibold text-red-700 uppercase tracking-wide block mb-1">Blocked Reason</span>
-                            {listingData.blockedReason ? (
-                              <p className="text-sm text-red-800">{listingData.blockedReason}</p>
-                            ) : (
-                              <p className="text-sm italic text-slate-400">No reason provided</p>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -786,237 +955,258 @@ export const ListingDetails = () => {
                     <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Review Status</h3>
                     <div className="space-y-2">
                       <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm text-slate-600">Reviewed By</span>
-                        {listingData.reviewedBy ? (
-                          <span className="text-sm font-medium text-slate-900">{listingData.reviewedBy}</span>
-                        ) : (
-                          <span className="text-sm italic text-slate-400">Not reviewed</span>
-                        )}
-                      </div>
-                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm text-slate-600">Last Reviewed At</span>
-                        {listingData.lastReviewedAt ? (
-                          <span className="text-sm font-medium text-slate-900">{formatDateTime(listingData.lastReviewedAt)}</span>
+                        <span className="text-sm text-slate-600">Reviewed At</span>
+                        {listingData.reviewedAt ? (
+                          <span className="text-sm font-medium text-slate-900">{formatDateTime(listingData.reviewedAt)}</span>
                         ) : (
                           <span className="text-sm italic text-slate-400">Not reviewed</span>
                         )}
                       </div>
                     </div>
                   </div>
+
+                  {/* Image Flags removed: deprecated in backend */}
                 </div>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Right Column - Sidebar */}
-          <div className="space-y-6">
-            {/* AI Recommendations with Urgent Warning */}
-            <div ref={aiRecommendationsRef}>
-              <Card className={`bg-white/90 backdrop-blur-sm shadow-lg ${
-                listingData.lifecycleStatus === 'BLOCKED'
-                  ? 'border-2 border-red-300 bg-gradient-to-br from-red-50 to-rose-50' 
-                  : listingData.lifecycleStatus === 'FLAGGED'
-                  ? 'border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50' 
-                  : listingData.lifecycleStatus === 'WAITING_PAYMENT'
-                  ? 'border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50'
-                  : 'border-slate-200'
-              }`}>
+            {/* AI Analysis Section */}
+            {listingData.aiAnalysis && listingData.aiAnalysis.length > 0 && (
+              <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
                 <CardHeader>
-                  <div className="space-y-3">
-                    {/* Urgent Warning Banner - Show for FLAGGED and BLOCKED */}
-                    {listingData.lifecycleStatus === 'FLAGGED' && (
-                      <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg border-2 border-amber-400">
-                        <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0">
-                          <AlertTriangle className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-bold text-amber-900 mb-1">⚠️ Urgent Action Required</h3>
-                          <p className="text-sm text-amber-800 leading-relaxed">
-                            Your listing has been <strong>FLAGGED</strong> and requires immediate attention. 
-                            <strong className="text-amber-900"> If these issues are not addressed within multiple days, your listing will be automatically BLOCKED.</strong>
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    {listingData.lifecycleStatus === 'BLOCKED' && (
-                      <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-red-100 to-rose-100 rounded-lg border-2 border-red-400">
-                        <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                          <AlertCircle className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-bold text-red-900 mb-1">🚫 Listing Blocked</h3>
-                          <p className="text-sm text-red-800 leading-relaxed">
-                            Your listing has been <strong>BLOCKED</strong> and is no longer visible to users. 
-                            <strong className="text-red-900"> Address the issues below and contact support to restore your listing.</strong>
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* AI Recommendations Header */}
-                    <div className="flex items-center gap-2">
-                      <Lightbulb className={`h-6 w-6 ${
-                        listingData.lifecycleStatus === 'BLOCKED'
-                          ? 'text-red-600'
-                          : listingData.lifecycleStatus === 'FLAGGED'
-                          ? 'text-amber-600'
-                          : 'text-blue-600'
-                      }`} />
-                      <CardTitle className={`flex-1 flex items-center gap-2 text-xl ${
-                        listingData.lifecycleStatus === 'BLOCKED'
-                          ? 'text-red-900'
-                          : listingData.lifecycleStatus === 'FLAGGED'
-                          ? 'text-amber-900'
-                          : 'text-slate-900'
-                      }`}>
-                        AI Recommendations
-                        {listingData.lifecycleStatus === 'BLOCKED' && (
-                          <Badge className="bg-red-500 text-white border-red-600 animate-pulse">
-                            ⚠️ Action Required
-                          </Badge>
-                        )}
-                        {listingData.lifecycleStatus === 'FLAGGED' && (
-                          <Badge className="bg-amber-500 text-white border-amber-600 animate-pulse">
-                            ⚠️ Action Required
-                          </Badge>
-                        )}
-                      </CardTitle>
-                    </div>
-                    <CardDescription className={
-                      listingData.lifecycleStatus === 'BLOCKED'
-                        ? 'text-red-700 font-medium' 
-                        : listingData.lifecycleStatus === 'FLAGGED' 
-                        ? 'text-amber-700 font-medium' 
-                        : listingData.lifecycleStatus === 'WAITING_PAYMENT'
-                        ? 'text-blue-700 font-medium'
-                        : 'text-slate-600'
-                    }>
-                      {listingData.lifecycleStatus === 'BLOCKED'
-                        ? 'Your listing has been blocked. Address these issues immediately and contact support to restore your listing.'
-                        : listingData.lifecycleStatus === 'FLAGGED' 
-                        ? 'Address these issues immediately to prevent your listing from being blocked. Edit your unit information below to resolve these recommendations.'
-                        : listingData.lifecycleStatus === 'WAITING_PAYMENT'
-                        ? 'Complete payment to make your listing visible. Review these recommendations while waiting.'
-                        : 'Recommendations to improve your listing performance'}
-                    </CardDescription>
-                    <div className="mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate('/privacy-policy')}
-                        className="flex items-center gap-2 text-xs"
-                      >
-                        <HelpCircle className="h-3 w-3" />
-                        Learn More
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="h-5 w-5 text-blue-600" />
+                    <CardTitle className="text-xl text-slate-900">AI Analysis</CardTitle>
                   </div>
+                  <CardDescription>Automated analysis of your listing content</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {listingData.aiRecommendations && listingData.aiRecommendations.length > 0 ? (
-                    <>
-                      <div className="space-y-4">
-                        {listingData.aiRecommendations.map((recommendation, index) => (
-                          <div key={index} className={`flex items-start gap-4 p-4 rounded-lg border-2 ${
-                            listingData.lifecycleStatus === 'BLOCKED'
-                              ? 'bg-white border-red-300 shadow-sm'
-                              : listingData.lifecycleStatus === 'FLAGGED'
-                              ? 'bg-white border-amber-300 shadow-sm'
-                              : listingData.lifecycleStatus === 'WAITING_PAYMENT'
-                              ? 'bg-white border-blue-300 shadow-sm'
-                              : 'bg-blue-50 border-blue-200'
-                          }`}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              listingData.lifecycleStatus === 'BLOCKED'
-                                ? 'bg-red-500 text-white'
-                                : listingData.lifecycleStatus === 'FLAGGED'
-                                ? 'bg-amber-500 text-white'
-                                : listingData.lifecycleStatus === 'WAITING_PAYMENT'
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-blue-500 text-white'
-                            }`}>
-                              <span className="text-sm font-bold">{index + 1}</span>
+                  <div className="space-y-3">
+                    {listingData.aiAnalysis.map((analysis, index) => (
+                      <div key={index} className="flex items-start gap-3 p-4 rounded-lg border border-blue-200 bg-blue-50">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-500 text-white">
+                          <span className="text-sm font-bold">{index + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm mb-1 capitalize text-blue-900">
+                            {analysis.part}
+                          </p>
+                          <p className="text-sm leading-relaxed text-blue-800">
+                            {analysis.description}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Right Column - Content Sanitization */}
+          <div className="space-y-6">
+            {(listingData.propertySanitizeLogs && listingData.propertySanitizeLogs.length > 0) ||
+             (listingData.unitSanitizeLogs && listingData.unitSanitizeLogs.length > 0) ? (
+              <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-lg">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Ban className="h-5 w-5 text-red-600" />
+                    <CardTitle className="text-xl text-slate-900">Content Sanitization Logs</CardTitle>
+                  </div>
+                  <CardDescription>Content automatically removed or modified</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {(() => {
+                    const allLogs = [
+                      ...(listingData.propertySanitizeLogs || []),
+                      ...(listingData.unitSanitizeLogs || [])
+                    ];
+                    const hasScammingPattern = allLogs.some((log) =>
+                      log.isScammingPattern === true ||
+                      log.reason?.toLowerCase()?.trim() === "scam"
+                    );
+
+                    if (hasScammingPattern) {
+                      return (
+                        <div className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-400 rounded-lg p-4 shadow-sm">
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                              <AlertCircle className="h-5 w-5 text-white" />
                             </div>
                             <div className="flex-1">
-                              <p className={`font-semibold text-sm mb-1 capitalize ${
-                                listingData.lifecycleStatus === 'BLOCKED'
-                                  ? 'text-red-900'
-                                  : listingData.lifecycleStatus === 'FLAGGED'
-                                  ? 'text-amber-900'
-                                  : listingData.lifecycleStatus === 'WAITING_PAYMENT'
-                                  ? 'text-blue-900'
-                                  : 'text-blue-900'
-                              }`}>
-                                {recommendation.part}
+                              <h3 className="font-bold text-red-900 mb-2">⚠️ Scamming Pattern Detected</h3>
+                              <p className="text-sm text-red-800 leading-relaxed mb-3">
+                                This scamming attempt has been <strong>recorded in your account</strong>.
+                                Multiple attempts of fraudulent or scamming content will result in <strong>account suspension or permanent ban</strong>.
+                                Please refrain from using fraudulent pricing schemes, upfront payment requests, or deceptive content in your listings.
                               </p>
-                              <p className={`text-sm leading-relaxed ${
-                                listingData.lifecycleStatus === 'BLOCKED'
-                                  ? 'text-red-800'
-                                  : listingData.lifecycleStatus === 'FLAGGED'
-                                  ? 'text-amber-800'
-                                  : listingData.lifecycleStatus === 'WAITING_PAYMENT'
-                                  ? 'text-blue-800'
-                                  : 'text-blue-800'
-                              }`}>
-                                {recommendation.suggestion}
-                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate('/privacy-policy')}
+                                className="flex items-center gap-2 text-xs border-red-300 text-red-700 hover:bg-red-100"
+                              >
+                                <HelpCircle className="h-3 w-3" />
+                                Learn More
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                      <div className="mt-6 pt-4 border-t-2 border-slate-300 space-y-3">
-                        {listingData.lifecycleStatus === 'BLOCKED' ? (
-                          <>
-                            <Button 
-                              onClick={() => window.location.href = 'mailto:support@rentease.com?subject=Listing Blocked - Support Request'}
-                              className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-lg"
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {listingData.propertySanitizeLogs && listingData.propertySanitizeLogs.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide flex items-center gap-2">
+                        <Home className="h-4 w-4" />
+                        Property Content Removed
+                      </h3>
+                      <div className="space-y-3">
+                        {listingData.propertySanitizeLogs.map((log, index) => {
+                          const isScamReason = log.reason?.toLowerCase()?.trim() === "scam";
+                          const isSevere = log.isScammingPattern || isScamReason;
+                          return (
+                            <div
+                              key={index}
+                              className={`p-4 rounded-lg border-2 ${
+                                isSevere
+                                  ? 'bg-red-50 border-red-300'
+                                  : 'bg-amber-50 border-amber-300'
+                              }`}
                             >
-                              <Mail className="h-4 w-4 mr-2" />
-                              Contact Support
-                            </Button>
-                            <p className="text-xs text-center text-slate-600">
-                              Blocked listings require support assistance to restore. This action is difficult to reverse.
-                            </p>
-                          </>
-                        ) : listingData.lifecycleStatus === 'FLAGGED' ? (
-                          <>
-                            <Button 
-                              onClick={handleEditUnit}
-                              className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-lg"
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit Your Unit Information Here
-                            </Button>
-                            <p className="text-xs text-center text-amber-700">
-                              Fix these issues to restore your listing. If ignored for many days, your listing will be automatically blocked.
-                            </p>
-                          </>
-                        ) : (
-                          <Button 
-                            onClick={handleEditUnit}
-                            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg"
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit Your Unit Information Here
-                          </Button>
-                        )}
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-2">
+                                  {isSevere ? (
+                                    <XCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                  ) : (
+                                    <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                                  )}
+                                  <span className="font-semibold text-sm capitalize text-slate-900">
+                                    {log.part}
+                                  </span>
+                                  {isSevere && (
+                                    <Badge className="bg-red-500 text-white text-xs">Scamming Pattern</Badge>
+                                  )}
+                                </div>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    isSevere
+                                      ? 'border-red-300 text-red-700 bg-red-100'
+                                      : 'border-amber-300 text-amber-700 bg-amber-100'
+                                  }`}
+                                >
+                                  {log.action}
+                                </Badge>
+                              </div>
+                              <p className={`text-sm font-medium mb-2 ${
+                                isSevere ? 'text-red-800' : 'text-slate-700'
+                              }`}>
+                                Reason: {formatReason(log.reason)}
+                              </p>
+                              <div className={`mt-2 pt-2 border-t ${isSevere ? 'border-red-200' : 'border-slate-200'}`}>
+                                <p className={`text-xs mb-1 ${isSevere ? 'text-red-700' : 'text-slate-600'}`}>Removed Content:</p>
+                                <p className={`text-sm bg-white/50 p-2 rounded border font-mono break-words ${
+                                  isSevere 
+                                    ? 'text-red-900 border-red-200' 
+                                    : 'text-slate-800 border-slate-200'
+                                }`}>
+                                  {formatDataUsed(log.dataUsed)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </>
-                  ) : (
-                    <div className="p-6 text-center border-2 border-dashed border-slate-300 rounded-lg bg-slate-50">
-                      <Lightbulb className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                      <p className="text-sm text-slate-600 font-medium mb-1">No AI Recommendations Available</p>
-                      <p className="text-xs text-slate-500 italic">
-                        {listingData.lifecycleStatus === 'WAITING_PAYMENT' 
-                          ? 'Complete payment to receive recommendations for your listing.'
-                          : 'Recommendations will appear here once your listing is analyzed.'}
-                      </p>
+                    </div>
+                  )}
+
+                  {listingData.unitSanitizeLogs && listingData.unitSanitizeLogs.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide flex items-center gap-2">
+                        <Home className="h-4 w-4" />
+                        Unit Content Removed
+                      </h3>
+                      <div className="space-y-3">
+                        {listingData.unitSanitizeLogs.map((log, index) => {
+                          const isScamReason = log.reason?.toLowerCase()?.trim() === "scam";
+                          const isSevere = log.isScammingPattern || isScamReason;
+                          return (
+                            <div
+                              key={index}
+                              className={`p-4 rounded-lg border-2 ${
+                                isSevere
+                                  ? 'bg-red-50 border-red-300'
+                                  : 'bg-amber-50 border-amber-300'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-2">
+                                  {isSevere ? (
+                                    <XCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                  ) : (
+                                    <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                                  )}
+                                  <span className="font-semibold text-sm capitalize text-slate-900">
+                                    {log.part}
+                                  </span>
+                                  {isSevere && (
+                                    <Badge className="bg-red-500 text-white text-xs">Scamming Pattern</Badge>
+                                  )}
+                                </div>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    isSevere
+                                      ? 'border-red-300 text-red-700 bg-red-100'
+                                      : 'border-amber-300 text-amber-700 bg-amber-100'
+                                  }`}
+                                >
+                                  {log.action}
+                                </Badge>
+                              </div>
+                              <p className={`text-sm font-medium mb-2 ${
+                                isSevere ? 'text-red-800' : 'text-slate-700'
+                              }`}>
+                                Reason: {formatReason(log.reason)}
+                              </p>
+                              <div className={`mt-2 pt-2 border-t ${isSevere ? 'border-red-200' : 'border-slate-200'}`}>
+                                <p className={`text-xs mb-1 ${isSevere ? 'text-red-700' : 'text-slate-600'}`}>Removed Content:</p>
+                                <p className={`text-sm bg-white/50 p-2 rounded border font-mono break-words ${
+                                  isSevere 
+                                    ? 'text-red-900 border-red-200' 
+                                    : 'text-slate-800 border-slate-200'
+                                }`}>
+                                  {formatDataUsed(log.dataUsed)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </CardContent>
               </Card>
-            </div>
+            ) : (
+              <Card className="bg-white/90 backdrop-blur-sm border-dashed border-2 border-slate-200 shadow-none">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Ban className="h-5 w-5 text-slate-500" />
+                    <CardTitle className="text-xl text-slate-900">No Content Sanitization Logs</CardTitle>
+                  </div>
+                  <CardDescription>Your listing content passed automated checks.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600">
+                    Keep providing accurate and policy-compliant information to maintain a clean record.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

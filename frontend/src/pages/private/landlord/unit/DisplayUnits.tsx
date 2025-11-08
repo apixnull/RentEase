@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Building, ChevronLeft, ChevronRight, Home, Plus, Search, Star, Clock, Eye, RefreshCw, Filter, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, useParams } from "react-router-dom"; 
 
@@ -9,7 +10,7 @@ import { useNavigate, useParams } from "react-router-dom";
 type Unit = {
   id: string;
   label: string;
-  description: string;
+
   floorNumber: number | null;
   maxOccupancy: number;
   targetPrice: number;
@@ -83,10 +84,43 @@ const StarRating = ({ rating, showText = true }: { rating: number; showText?: bo
   );
 };
 
-// Loading Component
+// Loading Component (Skeleton)
 const LoadingSpinner = () => (
-  <div className="flex justify-center items-center py-12">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+  <div className="space-y-4">
+    <Card className="p-4">
+      <div className="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center">
+        <div className="flex flex-col md:flex-row gap-3 w-full lg:w-auto">
+          <Skeleton className="h-9 w-full md:w-80" />
+          <Skeleton className="h-9 w-48" />
+          <Skeleton className="h-9 w-44" />
+          <Skeleton className="h-9 w-32" />
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-28" />
+        </div>
+      </div>
+      <div className="mt-2">
+        <Skeleton className="h-4 w-32" />
+      </div>
+    </Card>
+
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <Card key={i} className="overflow-hidden">
+          <Skeleton className="w-full" style={{ height: '160px' }} />
+          <div className="p-3 space-y-2">
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-3 w-2/3" />
+            <div className="grid grid-cols-2 gap-2">
+              <Skeleton className="h-6" />
+              <Skeleton className="h-6" />
+            </div>
+            <Skeleton className="h-6 w-full" />
+          </div>
+        </Card>
+      ))}
+    </div>
   </div>
 );
 

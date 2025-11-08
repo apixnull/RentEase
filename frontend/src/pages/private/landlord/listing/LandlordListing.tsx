@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, CreditCard, MapPin, Star, TrendingUp, ArrowRight, CheckCircle2, Flag, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, CreditCard, MapPin, Star, TrendingUp, ArrowRight, CheckCircle2, Flag, Info, ChevronDown, ChevronUp, FileSearch } from 'lucide-react';
 import { getLandlordListingsRequest, getEligibleUnitsForListingRequest } from '@/api/landlord/listingApi';
 import PageHeader from '@/components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,9 +54,10 @@ interface Payment {
 
 interface Listing {
   id: string;
-  lifecycleStatus: 'WAITING_PAYMENT' | 'VISIBLE' | 'HIDDEN' | 'EXPIRED' | 'BLOCKED';
+  lifecycleStatus: 'WAITING_PAYMENT' | 'WAITING_REVIEW' | 'VISIBLE' | 'HIDDEN' | 'EXPIRED' | 'BLOCKED';
   isFeatured: boolean;
   expiresAt: string | null;
+  reviewedAt: string | null;
   createdAt: string;
   updatedAt: string;
   payment: Payment;
@@ -96,6 +97,16 @@ const LandlordListing = () => {
       borderColor: 'border-blue-200',
       textColor: 'text-blue-700',
       description: 'Listings pending payment confirmation'
+    },
+    WAITING_REVIEW: {
+      title: 'Waiting Review',
+      icon: FileSearch,
+      count: 0,
+      color: 'bg-gradient-to-r from-purple-600 to-indigo-600',
+      bgColor: 'bg-purple-100',
+      borderColor: 'border-purple-200',
+      textColor: 'text-purple-700',
+      description: 'Payment complete, waiting admin review'
     },
     VISIBLE: {
       title: 'Visible',
@@ -419,8 +430,8 @@ const LandlordListing = () => {
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
               {/* Lifecycle Stages Skeleton */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-                {[...Array(5)].map((_, i) => (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                {[...Array(6)].map((_, i) => (
                   <div key={i} className="p-3 rounded-lg border-2 border-slate-200 bg-white">
                     <div className="flex items-start gap-2.5">
                       <Skeleton className="h-8 w-8 rounded-lg" />
@@ -465,7 +476,7 @@ const LandlordListing = () => {
                 <Table>
                   <TableHeader className="bg-gradient-to-r from-blue-50 to-emerald-50">
                     <TableRow className="hover:bg-transparent border-blue-100">
-                      {[...Array(8)].map((_, i) => (
+                      {[...Array(9)].map((_, i) => (
                         <TableHead key={i} className="py-2">
                           <Skeleton className="h-4 w-20" />
                         </TableHead>
@@ -496,6 +507,9 @@ const LandlordListing = () => {
                         </TableCell>
                         <TableCell className="py-2">
                           <Skeleton className="h-5 w-20 rounded-full" />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Skeleton className="h-3 w-24" />
                         </TableCell>
                         <TableCell className="py-2">
                           <Skeleton className="h-3 w-24" />
@@ -585,7 +599,7 @@ const LandlordListing = () => {
           {isLifecycleExpanded && (
             <CardContent className="px-4 pb-4 space-y-3">
               {/* Lifecycle Stages */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
                 {/* Stage 1: Waiting Payment */}
                 <div 
                   className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
@@ -612,7 +626,33 @@ const LandlordListing = () => {
                   )}
                 </div>
 
-                {/* Stage 2: Active (with VISIBLE/HIDDEN inside) */}
+                {/* Stage 2: Waiting Review */}
+                <div 
+                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                    selectedStatus === 'WAITING_REVIEW'
+                      ? 'bg-purple-50 border-purple-300 shadow-lg'
+                      : 'bg-white border-purple-200 hover:border-purple-300 hover:shadow-md'
+                  }`}
+                  onClick={() => handleStatusClick('WAITING_REVIEW')}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center group-hover:bg-purple-600 transition-colors">
+                      <FileSearch className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-900">Waiting Review</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Admin review</p>
+                      <p className="text-base font-bold text-purple-700 mt-1.5">{statusCounts['WAITING_REVIEW'] || 0}</p>
+                    </div>
+                  </div>
+                  {selectedStatus === 'WAITING_REVIEW' && (
+                    <div className="absolute top-1.5 right-1.5">
+                      <CheckCircle2 className="h-3 w-3 text-purple-600" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Stage 3: Active (with VISIBLE/HIDDEN inside) */}
                 <div 
                   className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
                     selectedStatus === 'active' || selectedStatus === 'VISIBLE' || selectedStatus === 'HIDDEN'
@@ -670,7 +710,7 @@ const LandlordListing = () => {
                   )}
                 </div>
 
-                {/* Stage 3: Flagged */}
+                {/* Stage 4: Flagged */}
                 <div 
                   className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
                     selectedStatus === 'FLAGGED'
@@ -685,39 +725,13 @@ const LandlordListing = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-900">Flagged</p>
-                      <p className="text-[10px] text-slate-600 mt-0.5">Under review</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Needs Revision</p>
                       <p className="text-base font-bold text-amber-700 mt-1.5">{statusCounts['FLAGGED'] || 0}</p>
                     </div>
                   </div>
                   {selectedStatus === 'FLAGGED' && (
                     <div className="absolute top-1.5 right-1.5">
                       <CheckCircle2 className="h-3 w-3 text-amber-600" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Stage 4: Expired */}
-                <div 
-                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
-                    selectedStatus === 'EXPIRED'
-                      ? 'bg-gray-50 border-gray-300 shadow-lg'
-                      : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
-                  }`}
-                  onClick={() => handleStatusClick('EXPIRED')}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-500 flex items-center justify-center group-hover:bg-gray-600 transition-colors">
-                      <Clock className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-900">Expired</p>
-                      <p className="text-[10px] text-slate-600 mt-0.5">Expired listings</p>
-                      <p className="text-base font-bold text-gray-700 mt-1.5">{statusCounts['EXPIRED'] || 0}</p>
-                    </div>
-                  </div>
-                  {selectedStatus === 'EXPIRED' && (
-                    <div className="absolute top-1.5 right-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-gray-600" />
                     </div>
                   )}
                 </div>
@@ -747,10 +761,39 @@ const LandlordListing = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Stage 6: Expired */}
+                <div 
+                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                    selectedStatus === 'EXPIRED'
+                      ? 'bg-gray-50 border-gray-300 shadow-lg'
+                      : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
+                  }`}
+                  onClick={() => handleStatusClick('EXPIRED')}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-500 flex items-center justify-center group-hover:bg-gray-600 transition-colors">
+                      <Clock className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-900">Expired</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Expired listings</p>
+                      <p className="text-base font-bold text-gray-700 mt-1.5">{statusCounts['EXPIRED'] || 0}</p>
+                    </div>
+                  </div>
+                  {selectedStatus === 'EXPIRED' && (
+                    <div className="absolute top-1.5 right-1.5">
+                      <CheckCircle2 className="h-3 w-3 text-gray-600" />
+                    </div>
+                  )}
+                </div>
+
+                
               </div>
 
               {/* Lifecycle Flow Arrows (Visual) */}
               <div className="hidden lg:flex items-center justify-between px-2 -mt-1">
+                <ArrowRight className="h-3 w-3 text-slate-400" />
                 <ArrowRight className="h-3 w-3 text-slate-400" />
                 <ArrowRight className="h-3 w-3 text-slate-400" />
                 <ArrowRight className="h-3 w-3 text-slate-400" />
@@ -891,6 +934,7 @@ const LandlordListing = () => {
                       <TableHead className="font-semibold text-blue-900 py-2 text-xs">Featured</TableHead>
                       <TableHead className="font-semibold text-blue-900 py-2 text-xs">Payment</TableHead>
                       <TableHead className="font-semibold text-blue-900 py-2 text-xs">Expires</TableHead>
+                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Reviewed</TableHead>
                       <TableHead className="font-semibold text-blue-900 py-2 text-xs">Created</TableHead>
                       <TableHead className="font-semibold text-blue-900 py-2 text-xs text-right">Actions</TableHead>
                     </TableRow>
@@ -959,6 +1003,18 @@ const LandlordListing = () => {
                                 <div className="flex items-center gap-1.5">
                                   <Clock className="h-3 w-3 text-gray-500" />
                                   <span className="text-[10px]">{formatDate(listing.expiresAt)}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">—</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <div className="text-xs text-gray-600">
+                              {listing.reviewedAt ? (
+                                <div className="flex items-center gap-1.5">
+                                  <CheckCircle2 className="h-3 w-3 text-purple-500" />
+                                  <span className="text-[10px]">{formatDate(listing.reviewedAt)}</span>
                                 </div>
                               ) : (
                                 <span className="text-gray-400 text-xs">—</span>
