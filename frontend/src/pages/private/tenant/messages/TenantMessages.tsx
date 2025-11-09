@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getUserChatChannelsRequest } from "@/api/chatApi";
-import { supabase } from "@/lib/supabaseClient";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -68,7 +67,7 @@ type Channel = {
 
 type FilterType = "ALL" | "INQUIRY" | "LEASE" | "PREV-LEASE";
 
-// Custom Hook for Channels - Real-time updates via Supabase
+// Custom Hook for Channels - Real-time updates via polling
 const useChannels = () => {
   const currentUser = useAuthStore((state) => state.user);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -104,27 +103,13 @@ const useChannels = () => {
     // Initial load
     loadChannels();
 
-    // Real-time subscription - use Supabase only as change detector
-    // Even if it returns unauthorized, we just use it to trigger backend refetch
-    const subscription = supabase
-      .channel('chat_channels_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_channels'
-        },
-        () => {
-          // Silent refetch from backend when changes detected
-          // We don't care about Supabase errors - just use it as a trigger
-          silentRefetch();
-        }
-      )
-      .subscribe();
+    // Polling for real-time updates every 10 seconds
+    const interval = setInterval(() => {
+      silentRefetch();
+    }, 10000);
 
     return () => {
-      subscription.unsubscribe();
+      clearInterval(interval);
     };
   }, [currentUser]);
 
