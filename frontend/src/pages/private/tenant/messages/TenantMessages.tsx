@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getUserChatChannelsRequest } from "@/api/chatApi";
 import { supabase } from "@/lib/supabaseClient";
@@ -6,6 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import PageHeader from "@/components/PageHeader";
 import { 
   Search, 
   MessageCircle, 
@@ -13,7 +24,9 @@ import {
   Check,
   CheckCheck,
   Home,
-  Zap
+  MessageSquare,
+  Send,
+  HelpCircle
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -55,12 +68,13 @@ type Channel = {
 
 type FilterType = "ALL" | "INQUIRY" | "LEASE" | "PREV-LEASE";
 
-// Custom Hook for Channels
+// Custom Hook for Channels - Real-time updates via Supabase
 const useChannels = () => {
   const currentUser = useAuthStore((state) => state.user);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Initial load with loading state
   const loadChannels = async () => {
     try {
       const response = await getUserChatChannelsRequest();
@@ -73,12 +87,25 @@ const useChannels = () => {
     }
   };
 
+  // Silent refetch for real-time updates (no loading state)
+  const silentRefetch = async () => {
+    try {
+      const response = await getUserChatChannelsRequest();
+      const channelsData = Array.isArray(response.data) ? response.data : [];
+      setChannels(channelsData);
+    } catch (error) {
+      console.error("Failed to silently refetch channels:", error);
+    }
+  };
+
   useEffect(() => {
     if (!currentUser) return;
 
+    // Initial load
     loadChannels();
 
-    // Real-time subscription
+    // Real-time subscription - use Supabase only as change detector
+    // Even if it returns unauthorized, we just use it to trigger backend refetch
     const subscription = supabase
       .channel('chat_channels_changes')
       .on(
@@ -89,7 +116,9 @@ const useChannels = () => {
           table: 'chat_channels'
         },
         () => {
-          loadChannels();
+          // Silent refetch from backend when changes detected
+          // We don't care about Supabase errors - just use it as a trigger
+          silentRefetch();
         }
       )
       .subscribe();
@@ -102,27 +131,58 @@ const useChannels = () => {
   return { channels, loading, loadChannels };
 };
 
-// Advertisement Component
-const AdvertisementSection = () => (
-  <div className="bg-gradient-to-br from-purple-600 to-blue-700 rounded-xl p-4 text-white shadow-lg">
-    <div className="flex items-center gap-2 mb-2">
-      <Zap className="w-5 h-5 text-yellow-300" />
-      <h3 className="font-bold text-base">Premium Features</h3>
-    </div>
-    <p className="text-purple-100 text-xs mb-3">
-      Unlock advanced messaging tools and priority support.
-    </p>
-    <div className="space-y-1 mb-3">
-      {["Unlimited message history", "Document sharing", "Smart reminders"].map((feature) => (
-        <div key={feature} className="flex items-center gap-1">
-          <CheckCheck className="w-3 h-3 text-green-300" />
-          <span className="text-xs">{feature}</span>
+// Loading Skeleton Component
+const MessagesSkeleton = () => (
+  <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+    {/* Header Skeleton */}
+    <div className="relative overflow-hidden rounded-2xl">
+      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-emerald-200/70 via-emerald-100/50 to-sky-200/70 opacity-90" />
+      <div className="relative m-[1px] rounded-[15px] bg-white/70 backdrop-blur-md border border-white/50 p-4 sm:p-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-64" />
+          </div>
         </div>
-      ))}
+      </div>
     </div>
-    <Button className="w-full bg-white text-purple-700 hover:bg-gray-100 font-semibold rounded-lg text-sm">
-      Upgrade Now
-    </Button>
+
+    {/* Main Content Skeleton */}
+    <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+      <CardHeader>
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full" />
+          <div className="flex gap-2 flex-wrap">
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-3 p-3 border rounded-lg">
+              <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/4" />
+                <div className="flex gap-4">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   </div>
 );
 
@@ -171,11 +231,11 @@ const ChannelItem = ({
 
   const getStatusColor = (status: string) => {
     const colors = {
-      "INQUIRY": "bg-blue-100 text-blue-800 border-blue-200",
-      "LEASE": "bg-green-100 text-green-800 border-green-200",
-      "PREV-LEASE": "bg-orange-100 text-orange-800 border-orange-200"
+      "INQUIRY": "bg-blue-50 text-blue-700 border-blue-200",
+      "LEASE": "bg-emerald-50 text-emerald-700 border-emerald-200",
+      "PREV-LEASE": "bg-amber-50 text-amber-700 border-amber-200"
     };
-    return colors[status as keyof typeof colors] || "bg-gray-100 text-gray-800 border-gray-200";
+    return colors[status as keyof typeof colors] || "bg-slate-100 text-slate-700 border-slate-200";
   };
 
   const getStatusDisplayText = (status: string) => {
@@ -188,44 +248,47 @@ const ChannelItem = ({
   };
 
   const getStatusIcon = (channel: Channel) => {
-    if (!channel.readAt && channel.lastMessageSenderId !== currentUser?.id) {
-      return <div className="w-2 h-2 bg-blue-500 rounded-full" />;
-    }
-    
+    // If current user sent the message, show read receipts
     if (channel.lastMessageSenderId === currentUser?.id) {
       return channel.readAt ? (
-        <CheckCheck className="w-3 h-3 text-blue-500" />
+        <CheckCheck className="w-3 h-3 text-slate-500" />
       ) : (
-        <Check className="w-3 h-3 text-gray-400" />
+        <Check className="w-3 h-3 text-slate-400" />
       );
+    }
+    
+    // If someone else sent and readAt is null, it's unread
+    if (!channel.readAt && channel.lastMessageSenderId !== currentUser?.id) {
+      return <div className="w-2 h-2 bg-blue-600 rounded-full" />;
     }
     
     return null;
   };
 
   const counterpart = getCounterpart(channel);
-  const hasUnread = !channel.readAt && channel.lastMessageSenderId !== currentUser?.id;
+  // Unread: readAt is null AND message was sent by someone else
+  const hasUnread = channel.readAt === null && channel.lastMessageSenderId !== currentUser?.id;
   const lastActivity = channel.lastMessageAt || channel.updatedAt || channel.createdAt;
 
   return (
     <div
-      className={`group bg-white hover:bg-gray-50 border rounded-lg p-3 cursor-pointer transition-all duration-200 ${
+      className={`group bg-white hover:bg-slate-50 border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
         hasUnread 
-          ? 'border-blue-300 bg-blue-50 hover:bg-blue-100' 
-          : 'border-gray-200 hover:border-blue-300'
+          ? 'border-blue-300 bg-blue-50/50 hover:bg-blue-100/50 shadow-sm' 
+          : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
       }`}
       onClick={onClick}
     >
       <div className="flex items-start gap-3">
         <div className="relative flex-shrink-0">
-          <Avatar className="h-12 w-12 border-2 border-white shadow">
+          <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
             <AvatarImage src={counterpart.avatarUrl || undefined} />
-            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-green-500 text-white font-semibold text-sm">
+            <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-sm">
               {counterpart.firstName?.[0]}{counterpart.lastName?.[0]}
             </AvatarFallback>
           </Avatar>
           {hasUnread && (
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 border-2 border-white rounded-full" />
+            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-600 border-2 border-white rounded-full" />
           )}
         </div>
 
@@ -233,7 +296,7 @@ const ChannelItem = ({
           <div className="flex items-start justify-between mb-1">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <h3 className={`font-semibold text-sm truncate ${
-                hasUnread ? 'text-blue-900' : 'text-gray-900'
+                hasUnread ? 'text-slate-900' : 'text-slate-900'
               }`}>
                 {counterpart.firstName} {counterpart.lastName}
               </h3>
@@ -246,7 +309,7 @@ const ChannelItem = ({
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               <span className={`text-xs whitespace-nowrap ${
-                hasUnread ? 'text-blue-700 font-medium' : 'text-gray-500'
+                hasUnread ? 'text-slate-700 font-medium' : 'text-slate-500'
               }`}>
                 {formatTime(lastActivity)}
               </span>
@@ -262,12 +325,12 @@ const ChannelItem = ({
           </Badge>
 
           <p className={`text-xs mb-2 line-clamp-2 ${
-            hasUnread ? 'text-blue-800 font-medium' : 'text-gray-600'
+            hasUnread ? 'text-slate-800 font-medium' : 'text-slate-600'
           }`}>
             {getLastMessageDisplay(channel)}
           </p>
 
-          <div className="flex items-center gap-3 text-xs text-gray-500">
+          <div className="flex items-center gap-3 text-xs text-slate-500">
             <div className="flex items-center gap-1">
               <Building className="w-3 h-3" />
               <span className="truncate">{channel.unit.property.title}</span>
@@ -299,21 +362,88 @@ const FilterButtons = ({
   ];
 
   return (
-    <div className="flex gap-1 flex-wrap justify-center sm:justify-start">
+    <div className="flex gap-1 flex-wrap">
       {filters.map((filter) => (
         <Button
           key={filter.key}
           variant={statusFilter === filter.key ? "default" : "outline"}
           size="sm"
           onClick={() => onStatusFilterChange(filter.key)}
-          className={`rounded-lg text-xs px-3 ${
-            statusFilter === filter.key ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''
+          className={`rounded-lg text-xs px-4 transition-all ${
+            statusFilter === filter.key 
+              ? 'bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-sm' 
+              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
           }`}
         >
           {filter.label}
         </Button>
       ))}
     </div>
+  );
+};
+
+// Quick Tips Modal Component
+const QuickTipsModal = () => {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 text-sky-500/80 hover:text-sky-600 hover:bg-sky-50"
+        >
+          <HelpCircle className="h-4 w-4" />
+          <span className="hidden sm:inline">Quick Tips</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-emerald-400 rounded-lg flex items-center justify-center">
+              <MessageCircle className="w-5 h-5 text-white" />
+            </div>
+            <DialogTitle>Quick Tips</DialogTitle>
+          </div>
+          <DialogDescription>
+            Learn how to effectively use the messaging system
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 mt-4">
+          <p className="text-sm text-slate-600">
+            Click any conversation to view messages and communicate with landlords about property details and lease information.
+          </p>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></div>
+              <div>
+                <p className="text-sm font-medium text-slate-900 mb-1">Unread Messages</p>
+                <p className="text-xs text-slate-600">
+                  A blue indicator dot shows when you have unread messages from landlords.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
+              <CheckCheck className="w-4 h-4 text-slate-500 mt-1 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-slate-900 mb-1">Read Receipts</p>
+                <p className="text-xs text-slate-600">
+                  A double check icon indicates that your message has been read by the recipient.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
+              <Building className="w-4 h-4 text-slate-500 mt-1 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-slate-900 mb-1">Property Information</p>
+                <p className="text-xs text-slate-600">
+                  Each conversation shows the property and unit you're discussing with your landlord.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -339,128 +469,111 @@ const ChatChannelsList = ({
     return currentUser?.id === channel.tenantId ? channel.landlord : channel.tenant;
   };
 
-  const filteredChannels = channels.filter(channel => {
-    if (statusFilter !== "ALL" && channel.status !== statusFilter) return false;
+  const filteredChannels = useMemo(() => {
+    return channels.filter(channel => {
+      if (statusFilter !== "ALL" && channel.status !== statusFilter) return false;
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const counterpart = getCounterpart(channel);
-      const searchableText = [
-        counterpart.firstName,
-        counterpart.lastName,
-        channel.unit.label,
-        channel.unit.property.title,
-        channel.lastMessageText
-      ].join(" ").toLowerCase();
-      return searchableText.includes(query);
-    }
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const counterpart = getCounterpart(channel);
+        const searchableText = [
+          counterpart.firstName,
+          counterpart.lastName,
+          channel.unit.label,
+          channel.unit.property.title,
+          channel.lastMessageText
+        ].join(" ").toLowerCase();
+        return searchableText.includes(query);
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [channels, searchQuery, statusFilter, currentUser]);
 
-  const sortedChannels = [...filteredChannels].sort((a, b) => {
-    const aDate = a.lastMessageAt || a.updatedAt || a.createdAt;
-    const bDate = b.lastMessageAt || b.updatedAt || b.createdAt;
-    return new Date(bDate).getTime() - new Date(aDate).getTime();
-  });
+  const sortedChannels = useMemo(() => {
+    return [...filteredChannels].sort((a, b) => {
+      const aDate = a.lastMessageAt || a.updatedAt || a.createdAt;
+      const bDate = b.lastMessageAt || b.updatedAt || b.createdAt;
+      return new Date(bDate).getTime() - new Date(aDate).getTime();
+    });
+  }, [filteredChannels]);
 
   const handleChannelClick = (channel: Channel) => {
     navigate(`/tenant/messages/${channel.id}`);
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4">
+    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Header Section */}
-      <div className="text-center mb-6">
-        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
-          <MessageCircle className="w-8 h-8 text-white" />
-        </div>
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent mb-2">
-          Your Messages
-        </h1>
-        <p className="text-gray-600 text-sm">
-          Connect with landlords and tenants
-        </p>
-      </div>
+      <PageHeader
+        title="Messages"
+        description="Connect with landlords and manage your conversations"
+        icon={MessageCircle}
+        actions={
+          <div className="flex items-center gap-2">
+            <QuickTipsModal />
+            <div className="hidden sm:flex items-center gap-2 text-sky-500/80">
+              <MessageSquare className="h-4 w-4" />
+              <Send className="h-4 w-4" />
+            </div>
+          </div>
+        }
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Main Content */}
-        <div className="lg:col-span-3">
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-4">
-            {/* Search and Filters */}
-            <div className="flex flex-col gap-3 mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search conversations..."
-                  value={searchQuery}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  className="pl-10 h-10 bg-gray-50 border-0 focus:ring-2 focus:ring-blue-500 rounded-lg text-sm"
-                />
-              </div>
-              <FilterButtons 
-                statusFilter={statusFilter} 
-                onStatusFilterChange={onStatusFilterChange} 
+      {/* Main Content */}
+      <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+        <CardHeader>
+          <div className="flex flex-col gap-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="pl-10 h-11 bg-slate-50 border-slate-200 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 rounded-lg text-sm"
               />
             </div>
-
-            {/* Channels List */}
-            <div className="space-y-2">
-              {sortedChannels.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <MessageCircle className="w-12 h-12 text-gray-300 mb-3" />
-                  <h3 className="text-base font-semibold text-gray-900 mb-2">
-                    {searchQuery || statusFilter !== "ALL" 
-                      ? "No matches found" 
-                      : "No conversations yet"}
-                  </h3>
-                  <p className="text-gray-600 text-xs max-w-xs">
-                    {searchQuery || statusFilter !== "ALL" 
-                      ? "Try adjusting your search or filter"
-                      : "Your conversations will appear here"}
-                  </p>
+            
+            {/* Filters Row */}
+            <FilterButtons 
+              statusFilter={statusFilter} 
+              onStatusFilterChange={onStatusFilterChange} 
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Channels List */}
+          <div className="space-y-3">
+            {sortedChannels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-sky-100 to-emerald-100 rounded-full flex items-center justify-center mb-4">
+                  <MessageCircle className="w-8 h-8 text-slate-500" />
                 </div>
-              ) : (
-                sortedChannels.map((channel) => (
-                  <ChannelItem
-                    key={channel.id}
-                    channel={channel}
-                    currentUser={currentUser}
-                    onClick={() => handleChannelClick(channel)}
-                  />
-                ))
-              )}
-            </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                  {searchQuery || statusFilter !== "ALL" 
+                    ? "No matches found" 
+                    : "No conversations yet"}
+                </h3>
+                <p className="text-slate-600 text-sm max-w-sm">
+                  {searchQuery || statusFilter !== "ALL" 
+                    ? "Try adjusting your search or filter criteria"
+                    : "Your conversations with landlords will appear here once you start messaging"}
+                </p>
+              </div>
+            ) : (
+              sortedChannels.map((channel) => (
+                <ChannelItem
+                  key={channel.id}
+                  channel={channel}
+                  currentUser={currentUser}
+                  onClick={() => handleChannelClick(channel)}
+                />
+              ))
+            )}
           </div>
-
-          {/* Quick Tips - Mobile only */}
-          <div className="lg:hidden bg-gradient-to-r from-blue-50 to-green-50 rounded-xl p-4 border border-blue-200 mb-4">
-            <h4 className="font-semibold text-gray-900 mb-1 flex items-center gap-2 text-sm">
-              <MessageCircle className="w-4 h-4 text-blue-600" />
-              Quick Tips
-            </h4>
-            <p className="text-xs text-gray-600">
-              Tap any conversation to view messages and stay connected
-            </p>
-          </div>
-        </div>
-
-        {/* Sidebar - Desktop only */}
-        <div className="hidden lg:block space-y-4">
-          <AdvertisementSection />
-
-          {/* Quick Tips - Desktop */}
-          <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl p-4 border border-blue-200">
-            <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2 text-sm">
-              <MessageCircle className="w-4 h-4 text-blue-600" />
-              Quick Tips
-            </h4>
-            <p className="text-xs text-gray-600">
-              Click any conversation to view messages, discuss property details, and stay connected
-            </p>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
@@ -474,17 +587,14 @@ const TenantMessages = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-3"></div>
-          <p className="text-gray-600 text-sm">Loading your conversations...</p>
-        </div>
+      <div className="min-h-screen py-4">
+        <MessagesSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 py-4">
+    <div className="min-h-screen py-4">
       <ChatChannelsList
         channels={channels}
         searchQuery={searchQuery}

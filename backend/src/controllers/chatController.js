@@ -184,6 +184,7 @@ export const getSpecificChannelMessages = async (req, res) => {
             lastName: true,
             avatarUrl: true,
             role: true,
+            email: true,
           },
         },
         landlord: {
@@ -193,6 +194,7 @@ export const getSpecificChannelMessages = async (req, res) => {
             lastName: true,
             avatarUrl: true,
             role: true,
+            email: true,
           },
         },
         unit: {
@@ -228,12 +230,14 @@ export const getSpecificChannelMessages = async (req, res) => {
         name: `${channel.tenant.firstName || ""} ${channel.tenant.lastName || ""}`.trim(),
         avatarUrl: channel.tenant.avatarUrl || null,
         role: channel.tenant.role,
+        email: channel.tenant.email,
       },
       {
         id: channel.landlord.id,
         name: `${channel.landlord.firstName || ""} ${channel.landlord.lastName || ""}`.trim(),
         avatarUrl: channel.landlord.avatarUrl || null,
         role: channel.landlord.role,
+        email: channel.landlord.email,
       },
     ];
 

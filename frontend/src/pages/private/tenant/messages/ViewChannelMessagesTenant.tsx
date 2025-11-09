@@ -1,8 +1,23 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getChannelMessagesRequest, sendMessageRequest, markMessagesAsReadRequest } from "@/api/chatApi";
 import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import PageHeader from "@/components/PageHeader";
+import {
+  MessageCircle,
+  Send,
+  Check,
+  CheckCheck,
+  Clock,
+  Info,
+  ShieldAlert
+} from "lucide-react";
 
 interface Message {
   id: string;
@@ -42,32 +57,39 @@ interface ChannelMessagesResponse {
   messages: Message[];
 }
 
-const TENANT_TIPS = [
-  {
-    id: 1,
-    title: "📅 Schedule Viewing",
-    content: "Ask about available times to see the property in person",
-    icon: "📅"
-  },
-  {
-    id: 2,
-    title: "💰 Rent Details",
-    content: "Confirm monthly rent, security deposit, and utilities",
-    icon: "💰"
-  },
-  {
-    id: 3,
-    title: "📝 Application Process",
-    content: "Ask about required documents and screening criteria",
-    icon: "📝"
-  },
-  {
-    id: 4,
-    title: "🏠 Amenities",
-    content: "Discuss parking, laundry, pets, and other amenities",
-    icon: "🏠"
-  }
-];
+// Loading Skeleton Component
+const MessagesSkeleton = () => (
+  <div className="min-h-screen p-4 sm:p-6">
+    <div className="max-w-7xl mx-auto space-y-6">
+      <Skeleton className="h-24 w-full rounded-2xl" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-end gap-3">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-16 w-64 rounded-lg" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+        <div className="hidden lg:block">
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 const ViewChannelMessagesTenant = () => {
   const { channelId } = useParams<{ channelId: string }>();
@@ -80,8 +102,6 @@ const ViewChannelMessagesTenant = () => {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const sidebarRef = useRef<HTMLDivElement>(null);
-  const [showSidebar, setShowSidebar] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -90,11 +110,11 @@ const ViewChannelMessagesTenant = () => {
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return "Current Rental";
+        return "Current Lease";
       case "ENDED":
-        return "Previous Rental";
+        return "Previous Lease";
       case "INQUIRY":
-        return "Rental Inquiry";
+        return "My Inquiry";
       default:
         return status;
     }
@@ -103,13 +123,13 @@ const ViewChannelMessagesTenant = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return "bg-emerald-100 text-emerald-800 border-emerald-200";
+        return "bg-emerald-50 text-emerald-700 border-emerald-200";
       case "ENDED":
-        return "bg-slate-100 text-slate-800 border-slate-200";
+        return "bg-amber-50 text-amber-700 border-amber-200";
       case "INQUIRY":
-        return "bg-blue-100 text-blue-800 border-blue-200";
+        return "bg-blue-50 text-blue-700 border-blue-200";
       default:
-        return "bg-slate-100 text-slate-800";
+        return "bg-slate-100 text-slate-700 border-slate-200";
     }
   };
 
@@ -129,9 +149,11 @@ const ViewChannelMessagesTenant = () => {
     }
   };
 
-  const getLandlordParticipant = () => {
-    if (!data) return null;
-    return data.participants.find(participant => participant.role === "LANDLORD");
+  // Get the OTHER participant (the one we're talking to, not the current user)
+  const getOtherParticipant = () => {
+    if (!data || !currentUser) return null;
+    // Find the participant who is NOT the current user
+    return data.participants.find(participant => participant.id !== currentUser.id);
   };
 
   const fetchMessages = async () => {
@@ -195,333 +217,283 @@ const ViewChannelMessagesTenant = () => {
   }, [data?.messages]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-slate-600 font-medium">Loading conversation...</div>
-        </div>
-      </div>
-    );
+    return <MessagesSkeleton />;
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 font-medium mb-4">{error || "No messages found"}</div>
-          <button 
-            onClick={fetchMessages}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Try Again
-          </button>
-        </div>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <div className="text-red-500 mb-4">{error || "No messages found"}</div>
+            <Button onClick={fetchMessages} variant="default">
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const landlordParticipant = getLandlordParticipant();
+  const otherParticipant = getOtherParticipant();
   const groupedMessages = groupMessagesByDate(data.messages);
 
-  return (
-    <div className="flex h-screen bg-slate-50">
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full bg-white shadow-sm">
-        {/* Header */}
-        <div className="bg-white border-b border-slate-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              {/* Mobile menu button */}
-              <button 
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="lg:hidden p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
-              >
-                <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-
-              {landlordParticipant && (
-                <>
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center overflow-hidden shadow-sm">
-                      {landlordParticipant.avatarUrl ? (
-                        <img
-                          src={landlordParticipant.avatarUrl}
-                          alt={landlordParticipant.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-lg font-semibold text-white">
-                          {landlordParticipant.name.charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-semibold text-slate-900">
-                      {landlordParticipant.name}
-                    </h1>
-                    <div className="flex items-center space-x-3 text-sm">
-                      <span className="text-slate-600 font-medium">{data.channel.unit.property.title} - {data.channel.unit.label}</span>
-                      <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(data.channel.status)}`}>
-                        {getStatusDisplay(data.channel.status)}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="text-right">
-              <div className="text-xs text-slate-500 font-medium">Last updated</div>
-              <div className="text-sm text-slate-700 font-medium">{formatDistanceToNow(lastUpdate)} ago</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Messages Container */}
-        <div 
-          ref={messagesContainerRef}
-          className="flex-1 overflow-y-auto px-4 py-6 bg-slate-50/50"
+  // Custom title with role badge
+  const pageHeaderTitle: React.ReactNode = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span>{otherParticipant?.name || ''}</span>
+      {otherParticipant?.role && (
+        <Badge 
+          variant="outline" 
+          className={`text-xs font-semibold border ${
+            otherParticipant.role === "LANDLORD"
+              ? "bg-purple-50 text-purple-700 border-purple-200 shadow-sm"
+              : otherParticipant.role === "TENANT"
+              ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm"
+              : "bg-slate-50 text-slate-700 border-slate-200 shadow-sm"
+          }`}
         >
-          <div className="max-w-3xl mx-auto space-y-6">
-            {groupedMessages.map((group) => (
-              <div key={group.date} className="space-y-4">
-                {/* Date Header */}
-                <div className="flex justify-center">
-                  <div className="bg-white px-4 py-2 rounded-full text-sm text-slate-500 font-medium border border-slate-200 shadow-sm">
-                    {formatDateHeader(group.date)}
-                  </div>
-                </div>
-
-                {/* Messages */}
-                {group.messages.map((message, index) => {
-                  const sender = data.participants.find(p => p.id === message.senderId);
-                  const isCurrentUser = currentUser?.id === message.senderId;
-                  const showAvatar = index === 0 || group.messages[index - 1]?.senderId !== message.senderId;
-
-                  return (
-                    <div
-                      key={message.id}
-                      className={`flex items-start space-x-3 ${
-                        isCurrentUser ? "flex-row-reverse space-x-reverse" : ""
-                      }`}
-                    >
-                      {/* Avatar */}
-                      {showAvatar && sender && !isCurrentUser && (
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex-shrink-0 overflow-hidden shadow-sm">
-                          {sender.avatarUrl ? (
-                            <img
-                              src={sender.avatarUrl}
-                              alt={sender.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="w-full h-full flex items-center justify-center text-sm font-semibold text-white">
-                              {sender.name.charAt(0).toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Spacer for alignment when no avatar */}
-                      {!showAvatar && !isCurrentUser && <div className="w-10 flex-shrink-0"></div>}
-
-                      {/* Message Content */}
-                      <div
-                        className={`max-w-[75%] ${
-                          isCurrentUser ? "text-right" : ""
-                        }`}
-                      >
-                        {showAvatar && sender && !isCurrentUser && (
-                          <div className="text-sm text-slate-700 font-medium mb-1 ml-2">
-                            {sender.name}
-                          </div>
-                        )}
-                        <div
-                          className={`px-4 py-3 rounded-2xl shadow-sm ${
-                            isCurrentUser
-                              ? "bg-blue-600 text-white rounded-br-md"
-                              : "bg-white border border-slate-200 rounded-bl-md"
-                          }`}
-                        >
-                          <p className="text-slate-900 text-sm leading-relaxed">{message.content}</p>
-                        </div>
-                        <div
-                          className={`text-xs mt-2 ${
-                            isCurrentUser ? "text-right text-blue-600" : "text-left text-slate-500"
-                          } font-medium`}
-                        >
-                          {formatMessageTime(message.createdAt)}
-                          {message.readAt && isCurrentUser && (
-                            <span className="ml-2 text-blue-500">✓ Read</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
-
-        {/* Input Area */}
-        <div className="bg-white border-t border-slate-200 px-6 py-4">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex items-end space-x-4">
-              <div className="flex-1 border border-slate-300 rounded-xl px-4 py-3 bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                <textarea
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Type your message about the rental..."
-                  className="w-full outline-none resize-none bg-transparent text-sm max-h-32 placeholder-slate-400 text-slate-700"
-                  rows={1}
-                  disabled={sending}
-                />
-              </div>
-              <button
-                onClick={sendMessage}
-                disabled={!newMessage.trim() || sending}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold shadow-sm"
-              >
-                {sending ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Sending...</span>
-                  </div>
-                ) : (
-                  "Send"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Sidebar - Rental Information & Tips */}
-      <div 
-        ref={sidebarRef}
-        className={`w-80 bg-white border-l border-slate-200 transition-all duration-300 ${
-          showSidebar ? "block absolute right-0 top-0 h-full z-50 shadow-xl" : "hidden"
-        } lg:block lg:relative`}
-      >
-        <div className="p-6 h-full overflow-y-auto">
-          {/* Close button for mobile */}
-          <button 
-            onClick={() => setShowSidebar(false)}
-            className="lg:hidden absolute top-4 right-4 p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
-          >
-            <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <h2 className="text-xl font-bold text-slate-900 mb-2">
-            Rental Inquiry
-          </h2>
-          <p className="text-slate-600 text-sm mb-6">
-            You're inquiring about this property with the landlord
-          </p>
-
-          {/* Property Info Card */}
-          <div className="mb-6">
-            <h3 className="font-semibold text-slate-900 mb-3 flex items-center">
-              <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              Property Details
-            </h3>
-            <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-200">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600 font-medium">Property</span>
-                <span className="text-sm font-semibold text-slate-900">{data.channel.unit.property.title}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600 font-medium">Unit</span>
-                <span className="text-sm font-semibold text-slate-900">{data.channel.unit.label}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600 font-medium">Status</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(data.channel.status)}`}>
-                  {getStatusDisplay(data.channel.status)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Landlord Information */}
-          <div className="mb-6">
-            <h3 className="font-semibold text-slate-900 mb-3 flex items-center">
-              <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              Landlord
-            </h3>
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              {landlordParticipant && (
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center overflow-hidden shadow-sm">
-                    {landlordParticipant.avatarUrl ? (
-                      <img
-                        src={landlordParticipant.avatarUrl}
-                        alt={landlordParticipant.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-lg font-semibold text-white">
-                        {landlordParticipant.name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-slate-900">{landlordParticipant.name}</div>
-                    <div className="text-xs text-slate-500 font-medium">Property Owner</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Inquiry Tips */}
-          <div>
-            <h3 className="font-semibold text-slate-900 mb-3 flex items-center">
-              <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Helpful Tips
-            </h3>
-            <div className="space-y-3">
-              {TENANT_TIPS.map((tip) => (
-                <div
-                  key={tip.id}
-                  className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100 hover:border-blue-200 transition-colors"
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className="text-lg">{tip.icon}</div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-slate-900 mb-1">{tip.title}</h4>
-                      <p className="text-xs text-slate-600 leading-relaxed">{tip.content}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Overlay for mobile sidebar */}
-      {showSidebar && (
-        <div 
-          className="lg:hidden fixed inset-0 bg-black/20 z-40"
-          onClick={() => setShowSidebar(false)}
-        />
+          {otherParticipant.role}
+        </Badge>
       )}
+    </div>
+  );
+
+  // Description with highlighted status badge
+  const pageHeaderDescription: React.ReactNode = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-sm text-gray-600">
+        {data.channel.unit.property.title} • {data.channel.unit.label}
+      </span>
+      <Badge 
+        variant="outline" 
+        className={`text-xs font-semibold border ${
+          data.channel.status === "INQUIRY" 
+            ? "bg-blue-100 text-blue-700 border-blue-300 shadow-sm animate-pulse" 
+            : getStatusColor(data.channel.status)
+        }`}
+      >
+        {getStatusDisplay(data.channel.status)}
+      </Badge>
+    </div>
+  );
+
+  // Custom icon component that displays avatar with MessageCircle icon
+  const AvatarWithIcon = () => {
+    if (!otherParticipant) return null;
+    return (
+      <div className="relative h-10 w-10">
+        <Avatar className="h-10 w-10 border-2 border-white shadow-md">
+          <AvatarImage src={otherParticipant.avatarUrl || undefined} />
+          <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-sm">
+            {otherParticipant.name.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="absolute -bottom-1 -right-1 h-5 w-5 bg-gradient-to-br from-emerald-600 to-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm">
+          <MessageCircle className="h-3 w-3 text-white" />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen pb-4">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+        {/* Page Header */}
+        {otherParticipant && (
+          <PageHeader
+            title={pageHeaderTitle}
+            description={pageHeaderDescription}
+            customIcon={<AvatarWithIcon />}
+            actions={
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Last updated */}
+                <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
+                  <Clock className="h-3 w-3" />
+                  <span>{formatDistanceToNow(lastUpdate)} ago</span>
+                </div>
+              </div>
+            }
+          />
+        )}
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Messages Area - Takes 2 columns on large screens */}
+          <div className="lg:col-span-2 flex flex-col h-[calc(100vh-16rem)] min-h-[500px] max-w-full">
+            <Card className="flex-1 flex flex-col overflow-hidden border-slate-200 shadow-sm">
+              {/* Messages Container - Scrollable */}
+              <div 
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 bg-slate-50/50"
+              >
+                <div className="space-y-6">
+                  {groupedMessages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="w-16 h-16 bg-gradient-to-br from-sky-100 to-emerald-100 rounded-full flex items-center justify-center mb-4">
+                        <MessageCircle className="w-8 h-8 text-slate-500" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2">No messages yet</h3>
+                      <p className="text-slate-600 text-sm max-w-sm">
+                        Start the conversation by sending a message
+                      </p>
+                    </div>
+                  ) : (
+                    groupedMessages.map((group) => (
+                      <div key={group.date} className="space-y-4">
+                        {/* Date Header */}
+                        <div className="flex justify-center">
+                          <div className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs text-slate-600 shadow-sm">
+                            {formatDateHeader(group.date)}
+                          </div>
+                        </div>
+
+                        {/* Messages */}
+                        {group.messages.map((message) => {
+                          const sender = data.participants.find(p => p.id === message.senderId);
+                          const isCurrentUser = currentUser?.id === message.senderId;
+                          const isOtherParticipant = !isCurrentUser;
+                          // Only show avatar for other participant (never for current user)
+                          const showAvatar = isOtherParticipant;
+
+                          return (
+                            <div
+                              key={message.id}
+                                className={`flex items-end gap-3 ${
+                                  isCurrentUser ? "flex-row-reverse" : ""
+                                }`}
+                            >
+                              {/* Avatar - only show for other participant, never for current user */}
+                              {showAvatar && sender && (
+                                <Avatar className="h-8 w-8 border-2 border-white shadow-sm flex-shrink-0">
+                                  <AvatarImage src={sender.avatarUrl || undefined} />
+                                  <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white text-xs">
+                                    {sender.name.charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              )}
+
+                              {/* Spacer for alignment - only needed when avatar is not shown */}
+                              {!showAvatar && <div className="w-8 flex-shrink-0"></div>}
+
+                              {/* Message Content */}
+                              <div
+                                className={`max-w-[75%] sm:max-w-[70%] ${
+                                  isCurrentUser ? "text-right" : ""
+                                }`}
+                              >
+                                {showAvatar && sender && (
+                                  <div className={`text-xs text-slate-600 mb-1 ${isCurrentUser ? 'text-right mr-2' : 'ml-2'}`}>
+                                    {sender.name}
+                                  </div>
+                                )}
+                                <div
+                                  className={`px-4 py-2.5 rounded-2xl shadow-sm ${
+                                    isCurrentUser
+                                      ? "bg-gradient-to-r from-sky-500 to-emerald-500 text-white rounded-br-md"
+                                      : "bg-white border border-slate-200 rounded-bl-md"
+                                  }`}
+                                >
+                                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                                </div>
+                                <div
+                                  className={`text-xs mt-1.5 flex items-center gap-1 ${
+                                    isCurrentUser ? "justify-end text-slate-500" : "text-slate-500"
+                                  }`}
+                                >
+                                  <span>{formatMessageTime(message.createdAt)}</span>
+                                  {message.readAt && isCurrentUser && (
+                                    <CheckCheck className="h-3 w-3 text-sky-500" />
+                                  )}
+                                  {!message.readAt && isCurrentUser && (
+                                    <Check className="h-3 w-3 text-slate-400" />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
+
+              {/* Input Area - Fixed at bottom */}
+              <div className="border-t border-slate-200 bg-white px-4 sm:px-6 py-4">
+                <div className="flex items-end gap-3">
+                  <div className="flex-1 border border-slate-200 rounded-lg px-4 py-2.5 bg-slate-50 focus-within:bg-white focus-within:border-sky-300 transition-colors">
+                    <textarea
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Type your message..."
+                      className="w-full outline-none resize-none bg-transparent text-sm max-h-32 text-slate-900 placeholder:text-slate-400"
+                      rows={1}
+                      disabled={sending}
+                    />
+                  </div>
+                  <Button
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() || sending}
+                    className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white px-6 gap-2 h-11"
+                  >
+                    <Send className="h-4 w-4" />
+                    {sending ? "Sending..." : "Send"}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Reminders Sidebar - Right Section */}
+          <div className="hidden lg:block">
+            <Card className="border-slate-200 shadow-sm sticky top-6">
+              <CardHeader className="pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-amber-600" />
+                  <h3 className="font-semibold text-slate-900 text-sm">Reminders for Tenants</h3>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-blue-900 text-sm">Message Policy</h4>
+                      <p className="text-xs text-blue-800 leading-relaxed">
+                        Messages in this conversation cannot be deleted or edited for audit purposes. All messages are permanently recorded to maintain transparency and accountability in rental communications.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1.5 flex-shrink-0" />
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      All messages are stored permanently and cannot be modified or removed.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1.5 flex-shrink-0" />
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      This ensures a complete audit trail for all rental-related communications.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1.5 flex-shrink-0" />
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      Please be mindful of what you share in messages as they cannot be edited or deleted.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

@@ -3,14 +3,15 @@ import { motion } from "framer-motion";
 import { Sparkles, Stars, Waves } from "lucide-react";
 
 interface PageHeaderProps {
-	title: string;
-	description?: string;
+	title: string | React.ReactNode;
+	description?: string | React.ReactNode;
 	icon?: React.ComponentType<{ className?: string }>;
+	customIcon?: React.ReactNode;
 	actions?: React.ReactNode;
 	className?: string;
 }
 
-const PageHeader = ({ title, description, icon: Icon, actions, className }: PageHeaderProps) => {
+const PageHeader = ({ title, description, icon: Icon, customIcon, actions, className }: PageHeaderProps) => {
     return (
         <motion.div
             initial={{ opacity: 0, y: -8 }}
@@ -48,7 +49,14 @@ const PageHeader = ({ title, description, icon: Icon, actions, className }: Page
                         <div className="flex items-start justify-between gap-4">
                             <div className="flex items-center gap-3 min-w-0">
                                 {/* Primary icon */}
-                                {Icon ? (
+                                {customIcon ? (
+                                    <motion.div
+                                        whileHover={{ scale: 1.03 }}
+                                        transition={{ type: "spring", stiffness: 260, damping: 18 }}
+                                    >
+                                        {customIcon}
+                                    </motion.div>
+                                ) : Icon ? (
                                     <motion.div
                                         whileHover={{ scale: 1.03, rotate: 0.4 }}
                                         transition={{ type: "spring", stiffness: 260, damping: 18 }}
@@ -60,15 +68,27 @@ const PageHeader = ({ title, description, icon: Icon, actions, className }: Page
 
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900 truncate">
-                                            {title}
-                                        </h1>
+                                        {typeof title === 'string' ? (
+                                            <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900 truncate">
+                                                {title}
+                                            </h1>
+                                        ) : (
+                                            <div className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900">
+                                                {title}
+                                            </div>
+                                        )}
                                         <Sparkles className="h-4 w-4 text-emerald-500" />
                                     </div>
                                     {description ? (
-                                        <p className="text-sm text-gray-600 leading-5 truncate">
-                                            {description}
-                                        </p>
+                                        typeof description === 'string' ? (
+                                            <p className="text-sm text-gray-600 leading-5 truncate">
+                                                {description}
+                                            </p>
+                                        ) : (
+                                            <div className="text-sm text-gray-600 leading-5">
+                                                {description}
+                                            </div>
+                                        )
                                     ) : null}
                                 </div>
                             </div>
