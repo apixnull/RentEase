@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, CreditCard, MapPin, Star, TrendingUp, ArrowRight, CheckCircle2, Flag, Info, ChevronDown, ChevronUp, FileSearch } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, Star, TrendingUp, CheckCircle2, Flag, Info, ChevronDown, ChevronUp, FileSearch, RefreshCcw, Loader2, Sparkles } from 'lucide-react';
 import { getLandlordListingsRequest, getEligibleUnitsForListingRequest } from '@/api/landlord/listingApi';
-import PageHeader from '@/components/PageHeader';
+import { getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Address {
   street: string;
@@ -24,7 +27,6 @@ interface Property {
   id: string; 
   title: string;
   type: string;
-  address: Address;
 }
 
 interface Unit {
@@ -54,7 +56,7 @@ interface Payment {
 
 interface Listing {
   id: string;
-  lifecycleStatus: 'WAITING_PAYMENT' | 'WAITING_REVIEW' | 'VISIBLE' | 'HIDDEN' | 'EXPIRED' | 'BLOCKED';
+  lifecycleStatus: 'WAITING_REVIEW' | 'VISIBLE' | 'HIDDEN' | 'EXPIRED' | 'BLOCKED' | 'FLAGGED';
   isFeatured: boolean;
   expiresAt: string | null;
   reviewedAt: string | null;
@@ -70,13 +72,16 @@ const LandlordListing = () => {
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedProperty, setSelectedProperty] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [properties, setProperties] = useState<{id: string, title: string}[]>([]);
   const [isActiveExpanded, setIsActiveExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -85,19 +90,9 @@ const LandlordListing = () => {
   const [selectedEligibleUnit, setSelectedEligibleUnit] = useState<string>('');
   const [loadingEligible, setLoadingEligible] = useState(false);
   const [eligibleError, setEligibleError] = useState<string | null>(null);
-  const [isLifecycleExpanded, setIsLifecycleExpanded] = useState(true);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(true);
 
   const statusConfig = {
-    WAITING_PAYMENT: {
-      title: 'Waiting Payment',
-      icon: CreditCard,
-      count: 0,
-      color: 'bg-gradient-to-r from-blue-600 to-cyan-600',
-      bgColor: 'bg-blue-100',
-      borderColor: 'border-blue-200',
-      textColor: 'text-blue-700',
-      description: 'Listings pending payment confirmation'
-    },
     WAITING_REVIEW: {
       title: 'Waiting Review',
       icon: FileSearch,
@@ -160,30 +155,110 @@ const LandlordListing = () => {
     }
   };
 
-  const fetchListings = async () => {
+  const sortListings = (listings: Listing[], order: 'newest' | 'oldest') => {
+    return [...listings].sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return order === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+  };
+
+  // Helper function to check if listing is more than 1 week old based on createdAt
+  const isMoreThanOneWeekOld = (dateString: string): boolean => {
+    const date = new Date(dateString);
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    return date < oneWeekAgo;
+  };
+
+  // Separate listings into current and history
+  // History: EXPIRED or BLOCKED listings that are more than 1 week old (based on createdAt)
+  // Current: Everything else (including EXPIRED/BLOCKED that are less than 1 week old)
+  const getHistoryListings = (listings: Listing[]): Listing[] => {
+    return listings.filter(listing => {
+      const status = listing.lifecycleStatus;
+      if (status === 'EXPIRED' || status === 'BLOCKED') {
+        // Check if it's more than 1 week old based on createdAt
+        return isMoreThanOneWeekOld(listing.createdAt);
+      }
+      return false;
+    });
+  };
+
+  const getCurrentListings = (listings: Listing[]): Listing[] => {
+    // Get history listings first
+    const historyListings = getHistoryListings(listings);
+    const historyIds = new Set(historyListings.map(l => l.id));
+    
+    // Current listings are all listings that are NOT in history
+    return listings.filter(listing => !historyIds.has(listing.id));
+  };
+
+  const applyFilters = (propertyId: string, status: string, query: string, listingsToFilter?: Listing[]) => {
+    const listings = listingsToFilter || allListings;
+    
+    // First, filter by tab (current or history)
+    let filtered = activeTab === 'current' 
+      ? getCurrentListings(listings)
+      : getHistoryListings(listings);
+
+    // Filter by property
+    if (propertyId !== 'all') {
+      filtered = filtered.filter(listing => listing.property.id === propertyId);
+    }
+
+    // Filter by status (only for current tab, history tab shows all EXPIRED/BLOCKED)
+    if (status !== 'all' && activeTab === 'current') {
+      if (status === 'active') {
+        // Active includes both VISIBLE and HIDDEN
+        filtered = filtered.filter(listing => 
+          listing.lifecycleStatus === 'VISIBLE' || listing.lifecycleStatus === 'HIDDEN'
+        );
+      } else {
+        filtered = filtered.filter(listing => listing.lifecycleStatus === status);
+      }
+    }
+
+    // Filter by search query
+    if (query) {
+      filtered = filtered.filter(listing => 
+        listing.unit.label.toLowerCase().includes(query.toLowerCase()) ||
+        listing.property.title.toLowerCase().includes(query.toLowerCase())
+      );
+    }
+
+    // Apply sorting (always newest first)
+    filtered = sortListings(filtered, 'newest');
+
+    setFilteredListings(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const fetchListings = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
+      setRefreshing(true);
       setError(null);
-      const response = await getLandlordListingsRequest();
-      const listingsData: Listing[] = response.data.listings;
       
-      // Filter out expired listings from the main display
-      const activeListings = listingsData.filter(listing => listing.lifecycleStatus !== 'EXPIRED');
+      const [listingsRes, propertiesRes] = await Promise.all([
+        getLandlordListingsRequest(),
+        getPropertiesWithUnitsRequest(),
+      ]);
       
-      // Sort by latest first initially
-      const sortedListings = sortListings(activeListings, 'newest');
+      const listingsData: Listing[] = listingsRes.data.listings;
+      
+      // Sort by latest first initially (don't filter out expired - they'll be in history tab)
+      const sortedListings = sortListings(listingsData, 'newest');
       setAllListings(sortedListings);
       
-      // Extract unique properties
-      const uniqueProperties = Array.from(
-        new Map(
-          sortedListings.map(listing => [listing.property.id, {
-            id: listing.property.id,
-            title: listing.property.title
-          }])
-        ).values()
-      );
-      setProperties(uniqueProperties);
+      // Get all properties from the properties API (not just from listings)
+      const allProperties = propertiesRes.data.properties || [];
+      setProperties(allProperties.map((prop: any) => ({
+        id: prop.id,
+        title: prop.title
+      })));
 
       // Apply initial filter
       applyFilters('all', 'all', '', sortedListings);
@@ -191,9 +266,12 @@ const LandlordListing = () => {
       setError('Failed to fetch listings');
       console.error('Error fetching listings:', err);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
+      setRefreshing(false);
     }
-  };
+  }, []);
 
   const fetchEligibleUnits = async () => {
     try {
@@ -213,53 +291,6 @@ const LandlordListing = () => {
     }
   };
 
-  const sortListings = (listings: Listing[], order: 'newest' | 'oldest') => {
-    return [...listings].sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return order === 'newest' ? dateB - dateA : dateA - dateB;
-    });
-  };
-
-  const applyFilters = (propertyId: string, status: string, query: string, listingsToFilter?: Listing[]) => {
-    const listings = listingsToFilter || allListings;
-    
-    let filtered = listings;
-
-    // Filter by property
-    if (propertyId !== 'all') {
-      filtered = filtered.filter(listing => listing.property.id === propertyId);
-    }
-
-    // Filter by status
-    if (status !== 'all') {
-      if (status === 'active') {
-        // Active includes both VISIBLE and HIDDEN
-        filtered = filtered.filter(listing => 
-          listing.lifecycleStatus === 'VISIBLE' || listing.lifecycleStatus === 'HIDDEN'
-        );
-      } else {
-        filtered = filtered.filter(listing => listing.lifecycleStatus === status);
-      }
-    }
-
-    // Filter by search query
-    if (query) {
-      filtered = filtered.filter(listing => 
-        listing.unit.label.toLowerCase().includes(query.toLowerCase()) ||
-        listing.property.title.toLowerCase().includes(query.toLowerCase()) ||
-        listing.property.address.street.toLowerCase().includes(query.toLowerCase()) ||
-        listing.property.address.barangay.toLowerCase().includes(query.toLowerCase()) ||
-        listing.property.address.city.toLowerCase().includes(query.toLowerCase())
-      );
-    }
-
-    // Apply sorting
-    filtered = sortListings(filtered, sortOrder);
-
-    setFilteredListings(filtered);
-  };
-
   const handleStatusClick = (status: string) => {
     if (status === 'active') {
       setIsActiveExpanded(!isActiveExpanded);
@@ -272,11 +303,6 @@ const LandlordListing = () => {
     }
   };
 
-  const handleActiveSubStatusClick = (subStatus: 'VISIBLE' | 'HIDDEN') => {
-    setSelectedStatus(subStatus);
-    setIsActiveExpanded(false);
-    applyFilters(selectedProperty, subStatus, searchQuery);
-  };
 
   const handlePropertyFilterChange = (propertyId: string) => {
     setSelectedProperty(propertyId);
@@ -288,17 +314,10 @@ const LandlordListing = () => {
     applyFilters(selectedProperty, selectedStatus, query);
   };
 
-  const handleSortChange = (order: 'newest' | 'oldest') => {
-    setSortOrder(order);
-    const sortedListings = sortListings(filteredListings, order);
-    setFilteredListings(sortedListings);
-  };
-
   const handleClearFilters = () => {
     setSelectedProperty('all');
     setSelectedStatus('all');
     setSearchQuery('');
-    setSortOrder('newest');
     setIsActiveExpanded(false);
     applyFilters('all', 'all', '');
   };
@@ -330,28 +349,10 @@ const LandlordListing = () => {
     }
   };
 
-  const formatAddress = (address: Address) => {
-    return `${address.street}, ${address.barangay}, ${address.city}, ${address.zipCode}`;
-  };
-
   const handleViewDetails = (listingId: string) => {
     navigate(`/landlord/listing/${listingId}/details`);
   };
 
-  const handleSetVisible = (listingId: string) => {
-    // TODO: Implement set visible functionality
-    console.log('Set visible for listing:', listingId);
-  };
-
-  const handleSetHidden = (listingId: string) => {
-    // TODO: Implement set hidden functionality
-    console.log('Set hidden for listing:', listingId);
-  };
-
-  const handlePayNow = (listingId: string) => {
-    // TODO: Implement pay now functionality
-    console.log('Pay now for listing:', listingId);
-  };
 
   const getStatusBadge = (status: string) => {
     const config = statusConfig[status as keyof typeof statusConfig];
@@ -376,33 +377,52 @@ const LandlordListing = () => {
   };
 
   const getPaymentStatus = (listing: Listing) => {
-    if (listing.lifecycleStatus === 'WAITING_PAYMENT') {
-      return { status: 'Pending', color: 'text-blue-700 bg-blue-100 border-blue-200' };
-    }
     if (listing.payment.providerName && listing.payment.date) {
       return { status: `Paid (${listing.payment.providerName})`, color: 'text-emerald-700 bg-emerald-100 border-emerald-200' };
     }
     return { status: 'No Payment', color: 'text-gray-700 bg-gray-100 border-gray-200' };
   };
 
-  // Calculate counts for each status
-  const statusCounts = allListings.reduce((acc, listing) => {
+  // Calculate current and history listings
+  const currentListings = getCurrentListings(allListings);
+  const historyListings = getHistoryListings(allListings);
+
+  // Calculate counts for each status (only for current listings)
+  const statusCounts = currentListings.reduce((acc, listing) => {
     acc[listing.lifecycleStatus] = (acc[listing.lifecycleStatus] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  // Calculate active listings (VISIBLE + HIDDEN)
-  const activeListings = allListings.filter(
+  // Calculate active listings (VISIBLE + HIDDEN) from current listings
+  const activeListings = currentListings.filter(
     listing => listing.lifecycleStatus === 'VISIBLE' || listing.lifecycleStatus === 'HIDDEN'
   ).length;
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredListings.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedListings = filteredListings.slice(startIndex, endIndex);
 
   const selectedPropertyData = eligibleProperties.find(p => p.id === selectedEligibleProperty);
   const availableUnits = selectedPropertyData?.units || [];
 
+  const handleRefresh = () => {
+    if (!refreshing) {
+      fetchListings({ silent: true });
+    }
+  };
+
   // Add useEffect to fetch listings on component mount
   useEffect(() => {
     fetchListings();
-  }, []);
+  }, [fetchListings]);
+
+  // Re-apply filters when tab changes
+  useEffect(() => {
+    applyFilters(selectedProperty, selectedStatus, searchQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   if (loading) {
     return (
@@ -543,7 +563,7 @@ const LandlordListing = () => {
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-red-800 mb-4">{error}</p>
-                <Button onClick={fetchListings} variant="destructive">
+                <Button onClick={() => fetchListings()} variant="destructive">
                   Try Again
                 </Button>
               </div>
@@ -556,335 +576,461 @@ const LandlordListing = () => {
 
   return (
     <div className="min-h-screen p-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="space-y-6">
         {/* Header */}
-        <PageHeader
-          title="Listing Management"
-          description="Manage your unit listings and status"
-        />
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="relative overflow-hidden rounded-2xl"
+        >
+          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-emerald-200/70 opacity-95" />
+          <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-300/50 to-cyan-400/40 blur-3xl"
+              initial={{ opacity: 0.4, scale: 0.85 }}
+              animate={{ opacity: 0.7, scale: 1.05 }}
+              transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+            />
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-emerald-200/40 to-cyan-200/35 blur-3xl"
+              initial={{ opacity: 0.3 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+            />
 
-        {/* Listing Lifecycle Management Dashboard */}
-        <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
-          <CardHeader className="pb-2 pt-3 px-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 flex-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsLifecycleExpanded(!isLifecycleExpanded)}
-                  className="h-7 w-7 p-0 hover:bg-slate-100"
-                  title={isLifecycleExpanded ? "Collapse" : "Expand"}
-                >
-                  {isLifecycleExpanded ? (
-                    <ChevronUp className="h-4 w-4 text-slate-600" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-slate-600" />
-                  )}
-                </Button>
-                <div>
-                  <CardTitle className="text-sm font-semibold text-slate-900">Listing Lifecycle Management</CardTitle>
-                  <p className="text-xs text-slate-600 mt-0.5">Monitor and manage your listings through their lifecycle stages</p>
+            <div className="px-4 sm:px-6 py-5 space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-4 min-w-0">
+                  <motion.div
+                    whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                    className="relative flex-shrink-0"
+                  >
+                    <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-600 via-cyan-600 to-emerald-600 text-white grid place-items-center shadow-xl shadow-cyan-500/30">
+                      <Building className="h-5 w-5 relative z-10" />
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                    </div>
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-sky-600 border border-sky-100 shadow-sm grid place-items-center"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                    </motion.div>
+                    <motion.div
+                      className="absolute inset-0 rounded-2xl border-2 border-cyan-400/30"
+                      animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                  </motion.div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                        Listing Management
+                      </h1>
+                      <motion.div
+                        animate={{ rotate: [0, 8, -8, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        <Sparkles className="h-4 w-4 text-cyan-500" />
+                      </motion.div>
+                    </div>
+                    <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                      <Building className="h-4 w-4 text-emerald-500" />
+                      Manage your unit listings and status
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                  <Button
+                    onClick={() => handleRefresh()}
+                    disabled={refreshing}
+                    className="h-11 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-cyan-500/30 hover:brightness-110 disabled:opacity-70"
+                  >
+                    {refreshing ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Refreshing
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <RefreshCcw className="h-4 w-4" />
+                        Refresh
+                      </span>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={handleCreateListing} 
+                    className="h-11 rounded-xl bg-gradient-to-r from-blue-500 to-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-blue-500/30 hover:brightness-110"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Listing
+                  </Button>
                 </div>
               </div>
-              <Button 
-                onClick={handleCreateListing} 
-                size="sm" 
-                className="bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white shadow-md shadow-blue-500/25 h-9 text-sm px-4"
+
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+                style={{ originX: 0 }}
+                className="relative h-1 w-full rounded-full overflow-hidden"
               >
-                <Plus className="h-4 w-4 mr-2" />
-                New Listing
-              </Button>
+                <div className="absolute inset-0 bg-gradient-to-r from-sky-400/80 via-cyan-400/80 to-emerald-400/80" />
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+                />
+              </motion.div>
             </div>
-          </CardHeader>
-          {isLifecycleExpanded && (
-            <CardContent className="px-4 pb-4 space-y-3">
-              {/* Lifecycle Stages */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                {/* Stage 1: Waiting Payment */}
-                <div 
-                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
-                    selectedStatus === 'WAITING_PAYMENT'
-                      ? 'bg-blue-50 border-blue-300 shadow-lg'
-                      : 'bg-white border-blue-200 hover:border-blue-300 hover:shadow-md'
-                  }`}
-                  onClick={() => handleStatusClick('WAITING_PAYMENT')}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
-                      <CreditCard className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-900">Payment Pending</p>
-                      <p className="text-[10px] text-slate-600 mt-0.5">Awaiting payment</p>
-                      <p className="text-base font-bold text-blue-700 mt-1.5">{statusCounts['WAITING_PAYMENT'] || 0}</p>
+          </div>
+        </motion.div>
+
+        {/* Tabs Section */}
+        <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+          <CardContent className="p-0">
+            <Tabs value={activeTab} onValueChange={(value) => {
+              setActiveTab(value as 'current' | 'history');
+              setSelectedStatus('all'); // Reset status filter when switching tabs
+            }} className="w-full">
+              <div className="border-b bg-gradient-to-br from-slate-50/80 via-gray-50/60 to-slate-50/80 backdrop-blur-sm">
+                <TabsList className="w-full h-auto bg-transparent p-2 sm:p-3 gap-2 grid grid-cols-2">
+                  <TabsTrigger 
+                    value="current" 
+                    className={`relative flex-1 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl font-medium transition-all overflow-hidden ${
+                      activeTab === 'current' 
+                        ? `bg-gradient-to-r from-emerald-500 to-teal-500/20 text-emerald-700 border border-emerald-200/50 shadow-sm backdrop-blur-sm` 
+                        : `bg-gray-50/50 border border-gray-200 text-gray-600 hover:bg-gray-100/50`
+                    }`}
+                  >
+                    {activeTab === 'current' && (
+                      <div className={`absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500/10 opacity-50`} />
+                    )}
+                    <Building className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'current' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10">Current</span>
+                    {currentListings.length > 0 && (
+                      <Badge className={`relative z-10 ml-1.5 text-[10px] px-1.5 py-0 ${activeTab === 'current' ? 'bg-emerald-600 text-white' : 'bg-gray-300 text-gray-700'}`}>
+                        {currentListings.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="history" 
+                    className={`relative flex-1 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl font-medium transition-all overflow-hidden ${
+                      activeTab === 'history' 
+                        ? `bg-gradient-to-r from-gray-500 to-slate-500/20 text-gray-700 border border-gray-200/50 shadow-sm backdrop-blur-sm` 
+                        : `bg-gray-50/50 border border-gray-200 text-gray-600 hover:bg-gray-100/50`
+                    }`}
+                  >
+                    {activeTab === 'history' && (
+                      <div className={`absolute inset-0 bg-gradient-to-r from-gray-500 to-slate-500/10 opacity-50`} />
+                    )}
+                    <Clock className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'history' ? 'text-gray-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10">History</span>
+                    {getHistoryListings(allListings).length > 0 && (
+                      <Badge className={`relative z-10 ml-1.5 text-[10px] px-1.5 py-0 ${activeTab === 'history' ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'}`}>
+                        {getHistoryListings(allListings).length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              {/* Current Tab Content */}
+              <TabsContent value="current" className="mt-0 space-y-4">
+                {/* Combined Search, Filters & Status Overview Section */}
+                <div className="px-4 pt-4 pb-4 border-b border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+                        className="h-7 w-7 p-0 hover:bg-slate-100"
+                        title={isSearchExpanded ? "Collapse" : "Expand"}
+                      >
+                        {isSearchExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-slate-600" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-slate-600" />
+                        )}
+                      </Button>
+                      <CardTitle className="text-sm font-semibold text-slate-900">Search, Filters & Status Overview</CardTitle>
                     </div>
                   </div>
-                  {selectedStatus === 'WAITING_PAYMENT' && (
-                    <div className="absolute top-1.5 right-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-blue-600" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Stage 2: Waiting Review */}
-                <div 
-                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
-                    selectedStatus === 'WAITING_REVIEW'
-                      ? 'bg-purple-50 border-purple-300 shadow-lg'
-                      : 'bg-white border-purple-200 hover:border-purple-300 hover:shadow-md'
-                  }`}
-                  onClick={() => handleStatusClick('WAITING_REVIEW')}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center group-hover:bg-purple-600 transition-colors">
-                      <FileSearch className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-900">Waiting Review</p>
-                      <p className="text-[10px] text-slate-600 mt-0.5">Admin review</p>
-                      <p className="text-base font-bold text-purple-700 mt-1.5">{statusCounts['WAITING_REVIEW'] || 0}</p>
-                    </div>
-                  </div>
-                  {selectedStatus === 'WAITING_REVIEW' && (
-                    <div className="absolute top-1.5 right-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-purple-600" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Stage 3: Active (with VISIBLE/HIDDEN inside) */}
-                <div 
-                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
-                    selectedStatus === 'active' || selectedStatus === 'VISIBLE' || selectedStatus === 'HIDDEN'
-                      ? 'bg-emerald-50 border-emerald-400 shadow-lg'
-                      : 'bg-white border-emerald-200 hover:border-emerald-300 hover:shadow-md'
-                  }`}
-                  onClick={() => handleStatusClick('active')}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center group-hover:bg-emerald-600 transition-colors">
-                      <TrendingUp className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-900">Active</p>
-                      <p className="text-[10px] text-slate-600 mt-0.5">Live listings</p>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <p className="text-base font-bold text-emerald-700">{activeListings}</p>
-                        <div className="flex items-center gap-1.5">
-                          <div 
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors ${
-                              selectedStatus === 'VISIBLE'
-                                ? 'bg-emerald-200 text-emerald-800'
-                                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                            }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleActiveSubStatusClick('VISIBLE');
-                            }}
-                          >
-                            <Eye className="h-2.5 w-2.5 inline mr-0.5" />
-                            {statusCounts['VISIBLE'] || 0}
+                  {isSearchExpanded && (
+                    <>
+                      {/* Search & Filters */}
+                      <div className="mb-4 space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Search - Compact design */}
+                          <div className="flex-1 min-w-[200px]">
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                              <Input
+                                placeholder="Search..."
+                                value={searchQuery}
+                                onChange={(e) => handleSearchChange(e.target.value)}
+                                className="pl-9 h-8 text-xs border-slate-200 focus:border-slate-400"
+                              />
+                            </div>
                           </div>
-                          <div 
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors ${
-                              selectedStatus === 'HIDDEN'
-                                ? 'bg-teal-200 text-teal-800'
-                                : 'bg-teal-100 text-teal-700 hover:bg-teal-200'
-                            }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleActiveSubStatusClick('HIDDEN');
-                            }}
+
+                          {/* Property Filter */}
+                          <Select value={selectedProperty} onValueChange={handlePropertyFilterChange}>
+                            <SelectTrigger className="h-8 w-[160px] text-xs border-slate-200">
+                              <SelectValue placeholder="All Properties" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Properties</SelectItem>
+                              {properties.map(property => (
+                                <SelectItem key={property.id} value={property.id}>
+                                  {property.title}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          {/* Clear Filters */}
+                          <Button 
+                            variant="outline" 
+                            onClick={handleClearFilters}
+                            className="h-8 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 px-3"
                           >
-                            <EyeOff className="h-2.5 w-2.5 inline mr-0.5" />
-                            {statusCounts['HIDDEN'] || 0}
-                          </div>
+                            Clear
+                          </Button>
+                        </div>
+
+                        {/* Active Filters Summary */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className="font-medium text-gray-700">
+                            {filteredListings.length} of {currentListings.length} listings
+                          </span>
+                          {selectedStatus === 'active' && (
+                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                              Active Listings
+                            </Badge>
+                          )}
+                          {selectedStatus !== 'all' && selectedStatus !== 'active' && (
+                            <Badge variant="secondary" className={`${statusConfig[selectedStatus as keyof typeof statusConfig]?.bgColor} ${statusConfig[selectedStatus as keyof typeof statusConfig]?.textColor}`}>
+                              {statusConfig[selectedStatus as keyof typeof statusConfig]?.title}
+                            </Badge>
+                          )}
+                          {selectedProperty !== 'all' && (
+                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                              {properties.find(p => p.id === selectedProperty)?.title}
+                            </Badge>
+                          )}
+                          {searchQuery && (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                              "{searchQuery}"
+                            </Badge>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  </div>
-                  {(selectedStatus === 'active' || selectedStatus === 'VISIBLE' || selectedStatus === 'HIDDEN') && (
-                    <div className="absolute top-1.5 right-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                    </div>
-                  )}
-                </div>
 
-                {/* Stage 4: Flagged */}
-                <div 
-                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                      {/* Status Overview Cards */}
+                      <div className="pt-3 border-t border-slate-200">
+                        <div className="mb-3">
+                          <CardTitle className="text-xs font-semibold text-slate-700">Status Overview</CardTitle>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                {/* Stage 1: Waiting Review */}
+                <button
+                  type="button"
+                  onClick={() => handleStatusClick('WAITING_REVIEW')}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
+                    selectedStatus === 'WAITING_REVIEW'
+                      ? 'bg-purple-50 border-purple-300 ring-2 ring-purple-400 shadow-md'
+                      : 'bg-white border-purple-200 hover:border-purple-300 hover:shadow-md'
+                  }`}
+                >
+                  <div className="h-10 w-10 rounded-lg bg-purple-500 grid place-items-center">
+                    <FileSearch className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-purple-600">Waiting Review</p>
+                    <p className="text-lg font-semibold text-purple-900">{statusCounts['WAITING_REVIEW'] || 0}</p>
+                  </div>
+                </button>
+
+                {/* Stage 2: Active (with VISIBLE/HIDDEN inside) */}
+                <button
+                  type="button"
+                  onClick={() => handleStatusClick('active')}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
+                    selectedStatus === 'active' || selectedStatus === 'VISIBLE' || selectedStatus === 'HIDDEN'
+                      ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400 shadow-md'
+                      : 'bg-white border-emerald-200 hover:border-emerald-300 hover:shadow-md'
+                  }`}
+                >
+                  <div className="h-10 w-10 rounded-lg bg-emerald-500 grid place-items-center">
+                    <TrendingUp className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-emerald-600">Active</p>
+                    <p className="text-lg font-semibold text-emerald-900">{activeListings}</p>
+                  </div>
+                </button>
+
+                {/* Stage 3: Flagged */}
+                <button
+                  type="button"
+                  onClick={() => handleStatusClick('FLAGGED')}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
                     selectedStatus === 'FLAGGED'
-                      ? 'bg-amber-50 border-amber-300 shadow-lg'
+                      ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400 shadow-md'
                       : 'bg-white border-amber-200 hover:border-amber-300 hover:shadow-md'
                   }`}
-                  onClick={() => handleStatusClick('FLAGGED')}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center group-hover:bg-amber-600 transition-colors">
-                      <Flag className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-900">Flagged</p>
-                      <p className="text-[10px] text-slate-600 mt-0.5">Needs Revision</p>
-                      <p className="text-base font-bold text-amber-700 mt-1.5">{statusCounts['FLAGGED'] || 0}</p>
-                    </div>
+                  <div className="h-10 w-10 rounded-lg bg-amber-500 grid place-items-center">
+                    <Flag className="h-4 w-4 text-white" />
                   </div>
-                  {selectedStatus === 'FLAGGED' && (
-                    <div className="absolute top-1.5 right-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-amber-600" />
-                    </div>
-                  )}
-                </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-amber-600">Flagged</p>
+                    <p className="text-lg font-semibold text-amber-900">{statusCounts['FLAGGED'] || 0}</p>
+                  </div>
+                </button>
 
-                {/* Stage 5: Blocked */}
-                <div 
-                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                {/* Stage 4: Blocked */}
+                <button
+                  type="button"
+                  onClick={() => handleStatusClick('BLOCKED')}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
                     selectedStatus === 'BLOCKED'
-                      ? 'bg-red-50 border-red-300 shadow-lg'
+                      ? 'bg-red-50 border-red-300 ring-2 ring-red-400 shadow-md'
                       : 'bg-white border-red-200 hover:border-red-300 hover:shadow-md'
                   }`}
-                  onClick={() => handleStatusClick('BLOCKED')}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center group-hover:bg-red-600 transition-colors">
-                      <Ban className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-900">Blocked</p>
-                      <p className="text-[10px] text-slate-600 mt-0.5">Suspended</p>
-                      <p className="text-base font-bold text-red-700 mt-1.5">{statusCounts['BLOCKED'] || 0}</p>
-                    </div>
+                  <div className="h-10 w-10 rounded-lg bg-red-500 grid place-items-center">
+                    <Ban className="h-4 w-4 text-white" />
                   </div>
-                  {selectedStatus === 'BLOCKED' && (
-                    <div className="absolute top-1.5 right-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-red-600" />
-                    </div>
-                  )}
-                </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-red-600">Blocked</p>
+                    <p className="text-lg font-semibold text-red-900">{statusCounts['BLOCKED'] || 0}</p>
+                  </div>
+                </button>
 
-                {/* Stage 6: Expired */}
-                <div 
-                  className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${
+                {/* Stage 5: Expired */}
+                <button
+                  type="button"
+                  onClick={() => handleStatusClick('EXPIRED')}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
                     selectedStatus === 'EXPIRED'
-                      ? 'bg-gray-50 border-gray-300 shadow-lg'
+                      ? 'bg-gray-50 border-gray-300 ring-2 ring-gray-400 shadow-md'
                       : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
                   }`}
-                  onClick={() => handleStatusClick('EXPIRED')}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-500 flex items-center justify-center group-hover:bg-gray-600 transition-colors">
-                      <Clock className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-900">Expired</p>
-                      <p className="text-[10px] text-slate-600 mt-0.5">Expired listings</p>
-                      <p className="text-base font-bold text-gray-700 mt-1.5">{statusCounts['EXPIRED'] || 0}</p>
-                    </div>
+                  <div className="h-10 w-10 rounded-lg bg-gray-500 grid place-items-center">
+                    <Clock className="h-4 w-4 text-white" />
                   </div>
-                  {selectedStatus === 'EXPIRED' && (
-                    <div className="absolute top-1.5 right-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-gray-600" />
-                    </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Expired</p>
+                    <p className="text-lg font-semibold text-gray-900">{statusCounts['EXPIRED'] || 0}</p>
+                  </div>
+                </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
+              </TabsContent>
 
-                
-              </div>
+              {/* History Tab Content */}
+              <TabsContent value="history" className="mt-0 space-y-4">
+                {/* Filters Section - Above Table */}
+                <div className="px-4 pt-4 pb-2 border-b border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+                        className="h-7 w-7 p-0 hover:bg-slate-100"
+                        title={isSearchExpanded ? "Collapse" : "Expand"}
+                      >
+                        {isSearchExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-slate-600" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-slate-600" />
+                        )}
+                      </Button>
+                      <CardTitle className="text-sm font-semibold text-slate-900">Search & Filters</CardTitle>
+                    </div>
+                  </div>
+                  {isSearchExpanded && (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        {/* Search */}
+                        <div className="flex-1 min-w-[200px]">
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                            <Input
+                              placeholder="Search..."
+                              value={searchQuery}
+                              onChange={(e) => handleSearchChange(e.target.value)}
+                              className="pl-9 h-8 text-xs border-slate-200 focus:border-slate-400"
+                            />
+                          </div>
+                        </div>
 
-              {/* Lifecycle Flow Arrows (Visual) */}
-              <div className="hidden lg:flex items-center justify-between px-2 -mt-1">
-                <ArrowRight className="h-3 w-3 text-slate-400" />
-                <ArrowRight className="h-3 w-3 text-slate-400" />
-                <ArrowRight className="h-3 w-3 text-slate-400" />
-                <ArrowRight className="h-3 w-3 text-slate-400" />
-                <ArrowRight className="h-3 w-3 text-slate-400" />
-              </div>
-            </CardContent>
-          )}
-        </Card>
+                        {/* Property Filter */}
+                        <Select value={selectedProperty} onValueChange={handlePropertyFilterChange}>
+                          <SelectTrigger className="h-8 w-[160px] text-xs border-slate-200">
+                            <SelectValue placeholder="All Properties" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Properties</SelectItem>
+                            {properties.map(property => (
+                              <SelectItem key={property.id} value={property.id}>
+                                {property.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
 
-        {/* Filters */}
-        <Card className="bg-white/80 backdrop-blur-sm border-blue-100">
-          <CardContent className="p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Search - Compact design */}
-              <div className="flex-1 min-w-[200px]">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                  <Input
-                    placeholder="Search..."
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="pl-9 h-8 text-xs border-blue-200 focus:border-blue-400"
-                  />
+                        {/* Clear Filters */}
+                        <Button 
+                          variant="outline" 
+                          onClick={handleClearFilters}
+                          className="h-8 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 px-3"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+
+                      {/* Active Filters Summary */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="font-medium text-gray-700">
+                          {filteredListings.length} of {historyListings.length} listings
+                        </span>
+                        {selectedStatus !== 'all' && (
+                          <Badge variant="secondary" className={`${statusConfig[selectedStatus as keyof typeof statusConfig]?.bgColor} ${statusConfig[selectedStatus as keyof typeof statusConfig]?.textColor}`}>
+                            {statusConfig[selectedStatus as keyof typeof statusConfig]?.title}
+                          </Badge>
+                        )}
+                        {selectedProperty !== 'all' && (
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                            {properties.find(p => p.id === selectedProperty)?.title}
+                          </Badge>
+                        )}
+                        {searchQuery && (
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                            "{searchQuery}"
+                          </Badge>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-
-              {/* Property Filter */}
-              <Select value={selectedProperty} onValueChange={handlePropertyFilterChange}>
-                <SelectTrigger className="h-8 w-[160px] text-xs border-blue-200">
-                  <SelectValue placeholder="All Properties" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Properties</SelectItem>
-                  {properties.map(property => (
-                    <SelectItem key={property.id} value={property.id}>
-                      {property.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Sort Order */}
-              <Select value={sortOrder} onValueChange={(value: 'newest' | 'oldest') => handleSortChange(value)}>
-                <SelectTrigger className="h-8 w-[120px] text-xs border-blue-200">
-                  <SelectValue placeholder="Sort" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest</SelectItem>
-                  <SelectItem value="oldest">Oldest</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Clear Filters */}
-              <Button 
-                variant="outline" 
-                onClick={handleClearFilters}
-                className="h-8 text-xs border-blue-200 text-blue-700 hover:bg-blue-50 px-3"
-              >
-                Clear
-              </Button>
-            </div>
-
-            {/* Active Filters Summary */}
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="font-medium text-gray-700">
-                {filteredListings.length} of {allListings.length} listings
-              </span>
-              {selectedStatus === 'active' && (
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
-                  Active Listings
-                </Badge>
-              )}
-              {selectedStatus !== 'all' && selectedStatus !== 'active' && (
-                <Badge variant="secondary" className={`${statusConfig[selectedStatus as keyof typeof statusConfig]?.bgColor} ${statusConfig[selectedStatus as keyof typeof statusConfig]?.textColor}`}>
-                  {statusConfig[selectedStatus as keyof typeof statusConfig]?.title}
-                </Badge>
-              )}
-              {selectedProperty !== 'all' && (
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
-                  {properties.find(p => p.id === selectedProperty)?.title}
-                </Badge>
-              )}
-              {searchQuery && (
-                <Badge variant="secondary" className="bg-amber-100 text-amber-800">
-                  "{searchQuery}"
-                </Badge>
-              )}
-              <Badge variant="outline" className="border-blue-200 text-blue-700">
-                {sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}
-              </Badge>
-            </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
@@ -924,25 +1070,25 @@ const LandlordListing = () => {
                 )}
               </div>
             ) : (
-              <div className="border-0">
-                <Table>
-                  <TableHeader className="bg-gradient-to-r from-blue-50 to-emerald-50">
-                    <TableRow className="hover:bg-transparent border-blue-100">
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Unit & Property</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Location</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Status</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Featured</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Payment</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Expires</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Reviewed</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs">Created</TableHead>
-                      <TableHead className="font-semibold text-blue-900 py-2 text-xs text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredListings.map((listing) => {
+              <>
+                <div className="border-0">
+                  <Table>
+                    <TableHeader className="bg-gradient-to-r from-blue-50 to-emerald-50">
+                      <TableRow className="hover:bg-transparent border-blue-100">
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs">Unit</TableHead>
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs">Property</TableHead>
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs">Status</TableHead>
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs">Featured</TableHead>
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs">Payment</TableHead>
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs">Expires</TableHead>
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs">Reviewed</TableHead>
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs">Created</TableHead>
+                        <TableHead className="font-semibold text-blue-900 py-2 text-xs text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedListings.map((listing) => {
                       const paymentStatus = getPaymentStatus(listing);
-                      const locationText = formatAddress(listing.property.address);
                       return (
                         <TableRow 
                           key={listing.id} 
@@ -957,22 +1103,16 @@ const LandlordListing = () => {
                                 <div className="font-semibold text-gray-900 text-xs truncate">
                                   {listing.unit.label}
                                 </div>
-                                <div className="text-[10px] text-gray-600 mt-0.5 truncate">
-                                  {listing.property.title}
-                                </div>
-                                <div className="text-[10px] text-gray-500 capitalize mt-0.5">
-                                  {listing.property.type.toLowerCase().replace('_', ' ')}
-                                </div>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell className="py-2">
-                            <div className="max-w-[200px]">
-                              <div className="flex items-start gap-1.5" title={locationText}>
-                                <MapPin className="h-3 w-3 mt-0.5 text-blue-500 flex-shrink-0" />
-                                <span className="text-xs text-gray-700 leading-relaxed truncate block max-w-[180px]">
-                                  {locationText.length > 40 ? `${locationText.substring(0, 40)}...` : locationText}
-                                </span>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-gray-900 text-xs truncate">
+                                {listing.property.title}
+                              </div>
+                              <div className="text-[10px] text-gray-500 capitalize mt-0.5">
+                                {listing.property.type.toLowerCase().replace('_', ' ')}
                               </div>
                             </div>
                           </TableCell>
@@ -1030,58 +1170,80 @@ const LandlordListing = () => {
                             </div>
                           </TableCell>
                           <TableCell className="py-2">
-                            <div className="flex items-center gap-1.5 justify-end">
+                            <div className="flex items-center justify-end">
                               <Button 
-                                variant="ghost" 
+                                variant="outline" 
                                 size="sm"
                                 onClick={() => handleViewDetails(listing.id)}
-                                className="h-7 w-7 p-0 border border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
-                                title="View Details"
+                                className="h-8 px-3 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-300 transition-colors text-xs font-medium"
                               >
                                 <Info className="h-3.5 w-3.5" />
+                                View Details
                               </Button>
-                              
-                              {/* Status-specific actions */}
-                              {listing.lifecycleStatus === 'HIDDEN' && (
-                                <Button 
-                                  size="sm"
-                                  onClick={() => handleSetVisible(listing.id)}
-                                  className="h-7 w-7 p-0 bg-emerald-500 hover:bg-emerald-600 text-white"
-                                  title="Set Visible"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                              
-                              {listing.lifecycleStatus === 'VISIBLE' && (
-                                <Button 
-                                  size="sm"
-                                  onClick={() => handleSetHidden(listing.id)}
-                                  className="h-7 w-7 p-0 bg-teal-500 hover:bg-teal-600 text-white"
-                                  title="Set Hidden"
-                                >
-                                  <EyeOff className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                              
-                              {listing.lifecycleStatus === 'WAITING_PAYMENT' && (
-                                <Button 
-                                  size="sm"
-                                  onClick={() => handlePayNow(listing.id)}
-                                  className="h-7 w-7 p-0 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
-                                  title="Pay Now"
-                                >
-                                  <CreditCard className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>
                       );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
+                    <div className="text-xs text-gray-600">
+                      Showing {startIndex + 1} to {Math.min(endIndex, filteredListings.length)} of {filteredListings.length} listings
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="h-8 px-3 text-xs"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                          if (
+                            page === 1 ||
+                            page === totalPages ||
+                            (page >= currentPage - 1 && page <= currentPage + 1)
+                          ) {
+                            return (
+                              <Button
+                                key={page}
+                                variant={currentPage === page ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentPage(page)}
+                                className={`h-8 w-8 p-0 text-xs ${currentPage === page ? 'bg-blue-600 text-white' : ''}`}
+                              >
+                                {page}
+                              </Button>
+                            );
+                          } else if (page === currentPage - 2 || page === currentPage + 2) {
+                            return <span key={page} className="text-gray-400">...</span>;
+                          }
+                          return null;
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="h-8 px-3 text-xs"
+                      >
+                        Next
+                        <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -1162,10 +1324,6 @@ const LandlordListing = () => {
                             <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-white">
                               {selectedPropertyData.type.toLowerCase().replace('_', ' ')}
                             </Badge>
-                          </div>
-                          <div className="text-sm text-slate-700 flex items-start gap-2 mb-3">
-                            <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-600" />
-                            <span className="flex-1 font-medium">{formatAddress(selectedPropertyData.address)}</span>
                           </div>
                           <div className="pt-2 border-t border-blue-200">
                             <p className="text-xs text-blue-700 font-semibold">

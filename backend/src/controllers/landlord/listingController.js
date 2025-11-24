@@ -35,11 +35,6 @@ export const getLandlordListings = async (req, res) => {
                 id: true,
                 title: true,
                 type: true,
-                street: true,
-                barangay: true,
-                zipCode: true,
-                city: { select: { name: true } },
-                municipality: { select: { name: true } },
               },
             },
           },
@@ -74,13 +69,6 @@ export const getLandlordListings = async (req, res) => {
         id: l.unit.property.id,
         title: l.unit.property.title,
         type: l.unit.property.type,
-        address: {
-          street: l.unit.property.street,
-          barangay: l.unit.property.barangay,
-          zipCode: l.unit.property.zipCode,
-          city: l.unit.property.city?.name || null,
-          municipality: l.unit.property.municipality?.name || null,
-        },
       },
     }));
 
@@ -105,8 +93,6 @@ export const getUnitForListingReview = async (req, res) => {
       select: {
         id: true,
         label: true,
-        targetPrice: true,
-        unitCondition: true,
         createdAt: true,
         updatedAt: true,
         property: {
@@ -145,9 +131,12 @@ export const getUnitForListingReview = async (req, res) => {
 };
 
 // -----------------------------------------------------------------------------
-// CREATE LISTING + PAYMENT SESSION (with optional FEATURED boost)
+// CREATE PAYMENT SESSION (no listing record created yet)
 // -----------------------------------------------------------------------------
-export const createListingWithPayment = async (req, res) => {
+// This function only creates a PayMongo checkout session.
+// The listing will be created by the webhook after successful payment.
+// -----------------------------------------------------------------------------
+export const createPaymentSession = async (req, res) => {
   const landlordId = req.user.id;
   const { unitId } = req.params;
   const { isFeatured = false } = req.body;
@@ -179,28 +168,13 @@ export const createListingWithPayment = async (req, res) => {
     const FEATURED_ADDON = 50.0;
     const totalPrice = BASE_PRICE + (isFeatured ? FEATURED_ADDON : 0.0);
 
-    // 3️⃣ Create listing in WAITING_PAYMENT state
-    // Lifecycle timestamp: none set yet, only payment setup
-    const listing = await prisma.listing.create({
-      data: {
-        propertyId: unit.propertyId,
-        unitId: unit.id,
-        landlordId,
-        lifecycleStatus: "WAITING_PAYMENT",
-        isFeatured,
-        paymentAmount: totalPrice,
-        createdAt: new Date(),
-      },
-      select: { id: true, propertyId: true, paymentAmount: true },
-    });
-
-    // 4️⃣ Prepare PayMongo checkout session
+    // 3️⃣ Prepare PayMongo checkout session (NO LISTING CREATED YET)
     const lineItems = [
       {
         name: `Listing Fee`,
         currency: "PHP",
         amount: BASE_PRICE * 100, // centavos
-        description: `Listing Fee for ${unit.label} ${unit.property.title} `,
+        description: `Listing Fee for ${unit.label} - ${unit.property.title}`,
         quantity: 1,
       },
     ];
@@ -225,12 +199,15 @@ export const createListingWithPayment = async (req, res) => {
           } ${isFeatured ? " (Featured)" : ""}`,
           show_line_items: true,
           show_description: true,
-          cancel_url: `${process.env.FRONTEND_URL}/landlord/listing/${unitId}/review?cancel=${unitId}`,
-          success_url: `${process.env.FRONTEND_URL}/landlord/listing/${listing.id}/success`,
+          cancel_url: `${process.env.FRONTEND_URL}/landlord/listing/${unitId}/review`,
+          success_url: `${process.env.FRONTEND_URL}/landlord/listing/payment-success?unitId=${unitId}`,
           metadata: {
-            listingId: listing.id,
+            // All data needed to create listing after payment success
             unitId: unit.id,
-            landlordId,
+            propertyId: unit.propertyId,
+            landlordId: landlordId,
+            isFeatured: isFeatured.toString(),
+            paymentAmount: totalPrice.toString(),
           },
         },
       },
@@ -250,84 +227,27 @@ export const createListingWithPayment = async (req, res) => {
     );
 
     const checkoutUrl = response.data.data.attributes.checkout_url;
+    const checkoutSessionId = response.data.data.id;
 
-    // 5️⃣ Update listing with provider metadata (for traceability)
-    await prisma.listing.update({
-      where: { id: listing.id },
-      data: {
-        providerName: "PAYMONGO",
-        providerTxnId: response.data.data.id,
-      },
-    });
-
-    // 6️⃣ Respond with checkout URL and listing reference
+    // 4️⃣ Respond with checkout URL (NO listingId since no listing exists yet)
     return res.status(201).json({
-      message: `Listing created${
+      message: `Payment session created${
         isFeatured ? " (Featured)" : ""
       }. Proceed to payment.`,
-      listingId: listing.id,
       checkoutUrl,
+      checkoutSessionId, // Optional: for tracking/debugging
     });
   } catch (err) {
     console.error(
-      "❌ Error in createListingWithPayment:",
+      "❌ Error in createPaymentSession:",
       err?.response?.data || err
     );
     return res.status(500).json({
-      error: "Failed to create listing with payment session.",
+      error: "Failed to create payment session.",
     });
   }
 };
 
-// ============================================================================
-// CANCEL LISTING + PAYMENT SESSION
-// ============================================================================
-export const cancelListingPayment = async (req, res) => {
-  const landlordId = req.user.id;
-  const { listingId } = req.params;
-
-  try {
-    // 1️⃣ Fetch listing and ensure it belongs to the landlord
-    const listing = await prisma.listing.findUnique({
-      where: { id: listingId },
-      select: {
-        id: true,
-        landlordId: true,
-        lifecycleStatus: true,
-      },
-    });
-
-    if (!listing) {
-      return res.status(404).json({ error: "Listing not found." });
-    }
-
-    if (listing.landlordId !== landlordId) {
-      return res
-        .status(403)
-        .json({ error: "Not authorized to cancel this listing." });
-    }
-
-    // 2️⃣ Only allow cancellation if payment is not completed
-    if (listing.lifecycleStatus !== "WAITING_PAYMENT") {
-      return res
-        .status(400)
-        .json({ error: "Listing cannot be canceled after payment." });
-    }
-
-    // 3️⃣ Delete the listing
-    await prisma.listing.delete({ where: { id: listingId } });
-
-    return res.status(200).json({
-      message: "Listing canceled and removed successfully.",
-      listingId,
-    });
-  } catch (err) {
-    console.error("❌ Error in cancelListingPayment:", err);
-    return res.status(500).json({
-      error: "Failed to cancel listing.",
-    });
-  }
-};
 // -----------------------------------------------------------------------------
 // GET SPECIFIC LISTING DETAILS (Refactored for new schema)
 // -----------------------------------------------------------------------------
@@ -545,7 +465,94 @@ export const getEligibleUnitsForListing = async (req, res) => {
 };
 
 // ----------------------------------------------------------------------------
-// GET LISTING BASIC INFO IF SUCCESS
+// GET LISTING BY UNIT ID (for payment success page)
+// Finds the most recent listing for a unit that was paid within the last 10 minutes
+// ----------------------------------------------------------------------------
+export const getListingByUnitIdForSuccess = async (req, res) => {
+  try {
+    const { unitId } = req.query;
+    const landlordId = req.user.id;
+
+    if (!unitId) {
+      return res.status(400).json({ error: "unitId is required" });
+    }
+
+    // Find the most recent listing for this unit that was paid within the last 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    
+    const listing = await prisma.listing.findFirst({
+      where: {
+        unitId: unitId,
+        landlordId: landlordId,
+        paymentDate: {
+          gte: tenMinutesAgo,
+        },
+      },
+      orderBy: {
+        paymentDate: 'desc',
+      },
+      select: {
+        id: true,
+        isFeatured: true,
+        paymentAmount: true,
+        paymentDate: true,
+        providerName: true,
+        unit: {
+          select: {
+            id: true,
+            label: true,
+            property: {
+              select: {
+                id: true,
+                title: true,
+                street: true,
+                barangay: true,
+                zipCode: true,
+                city: { select: { name: true } },
+                municipality: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!listing) {
+      return res.status(404).json({
+        error: "Listing not found. Payment may still be processing. Please wait a moment and refresh.",
+      });
+    }
+
+    return res.status(200).json({
+      listingId: listing.id,
+      isFeatured: listing.isFeatured,
+      paymentAmount: listing.paymentAmount,
+      paymentDate: listing.paymentDate,
+      providerName: listing.providerName,
+      unit: {
+        id: listing.unit.id,
+        label: listing.unit.label,
+      },
+      property: {
+        id: listing.unit.property.id,
+        title: listing.unit.property.title,
+        address: {
+          street: listing.unit.property.street,
+          barangay: listing.unit.property.barangay,
+          zipCode: listing.unit.property.zipCode,
+          city: listing.unit.property.city?.name,
+          municipality: listing.unit.property.municipality?.name,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error in getListingByUnitIdForSuccess:", error);
+    return res.status(500).json({ error: "Failed to fetch listing details." });
+  }
+};
+
+// ----------------------------------------------------------------------------
+// GET LISTING BASIC INFO IF SUCCESS (by listingId - kept for backward compatibility)
 // ----------------------------------------------------------------------------
 export const getLandlordListingInfoSuccess = async (req, res) => {
   try {
@@ -607,5 +614,91 @@ export const getLandlordListingInfoSuccess = async (req, res) => {
   } catch (error) {
     console.error("❌ Error in getLandlordListingInfoSuccess:", error);
     return res.status(500).json({ error: "Failed to fetch listing details." });
+  }
+};
+
+// -----------------------------------------------------------------------------
+// TOGGLE LISTING VISIBILITY (VISIBLE ↔ HIDDEN)
+// -----------------------------------------------------------------------------
+// Allows landlord to toggle listing between VISIBLE and HIDDEN status
+// Only works if current status is VISIBLE or HIDDEN
+// -----------------------------------------------------------------------------
+export const toggleListingVisibility = async (req, res) => {
+  const landlordId = req.user.id;
+  const { listingId } = req.params;
+
+  try {
+    // 1️⃣ Fetch the listing and verify ownership
+    const listing = await prisma.listing.findFirst({
+      where: {
+        id: listingId,
+        landlordId: landlordId,
+      },
+      select: {
+        id: true,
+        lifecycleStatus: true,
+        visibleAt: true,
+        hiddenAt: true,
+      },
+    });
+
+    if (!listing) {
+      return res.status(404).json({
+        error: "Listing not found or not owned by you.",
+      });
+    }
+
+    // 2️⃣ Validate that current status is VISIBLE or HIDDEN
+    const currentStatus = listing.lifecycleStatus;
+    if (currentStatus !== "VISIBLE" && currentStatus !== "HIDDEN") {
+      return res.status(400).json({
+        error: `Cannot toggle visibility. Current status must be VISIBLE or HIDDEN, but it is ${currentStatus}.`,
+      });
+    }
+
+    // 3️⃣ Determine new status and update timestamps
+    const now = new Date();
+    const newStatus = currentStatus === "VISIBLE" ? "HIDDEN" : "VISIBLE";
+    
+    const updateData = {
+      lifecycleStatus: newStatus,
+    };
+
+    // Update appropriate timestamp
+    if (newStatus === "HIDDEN") {
+      updateData.hiddenAt = now;
+      // Keep visibleAt as is (don't clear it)
+    } else {
+      // newStatus === "VISIBLE"
+      updateData.visibleAt = listing.visibleAt || now; // Use existing visibleAt or set to now
+      // Keep hiddenAt as is (don't clear it)
+    }
+
+    // 4️⃣ Update the listing
+    const updatedListing = await prisma.listing.update({
+      where: { id: listingId },
+      data: updateData,
+      select: {
+        id: true,
+        lifecycleStatus: true,
+        visibleAt: true,
+        hiddenAt: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: `Listing is now ${newStatus.toLowerCase()}.`,
+      listing: {
+        id: updatedListing.id,
+        lifecycleStatus: updatedListing.lifecycleStatus,
+        visibleAt: updatedListing.visibleAt,
+        hiddenAt: updatedListing.hiddenAt,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error in toggleListingVisibility:", error);
+    return res.status(500).json({
+      error: "Failed to toggle listing visibility.",
+    });
   }
 };

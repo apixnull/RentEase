@@ -16,13 +16,18 @@ import {
   ExternalLink,
   Shield,
   Ban,
-  XCircle
+  XCircle,
+  RotateCcw,
+  Loader2,
+  Edit2
 } from 'lucide-react';
-import { getLandlordSpecificListingRequest } from '@/api/landlord/listingApi';
+import { getLandlordSpecificListingRequest, toggleListingVisibilityRequest } from '@/api/landlord/listingApi';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface City {
   id: string;
@@ -102,12 +107,19 @@ export const ListingDetails = () => {
   const [listingData, setListingData] = useState<ListingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [showToggleConfirm, setShowToggleConfirm] = useState(false);
 
-  const fetchListingData = async () => {
+  const fetchListingData = async ({ silent }: { silent?: boolean } = {}) => {
     if (!listingId) return;
     
     try {
-      setLoading(true);
+      if (silent) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       const response = await getLandlordSpecificListingRequest(listingId);
       setListingData(response.data);
@@ -115,12 +127,62 @@ export const ListingDetails = () => {
       setError('Failed to load listing data');
       console.error('Error fetching listing data:', err);
     } finally {
-      setLoading(false);
+      if (silent) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
   const handleBack = () => {
     navigate(-1);
+  };
+
+  const handleRefresh = () => {
+    fetchListingData({ silent: true });
+  };
+
+  const handleToggleVisibilityClick = () => {
+    if (!listingData) return;
+    
+    const currentStatus = listingData.lifecycleStatus;
+    if (currentStatus !== 'VISIBLE' && currentStatus !== 'HIDDEN') {
+      toast.error('Cannot toggle visibility. Only VISIBLE or HIDDEN listings can be toggled.');
+      return;
+    }
+
+    setShowToggleConfirm(true);
+  };
+
+  const handleConfirmToggle = async () => {
+    if (!listingId || !listingData) return;
+
+    try {
+      setToggling(true);
+      const response = await toggleListingVisibilityRequest(listingId);
+      
+      // Update local state
+      setListingData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          lifecycleStatus: response.data.listing.lifecycleStatus,
+          visibleAt: response.data.listing.visibleAt,
+          hiddenAt: response.data.listing.hiddenAt,
+        };
+      });
+
+      const newStatus = response.data.listing.lifecycleStatus;
+      toast.success(`Listing is now ${newStatus.toLowerCase()}.`);
+      setShowToggleConfirm(false);
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.error || 'Failed to toggle listing visibility';
+      toast.error(errorMessage);
+      console.error('Error toggling visibility:', err);
+    } finally {
+      setToggling(false);
+    }
   };
 
 
@@ -133,7 +195,6 @@ export const ListingDetails = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'WAITING_PAYMENT': return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'WAITING_REVIEW': return 'bg-purple-100 text-purple-700 border-purple-200';
       case 'VISIBLE': return 'bg-emerald-100 text-emerald-700 border-emerald-200'; // Full emerald green - active and visible
       case 'HIDDEN': return 'bg-teal-100 text-teal-700 border-teal-200'; // Similar to VISIBLE but with gray-blue mix (teal = emerald + gray)
@@ -146,7 +207,6 @@ export const ListingDetails = () => {
 
   const getStatusGradient = (status: string) => {
     switch (status) {
-      case 'WAITING_PAYMENT': return 'from-blue-200/70 via-blue-100/50 to-blue-200/70';
       case 'WAITING_REVIEW': return 'from-purple-200/70 via-purple-100/50 to-indigo-200/70';
       case 'VISIBLE': return 'from-emerald-200/70 via-emerald-100/50 to-emerald-200/70'; // Full emerald color
       case 'HIDDEN': return 'from-teal-200/70 via-teal-100/50 to-teal-200/70'; // Similar to VISIBLE but with gray-blue mix
@@ -159,7 +219,6 @@ export const ListingDetails = () => {
 
   const getStatusBackgroundColor = (status: string) => {
     switch (status) {
-      case 'WAITING_PAYMENT': return 'bg-blue-50 border-blue-300';
       case 'WAITING_REVIEW': return 'bg-purple-50 border-purple-300';
       case 'VISIBLE': return 'bg-emerald-50 border-emerald-300';
       case 'HIDDEN': return 'bg-teal-50 border-teal-300';
@@ -172,7 +231,6 @@ export const ListingDetails = () => {
 
   const getStatusIconBg = (status: string) => {
     switch (status) {
-      case 'WAITING_PAYMENT': return 'bg-blue-500';
       case 'WAITING_REVIEW': return 'bg-purple-500';
       case 'VISIBLE': return 'bg-emerald-500';
       case 'HIDDEN': return 'bg-teal-500';
@@ -185,7 +243,6 @@ export const ListingDetails = () => {
 
   const getStatusBlurColor = (status: string, variant: 'light' | 'dark' = 'light') => {
     const colors = {
-      WAITING_PAYMENT: variant === 'light' ? 'bg-blue-200/40' : 'bg-blue-300/40',
       WAITING_REVIEW: variant === 'light' ? 'bg-purple-200/40' : 'bg-purple-300/40',
       VISIBLE: variant === 'light' ? 'bg-emerald-200/40' : 'bg-emerald-300/40',
       HIDDEN: variant === 'light' ? 'bg-teal-200/40' : 'bg-teal-300/40',
@@ -193,7 +250,7 @@ export const ListingDetails = () => {
       FLAGGED: variant === 'light' ? 'bg-amber-200/40' : 'bg-amber-300/40',
       BLOCKED: variant === 'light' ? 'bg-red-200/40' : 'bg-red-300/40',
     };
-    return colors[status as keyof typeof colors] || colors.WAITING_PAYMENT;
+    return colors[status as keyof typeof colors] || colors.WAITING_REVIEW;
   };
 
   const getCurrentLifecycleDate = () => {
@@ -201,7 +258,6 @@ export const ListingDetails = () => {
     if (!listingData) return null;
     
     switch (status) {
-      case 'WAITING_PAYMENT': return listingData.createdAt;
       case 'WAITING_REVIEW': return listingData.paymentDate;
       case 'VISIBLE': return listingData.visibleAt;
       case 'HIDDEN': return listingData.hiddenAt;
@@ -215,7 +271,6 @@ export const ListingDetails = () => {
   const getCurrentLifecycleLabel = () => {
     const status = listingData?.lifecycleStatus;
     switch (status) {
-      case 'WAITING_PAYMENT': return 'Created At';
       case 'WAITING_REVIEW': return 'Waiting Review Since';
       case 'VISIBLE': return 'Visible At';
       case 'HIDDEN': return 'Hidden At';
@@ -229,7 +284,6 @@ export const ListingDetails = () => {
   const getCurrentLifecycleIcon = () => {
     const status = listingData?.lifecycleStatus;
     switch (status) {
-      case 'WAITING_PAYMENT': return Calendar;
       case 'WAITING_REVIEW': return Calendar;
       case 'VISIBLE': return Eye;
       case 'HIDDEN': return EyeOff;
@@ -242,13 +296,6 @@ export const ListingDetails = () => {
 
   const getStatusExplanation = (status: string) => {
     switch (status) {
-      case 'WAITING_PAYMENT':
-        return {
-          text: 'Complete your payment to activate your listing. Once payment is confirmed, your listing will proceed to admin review.',
-          color: 'text-blue-700',
-          bg: 'bg-blue-50',
-          border: 'border-blue-200'
-        };
       case 'WAITING_REVIEW':
         return {
           text: 'Your listing has been submitted and is currently under review by our admin team. This process typically takes within 24 hours, though reviews may be completed immediately depending on current workload. You will be notified once the review is complete.',
@@ -377,7 +424,7 @@ export const ListingDetails = () => {
   if (loading) {
     return (
       <div className="min-h-screen p-4 sm:p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="space-y-6">
           {/* Header Skeleton */}
           <Skeleton className="h-28 w-full rounded-2xl" />
 
@@ -439,7 +486,7 @@ export const ListingDetails = () => {
   if (error || !listingData) {
     return (
       <div className="min-h-screen p-6">
-        <div className="max-w-7xl mx-auto">
+        <div>
           <Card className="border-red-200 bg-white/90 backdrop-blur-sm shadow-lg">
             <CardContent className="pt-8 pb-8">
               <div className="text-center">
@@ -452,7 +499,7 @@ export const ListingDetails = () => {
                   <Button onClick={handleBack} variant="outline" className="border-slate-300">
                     Go Back
                   </Button>
-                  <Button onClick={fetchListingData} className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600">
+                  <Button onClick={() => fetchListingData()} className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600">
                     Try Again
                   </Button>
                 </div>
@@ -474,17 +521,8 @@ export const ListingDetails = () => {
   // Always show Created
   lifecycleSteps.push({ label: 'Created', date: listingData.createdAt, status: 'completed', icon: CheckCircle });
   
-  // Show WAITING_PAYMENT status
-  if (listingData.lifecycleStatus === 'WAITING_PAYMENT') {
-    lifecycleSteps.push({ 
-      label: 'Waiting Payment', 
-      date: listingData.createdAt, 
-      status: 'active', 
-      icon: Calendar 
-    });
-  } else {
-    // Payment
-    if (listingData.paymentDate) {
+  // Payment
+  if (listingData.paymentDate) {
       lifecycleSteps.push({ label: 'Payment', date: listingData.paymentDate, status: 'completed', icon: CheckCircle });
       // Waiting Review (starts after payment) - don't show if already VISIBLE or HIDDEN
       if (listingData.lifecycleStatus !== 'VISIBLE' && listingData.lifecycleStatus !== 'HIDDEN') {
@@ -498,23 +536,23 @@ export const ListingDetails = () => {
       }
     }
 
-    // Show "Visible" step - active if current status is VISIBLE, completed otherwise
-    if (listingData.visibleAt) {
+    // Show "Visible" step - only if current status is VISIBLE
+    if (listingData.lifecycleStatus === 'VISIBLE' && listingData.visibleAt) {
       lifecycleSteps.push({ 
         label: 'Visible', 
         date: listingData.visibleAt, 
-        status: listingData.lifecycleStatus === 'VISIBLE' ? 'active' : 'completed', 
+        status: 'active', 
         icon: Eye,
         stepType: 'VISIBLE'
       });
     }
 
-    // Show "Hidden" step - active if current status is HIDDEN, completed otherwise
-    if (listingData.hiddenAt) {
+    // Show "Hidden" step - only if current status is HIDDEN
+    if (listingData.lifecycleStatus === 'HIDDEN' && listingData.hiddenAt) {
       lifecycleSteps.push({ 
         label: 'Hidden', 
         date: listingData.hiddenAt, 
-        status: listingData.lifecycleStatus === 'HIDDEN' ? 'active' : 'completed', 
+        status: 'active', 
         icon: EyeOff,
         stepType: 'HIDDEN'
       });
@@ -541,7 +579,6 @@ export const ListingDetails = () => {
         stepType: 'BLOCKED'
       });
     }
-  }
   
   // Always show Expires at the end
   lifecycleSteps.push({ label: 'Expires', date: listingData.expiresAt, status: 'pending', icon: Calendar });
@@ -550,7 +587,7 @@ export const ListingDetails = () => {
 
   return (
     <div className="min-h-screen  p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="space-y-6">
         {/* Custom Page Header */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
@@ -617,13 +654,57 @@ export const ListingDetails = () => {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-start lg:justify-end">
                   <Button
+                    onClick={() => handleRefresh()}
+                    variant="outline"
+                    size="sm"
+                    disabled={refreshing}
+                    className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
+                  >
+                    {refreshing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Refresh
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Refresh
+                      </>
+                    )}
+                  </Button>
+                  <Button
                     onClick={() => navigate(`/landlord/units/${property.id}/${unit.id}`)}
                     variant="outline"
                     className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
                   >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Full Unit Information
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit Unit
                   </Button>
+                  {/* Toggle Visibility Button - Only show for VISIBLE or HIDDEN status */}
+                  {(listingData.lifecycleStatus === 'VISIBLE' || listingData.lifecycleStatus === 'HIDDEN') && (
+                    <Button
+                      onClick={handleToggleVisibilityClick}
+                      disabled={toggling}
+                      variant="outline"
+                      className={`bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm ${
+                        listingData.lifecycleStatus === 'VISIBLE' 
+                          ? 'hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700' 
+                          : 'hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700'
+                      }`}
+                    >
+                      {listingData.lifecycleStatus === 'VISIBLE' ? (
+                        <>
+                          <EyeOff className="h-4 w-4 mr-2" />
+                          Hide Listing
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Show Listing
+                        </>
+                      )}
+                    </Button>
+                  )}
                   <Badge className={getStatusColor(listingData.lifecycleStatus) + " text-sm py-1.5 px-3"}>
                     {listingData.lifecycleStatus.replace(/_/g, ' ')}
                   </Badge>
@@ -670,9 +751,7 @@ export const ListingDetails = () => {
                       <p className="text-sm font-medium text-slate-900">
                         {getCurrentLifecycleDate() ? formatDateTime(getCurrentLifecycleDate()!) : 'N/A'}
                       </p>
-                      {listingData.lifecycleStatus !== 'WAITING_PAYMENT' && (
-                        <p className="text-xs text-slate-500">Expires in {daysUntilExpiry} days</p>
-                      )}
+                      <p className="text-xs text-slate-500">Expires in {daysUntilExpiry} days</p>
                     </div>
                   </div>
                   
@@ -903,12 +982,54 @@ export const ListingDetails = () => {
                         })}
                       </div>
                     </div>
+                    
+                    {/* Visibility Reminder - Only show for VISIBLE or HIDDEN status */}
+                    {(listingData.lifecycleStatus === 'VISIBLE' || listingData.lifecycleStatus === 'HIDDEN') && (
+                      <div className={`mt-6 p-4 rounded-lg border-2 ${
+                        listingData.lifecycleStatus === 'VISIBLE'
+                          ? 'bg-emerald-50 border-emerald-200'
+                          : 'bg-teal-50 border-teal-200'
+                      }`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            listingData.lifecycleStatus === 'VISIBLE'
+                              ? 'bg-emerald-100 text-emerald-600'
+                              : 'bg-teal-100 text-teal-600'
+                          }`}>
+                            {listingData.lifecycleStatus === 'VISIBLE' ? (
+                              <Eye className="h-4 w-4" />
+                            ) : (
+                              <EyeOff className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className={`text-sm font-semibold mb-1 ${
+                              listingData.lifecycleStatus === 'VISIBLE'
+                                ? 'text-emerald-900'
+                                : 'text-teal-900'
+                            }`}>
+                              {listingData.lifecycleStatus === 'VISIBLE' 
+                                ? 'Your property is currently displayed' 
+                                : 'Your property is currently not displayed'}
+                            </p>
+                            <p className={`text-sm leading-relaxed ${
+                              listingData.lifecycleStatus === 'VISIBLE'
+                                ? 'text-emerald-800'
+                                : 'text-teal-800'
+                            }`}>
+                              {listingData.lifecycleStatus === 'VISIBLE' 
+                                ? 'Your listing is visible to all tenants and appears in search results. If you want to hide it from public view, click the "Hide Listing" button above.' 
+                                : 'Your listing is hidden from public view. Tenants cannot see or search for this listing. If you want to display it in public, click the "Show Listing" button above.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Payment Information - Only show if NOT waiting for payment */}
-                  {listingData.lifecycleStatus !== 'WAITING_PAYMENT' && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Payment Details</h3>
+                  {/* Payment Information */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Payment Details</h3>
                       <div className="space-y-2">
                         <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
                           <span className="text-sm text-slate-600">Amount Paid</span>
@@ -948,7 +1069,6 @@ export const ListingDetails = () => {
                         </div>
                       </div>
                     </div>
-                  )}
 
                   {/* Reviewer Information */}
                   <div>
@@ -1210,6 +1330,83 @@ export const ListingDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Toggle Visibility Confirmation Modal */}
+      <Dialog open={showToggleConfirm} onOpenChange={setShowToggleConfirm}>
+        <DialogContent className="sm:max-w-md bg-white border-slate-300 shadow-2xl">
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                listingData?.lifecycleStatus === 'VISIBLE' 
+                  ? 'bg-teal-100 text-teal-600' 
+                  : 'bg-emerald-100 text-emerald-600'
+              }`}>
+                {listingData?.lifecycleStatus === 'VISIBLE' ? (
+                  <EyeOff className="h-6 w-6" />
+                ) : (
+                  <Eye className="h-6 w-6" />
+                )}
+              </div>
+              <DialogTitle className="text-xl font-semibold text-slate-900">
+                {listingData?.lifecycleStatus === 'VISIBLE' ? 'Hide Listing?' : 'Show Listing?'}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-slate-600 text-base leading-relaxed pt-2">
+              {listingData?.lifecycleStatus === 'VISIBLE' ? (
+                <>
+                  Your unit listing will be <strong className="text-slate-900">hidden from public view</strong>. 
+                  Tenants will no longer be able to see or search for this listing. You can make it visible again at any time.
+                </>
+              ) : (
+                <>
+                  Your unit listing will be <strong className="text-slate-900">visible to all tenants</strong>. 
+                  It will appear in search results and be accessible to potential renters. You can hide it again at any time.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 justify-end pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowToggleConfirm(false)} 
+              disabled={toggling}
+              className="border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmToggle} 
+              disabled={toggling}
+              className={`${
+                listingData?.lifecycleStatus === 'VISIBLE'
+                  ? 'bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800'
+                  : 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800'
+              } text-white shadow-lg`}
+            >
+              {toggling ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {listingData?.lifecycleStatus === 'VISIBLE' ? 'Hiding...' : 'Showing...'}
+                </>
+              ) : (
+                <>
+                  {listingData?.lifecycleStatus === 'VISIBLE' ? (
+                    <>
+                      <EyeOff className="h-4 w-4 mr-2" />
+                      Hide Listing
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-4 w-4 mr-2" />
+                      Show Listing
+                    </>
+                  )}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

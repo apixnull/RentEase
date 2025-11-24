@@ -29,6 +29,21 @@ export const inviteTenantForScreening = async (req, res) => {
       return res.status(400).json({ message: "Provided user is not a tenant account." });
     }
 
+    // Prevent inviting tenants already in pending/active lease with this landlord
+    const existingLease = await prisma.lease.findFirst({
+      where: {
+        tenantId: tenant.id,
+        status: { in: ["PENDING", "ACTIVE"] },
+      },
+      select: { id: true, status: true },
+    });
+
+    if (existingLease) {
+      return res.status(400).json({
+        message: "This tenant is already in a pending or active lease.",
+      });
+    }
+
     const existing = await prisma.tenantScreening.findFirst({
       where: {
         tenantId: tenant.id,
@@ -117,18 +132,11 @@ export const landlordReviewTenantScreening = async (req, res) => {
     let systemRemarks = "";
 
     if (action === "APPROVED") {
-      systemRemarks = "Tenant approved automatically after review and verification of screening data.";
+      systemRemarks =
+        "Your screening was approved! The landlord reviewed your details and is ready to move forward.";
     } else if (action === "REJECTED") {
-      const reasons = [];
-
-      if (screening.hadEvictionHistory) reasons.push("Eviction record found");
-      if (screening.latePaymentHistory) reasons.push("Late rent payments");
-      if (screening.monthlyIncome && screening.monthlyIncome < 10000) reasons.push("Low income stability");
-      if (screening.riskLevel === "HIGH") reasons.push("High AI risk score");
-
-      systemRemarks = reasons.length
-        ? `Rejected automatically due to: ${reasons.join(", ")}.`
-        : "Rejected automatically because the tenant did not meet the screening requirements.";
+      systemRemarks =
+        "Thanks for applying! After careful review we couldn't move forward because the screening requirements were not fully met.";
     }
 
     // ------------------------------------------------------------
@@ -217,7 +225,7 @@ export const getLandlordScreeningsList = async (req, res) => {
 
 
 // ----------------------------------------------
-// GET ALL THE LIST OF SCREENING FROM THIS LANDLORD (WILL BE DISPLAYED IN FRONTEND IN TABLE)
+// GET SPECIFIC SCREENING FROM THIS LANDLORD
 // ----------------------------------------------
 export const getSpeceficScreeningLandlord = async (req, res) => {
   try {
@@ -266,6 +274,64 @@ export const getSpeceficScreeningLandlord = async (req, res) => {
     });
   } catch (error) {
     console.error("Error retrieving tenant screening:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// ----------------------------------------------
+// DELETE PENDING SCREENING (HARD DELETE)
+// ----------------------------------------------
+export const deletePendingScreening = async (req, res) => {
+  try {
+    const landlordId = req.user.id;
+    const { screeningId } = req.params;
+
+    // ------------------------------------------------------------
+    // 1. Validate params
+    // ------------------------------------------------------------
+    if (!screeningId) {
+      return res.status(400).json({ message: "Screening ID is required." });
+    }
+
+    // ------------------------------------------------------------
+    // 2. Find the screening record
+    // ------------------------------------------------------------
+    const screening = await prisma.tenantScreening.findUnique({
+      where: { id: screeningId },
+    });
+
+    if (!screening) {
+      return res.status(404).json({ message: "Screening not found." });
+    }
+
+    if (screening.landlordId !== landlordId) {
+      return res.status(403).json({ message: "Unauthorized access to this screening." });
+    }
+
+    // ------------------------------------------------------------
+    // 3. Only allow deletion of PENDING screenings
+    // ------------------------------------------------------------
+    if (screening.status !== "PENDING") {
+      return res.status(400).json({ 
+        message: "Only pending screenings can be deleted. Once submitted, screenings cannot be deleted." 
+      });
+    }
+
+    // ------------------------------------------------------------
+    // 4. Hard delete the screening record
+    // ------------------------------------------------------------
+    await prisma.tenantScreening.delete({
+      where: { id: screeningId },
+    });
+
+    // ------------------------------------------------------------
+    // 5. Return success message
+    // ------------------------------------------------------------
+    return res.status(200).json({
+      message: "Screening deleted successfully.",
+    });
+  } catch (error) {
+    console.error("Error deleting tenant screening:", error);
     return res.status(500).json({ message: "Internal server error." });
   }
 };

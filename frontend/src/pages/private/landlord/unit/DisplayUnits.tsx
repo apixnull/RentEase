@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Building, ChevronLeft, ChevronRight, Home, Plus, Search, Star, Clock, Eye, RefreshCw, Filter, Calendar } from "lucide-react";
+import { Building, ChevronLeft, ChevronRight, Home, Plus, Search, Star, Clock, Eye, RefreshCw, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -132,9 +132,6 @@ const UnitsSubnav = ({
   setUnitCondition,
   availability,
   setAvailability,
-  amenities,
-  selectedAmenities,
-  setSelectedAmenities,
   filteredUnitsCount,
   onAddUnit,
 }: {
@@ -144,24 +141,9 @@ const UnitsSubnav = ({
   setUnitCondition: (c: "ALL" | Unit["unitCondition"]) => void;
   availability: "ALL" | "AVAILABLE" | "OCCUPIED";
   setAvailability: (v: "ALL" | "AVAILABLE" | "OCCUPIED") => void;
-  amenities: string[];
-  selectedAmenities: string[];
-  setSelectedAmenities: (names: string[]) => void;
   filteredUnitsCount: number;
   onAddUnit: () => void;
 }) => {
-  const [amenitiesOpen, setAmenitiesOpen] = useState(false);
-
-  const toggleAmenity = (name: string) => {
-    setSelectedAmenities(
-      selectedAmenities.includes(name)
-        ? selectedAmenities.filter((n) => n !== name)
-        : [...selectedAmenities, name]
-    );
-  };
-
-  const clearAmenities = () => setSelectedAmenities([]);
-
   return (
     <Card className="p-4">
       <div className="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center">
@@ -195,35 +177,6 @@ const UnitsSubnav = ({
             <option value="AVAILABLE">Available</option>
             <option value="OCCUPIED">Occupied</option>
           </select>
-          <div className="relative">
-            <Button
-              variant="outline"
-              className="text-sm h-9 gap-2"
-              onClick={() => setAmenitiesOpen((v) => !v)}
-            >
-              <Filter className="h-4 w-4" /> Amenities
-            </Button>
-            {amenitiesOpen && (
-              <div className="absolute z-10 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-md p-3">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs text-gray-500">Select amenities</span>
-                  <button onClick={clearAmenities} className="text-xs text-emerald-700 hover:underline">Clear</button>
-                </div>
-                <div className="max-h-56 overflow-auto space-y-1">
-                  {amenities.map((name) => (
-                    <label key={name} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedAmenities.includes(name)}
-                        onChange={() => toggleAmenity(name)}
-                      />
-                      <span>{name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
         <div className="flex gap-2">
           <Button
@@ -251,15 +204,8 @@ const DisplayUnits = ({ units = [], loading, error }: { units: Unit[]; loading?:
   const [unitQuery, setUnitQuery] = useState("");
   const [unitCondition, setUnitCondition] = useState<"ALL" | Unit["unitCondition"]>("ALL");
   const [availability, setAvailability] = useState<"ALL" | "AVAILABLE" | "OCCUPIED">("ALL");
-  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [unitPage, setUnitPage] = useState(1);
   const unitPageSize = 8;
-
-  const allAmenities = useMemo(() => {
-    const set = new Set<string>();
-    units.forEach(u => u.amenities.forEach(a => set.add(a.name)));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [units]);
 
   const filteredUnits = useMemo(() => {
     const q = unitQuery.trim().toLowerCase();
@@ -268,12 +214,6 @@ const DisplayUnits = ({ units = [], loading, error }: { units: Unit[]; loading?:
       if (unitCondition !== "ALL" && unit.unitCondition !== unitCondition) return false;
       if (availability === "AVAILABLE" && unit.occupiedAt) return false;
       if (availability === "OCCUPIED" && !unit.occupiedAt) return false;
-      if (selectedAmenities.length > 0) {
-        const unitAmenityNames = new Set(unit.amenities.map(a => a.name));
-        for (const name of selectedAmenities) {
-          if (!unitAmenityNames.has(name)) return false;
-        }
-      }
       if (q) {
         const matches = unit.label.toLowerCase().includes(q) ||
           (unit.floorNumber !== null && String(unit.floorNumber).includes(q)) ||
@@ -282,7 +222,7 @@ const DisplayUnits = ({ units = [], loading, error }: { units: Unit[]; loading?:
       }
       return true;
     });
-  }, [units, unitQuery, unitCondition, availability, selectedAmenities]);
+  }, [units, unitQuery, unitCondition, availability]);
 
   const totalUnitPages = Math.max(
     1,
@@ -340,12 +280,6 @@ const DisplayUnits = ({ units = [], loading, error }: { units: Unit[]; loading?:
           setAvailability(v);
           setUnitPage(1);
         }}
-        amenities={allAmenities}
-        selectedAmenities={selectedAmenities}
-        setSelectedAmenities={(names) => {
-          setSelectedAmenities(names);
-          setUnitPage(1);
-        }}
         filteredUnitsCount={filteredUnits.length}
         onAddUnit={handleAddUnit}
       />
@@ -391,18 +325,20 @@ const UnitsList = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
         {units.map((unit) => (
           <UnitCard key={unit.id} unit={unit} />
         ))}
       </div>
 
       {totalUnitPages > 1 && (
-        <Pagination 
-          currentPage={unitPage}
-          totalPages={totalUnitPages}
-          onPageChange={onPageChange}
-        />
+        <Card className="p-4">
+          <Pagination 
+            currentPage={unitPage}
+            totalPages={totalUnitPages}
+            onPageChange={onPageChange}
+          />
+        </Card>
       )}
     </>
   );

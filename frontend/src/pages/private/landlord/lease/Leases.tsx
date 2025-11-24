@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, X, Clock, CheckCircle, AlertTriangle, Ban, Calendar, Eye, Users, Loader, Plus, Download, FileCode } from 'lucide-react';
+import { FileText, X, Clock, CheckCircle, AlertTriangle, Ban, Calendar, Eye, Users, Plus, ScrollText, Sparkles, ShieldCheck, Search, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAllLeasesRequest } from '@/api/landlord/leaseApi';
+import { getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Interfaces based on API response
 interface Property {
@@ -54,33 +58,271 @@ interface ApiLeasesResponse {
   leases: Lease[];
 }
 
+interface PropertyWithUnits {
+  id: string;
+  title: string;
+  Unit?: Array<{
+    id: string;
+    label: string;
+  }>;
+}
+
+// Complete Color Schema for Lease Statuses
+const LEASE_STATUS_THEME = {
+  PENDING: {
+    // Badge & Pill
+    badge: "bg-amber-50 border border-amber-200 text-amber-700",
+    pill: "bg-amber-100 text-amber-800",
+    
+    // Gradients
+    gradient: "from-amber-500 to-orange-500",
+    gradientLight: "from-amber-200/70 via-amber-100/50 to-amber-200/70",
+    gradientButton: "from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700",
+    
+    // Backgrounds
+    background: "bg-amber-50 border-amber-300",
+    backgroundCard: "bg-gradient-to-br from-amber-50 to-orange-50",
+    
+    // Icon & Text
+    iconBackground: "bg-amber-500",
+    textColor: "text-amber-700",
+    textColorDark: "text-amber-900",
+    textColorLight: "text-amber-600",
+    
+    // Blur Effects
+    blurLight: "bg-amber-200/40",
+    blurDark: "bg-amber-300/40",
+    
+    // Borders
+    border: "border-amber-200",
+    borderDark: "border-amber-300",
+    borderCard: "border-2 border-amber-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-amber-500 ring-4 ring-amber-200",
+    timelineCompleted: "bg-amber-500",
+    timelineLine: "bg-amber-300",
+  },
+  ACTIVE: {
+    // Badge & Pill
+    badge: "bg-emerald-50 border border-emerald-200 text-emerald-700",
+    pill: "bg-emerald-100 text-emerald-800",
+    
+    // Gradients
+    gradient: "from-emerald-500 to-teal-500",
+    gradientLight: "from-emerald-200/70 via-emerald-100/50 to-emerald-200/70",
+    gradientButton: "from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700",
+    
+    // Backgrounds
+    background: "bg-emerald-50 border-emerald-300",
+    backgroundCard: "bg-gradient-to-br from-emerald-50 to-teal-50",
+    
+    // Icon & Text
+    iconBackground: "bg-emerald-500",
+    textColor: "text-emerald-700",
+    textColorDark: "text-emerald-900",
+    textColorLight: "text-emerald-600",
+    
+    // Blur Effects
+    blurLight: "bg-emerald-200/40",
+    blurDark: "bg-emerald-300/40",
+    
+    // Borders
+    border: "border-emerald-200",
+    borderDark: "border-emerald-300",
+    borderCard: "border-2 border-emerald-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-emerald-500 ring-4 ring-emerald-200",
+    timelineCompleted: "bg-emerald-500",
+    timelineLine: "bg-emerald-300",
+  },
+  COMPLETED: {
+    // Badge & Pill
+    badge: "bg-blue-50 border border-blue-200 text-blue-700",
+    pill: "bg-blue-100 text-blue-800",
+    
+    // Gradients
+    gradient: "from-blue-600 to-indigo-600",
+    gradientLight: "from-blue-200/70 via-blue-100/50 to-blue-200/70",
+    gradientButton: "from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700",
+    
+    // Backgrounds
+    background: "bg-blue-50 border-blue-300",
+    backgroundCard: "bg-gradient-to-br from-blue-50 to-cyan-50",
+    
+    // Icon & Text
+    iconBackground: "bg-blue-500",
+    textColor: "text-blue-700",
+    textColorDark: "text-blue-900",
+    textColorLight: "text-blue-600",
+    
+    // Blur Effects
+    blurLight: "bg-blue-200/40",
+    blurDark: "bg-blue-300/40",
+    
+    // Borders
+    border: "border-blue-200",
+    borderDark: "border-blue-300",
+    borderCard: "border-2 border-blue-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-blue-500 ring-4 ring-blue-200",
+    timelineCompleted: "bg-blue-500",
+    timelineLine: "bg-blue-300",
+  },
+  TERMINATED: {
+    // Badge & Pill
+    badge: "bg-rose-50 border border-rose-200 text-rose-700",
+    pill: "bg-rose-100 text-rose-800",
+    
+    // Gradients
+    gradient: "from-rose-500 to-red-500",
+    gradientLight: "from-rose-200/70 via-rose-100/50 to-rose-200/70",
+    gradientButton: "from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700",
+    
+    // Backgrounds
+    background: "bg-rose-50 border-rose-300",
+    backgroundCard: "bg-gradient-to-br from-rose-50 to-red-50",
+    
+    // Icon & Text
+    iconBackground: "bg-rose-500",
+    textColor: "text-rose-700",
+    textColorDark: "text-rose-900",
+    textColorLight: "text-rose-600",
+    
+    // Blur Effects
+    blurLight: "bg-rose-200/40",
+    blurDark: "bg-rose-300/40",
+    
+    // Borders
+    border: "border-rose-200",
+    borderDark: "border-rose-300",
+    borderCard: "border-2 border-rose-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-rose-500 ring-4 ring-rose-200",
+    timelineCompleted: "bg-rose-500",
+    timelineLine: "bg-rose-300",
+  },
+  CANCELLED: {
+    // Badge & Pill
+    badge: "bg-slate-50 border border-slate-200 text-slate-700",
+    pill: "bg-slate-100 text-slate-700",
+    
+    // Gradients
+    gradient: "from-slate-500 to-gray-500",
+    gradientLight: "from-slate-200/70 via-slate-100/50 to-slate-200/70",
+    gradientButton: "from-slate-600 to-gray-600 hover:from-slate-700 hover:to-gray-700",
+    
+    // Backgrounds
+    background: "bg-slate-50 border-slate-300",
+    backgroundCard: "bg-gradient-to-br from-slate-50 to-gray-50",
+    
+    // Icon & Text
+    iconBackground: "bg-slate-500",
+    textColor: "text-slate-700",
+    textColorDark: "text-slate-900",
+    textColorLight: "text-slate-600",
+    
+    // Blur Effects
+    blurLight: "bg-slate-200/40",
+    blurDark: "bg-slate-300/40",
+    
+    // Borders
+    border: "border-slate-200",
+    borderDark: "border-slate-300",
+    borderCard: "border-2 border-slate-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-slate-500 ring-4 ring-slate-200",
+    timelineCompleted: "bg-slate-500",
+    timelineLine: "bg-slate-300",
+  },
+} as const;
+
+const LeasesLoadingSkeleton = () => (
+  <div className="min-h-screen p-6 space-y-5">
+    <Skeleton className="h-20 w-full rounded-2xl" />
+    <Card className="p-5 space-y-4">
+      <Skeleton className="h-4 w-32" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[...Array(2)].map((_, idx) => (
+          <div key={idx} className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-xl" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-5 w-20" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+    <Card className="p-4 space-y-3">
+      <Skeleton className="h-9 w-full" />
+      <div className="flex gap-3">
+        <Skeleton className="h-8 w-36" />
+        <Skeleton className="h-8 w-28" />
+        <Skeleton className="h-8 w-24" />
+      </div>
+    </Card>
+    <Card className="p-4 space-y-3">
+      <Skeleton className="h-4 w-28" />
+      {[...Array(4)].map((_, idx) => (
+        <div key={idx} className="grid grid-cols-4 gap-3">
+          <Skeleton className="h-9 col-span-2" />
+          <Skeleton className="h-9" />
+          <Skeleton className="h-9" />
+        </div>
+      ))}
+    </Card>
+  </div>
+);
+
 const Leases = () => {
   const [selectedProperty, setSelectedProperty] = useState('all');
   const [selectedUnit, setSelectedUnit] = useState('all');
   const [selectedLeaseType, setSelectedLeaseType] = useState('all');
+  const [leaseSearch, setLeaseSearch] = useState('');
+  const [showExpiringSoon, setShowExpiringSoon] = useState(false);
   const [activeTab, setActiveTab] = useState('current');
   const [leases, setLeases] = useState<Lease[]>([]);
+  const [propertiesWithUnits, setPropertiesWithUnits] = useState<PropertyWithUnits[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
+
+  const fetchLeasesData = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    try {
+      if (!silent) {
+        setLoading(true);
+      }
+      setRefreshing(true);
+      const [leasesResponse, propertiesResponse] = await Promise.all([
+        getAllLeasesRequest(),
+        getPropertiesWithUnitsRequest(),
+      ]);
+
+      const leasesData: ApiLeasesResponse = leasesResponse.data;
+      setLeases(leasesData.leases || []);
+
+      const propertiesData = propertiesResponse.data?.properties ?? propertiesResponse.data ?? [];
+      setPropertiesWithUnits(Array.isArray(propertiesData) ? propertiesData : []);
+    } catch (error: any) {
+      console.error('Failed to fetch leases:', error);
+      toast.error(error?.response?.data?.error || 'Failed to load leases. Please try again.');
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+      setRefreshing(false);
+    }
+  }, []);
 
   // Fetch leases on component mount
   useEffect(() => {
-    const fetchLeases = async () => {
-      try {
-        setLoading(true);
-        const response = await getAllLeasesRequest();
-        const data: ApiLeasesResponse = response.data;
-        setLeases(data.leases);
-      } catch (error) {
-        console.error('Failed to fetch leases:', error);
-        toast.error('Failed to load leases. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLeases();
-  }, []);
+    fetchLeasesData();
+  }, [fetchLeasesData]);
 
   // Calculate stats for current leases
   const currentLeases = leases.filter(lease => 
@@ -96,6 +338,14 @@ const Leases = () => {
     return isPastStatus || isOldTerminatedOrCancelled;
   }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
+  const isLeaseExpiringSoon = (lease: Lease) => {
+    if (!lease.endDate) return false;
+    const end = new Date(lease.endDate).getTime();
+    const now = Date.now();
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    return end >= now && end - now <= thirtyDays;
+  };
+
   // Stats for current tab
   const currentPendingCount = currentLeases.filter(lease => lease.status === 'PENDING').length;
   const currentActiveCount = currentLeases.filter(lease => lease.status === 'ACTIVE').length;
@@ -105,34 +355,136 @@ const Leases = () => {
   const pastTerminatedCount = pastLeases.filter(lease => lease.status === 'TERMINATED').length;
   const pastCancelledCount = pastLeases.filter(lease => lease.status === 'CANCELLED').length;
 
-  // Get unique properties and units from leases
-  const properties = Array.from(new Map(leases.map(lease => [lease.property.id, {
-    id: lease.property.id,
-    name: lease.property.title
-  }])).values());
+  const expiringSoonCount = currentLeases.filter(isLeaseExpiringSoon).length;
 
-  const units = Array.from(new Map(leases.map(lease => [lease.unit.id, {
-    id: lease.unit.id,
-    number: lease.unit.label,
-    propertyId: lease.propertyId
-  }])).values());
+  const currentStats = [
+    {
+      label: 'Pending Approval',
+      value: currentPendingCount,
+      icon: Clock,
+      status: 'PENDING' as const,
+    },
+    {
+      label: 'Active Leases',
+      value: currentActiveCount,
+      icon: CheckCircle,
+      status: 'ACTIVE' as const,
+    },
+  ];
 
-  const filterLeases = (leasesToFilter: Lease[]) => {
+  const pastStats = [
+    {
+      label: 'Completed',
+      value: pastCompletedCount,
+      icon: Calendar,
+      status: 'COMPLETED' as const,
+    },
+    {
+      label: 'Terminated',
+      value: pastTerminatedCount,
+      icon: AlertTriangle,
+      status: 'TERMINATED' as const,
+    },
+    {
+      label: 'Cancelled',
+      value: pastCancelledCount,
+      icon: Ban,
+      status: 'CANCELLED' as const,
+    },
+  ];
+
+  // Get unique properties and units (prefer API data so filters include units without leases)
+  const derivedPropertyOptions = Array.from(
+    new Map(
+      leases.map(lease => [
+        lease.property.id,
+        {
+          id: lease.property.id,
+          name: lease.property.title,
+        },
+      ])
+    ).values()
+  );
+
+  const propertyOptions = propertiesWithUnits.length
+    ? propertiesWithUnits.map(property => ({
+        id: property.id,
+        name: property.title,
+      }))
+    : derivedPropertyOptions;
+
+  const unitsByProperty = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; label: string }>>();
+
+    if (propertiesWithUnits.length) {
+      propertiesWithUnits.forEach(property => {
+        const normalizedUnits =
+          property.Unit?.map(unit => ({
+            id: unit.id,
+            label: unit.label,
+          })) ?? [];
+        map.set(property.id, normalizedUnits);
+      });
+      return map;
+    }
+
+    leases.forEach(lease => {
+      const existing = map.get(lease.property.id) || [];
+      const alreadyIncluded = existing.some(unit => unit.id === lease.unit.id);
+      if (!alreadyIncluded) {
+        map.set(lease.property.id, [...existing, { id: lease.unit.id, label: lease.unit.label }]);
+      }
+    });
+
+    return map;
+  }, [leases, propertiesWithUnits]);
+
+  const currentPropertyUnits =
+    selectedProperty === 'all' ? null : unitsByProperty.get(selectedProperty) ?? [];
+
+  const isUnitFilterDisabled =
+    selectedProperty === 'all' || (currentPropertyUnits ? currentPropertyUnits.length === 0 : true);
+
+  const filterLeases = (leasesToFilter: Lease[], query: string = leaseSearch) => {
+    const normalizedQuery = query.trim().toLowerCase();
+
     return leasesToFilter.filter(lease => {
       const propertyMatch = selectedProperty === 'all' || lease.propertyId === selectedProperty;
       const unitMatch = selectedUnit === 'all' || lease.unitId === selectedUnit;
       const leaseTypeMatch = selectedLeaseType === 'all' || lease.leaseType === selectedLeaseType;
+      const expiringMatch = !showExpiringSoon || isLeaseExpiringSoon(lease);
+
+      if (!(propertyMatch && unitMatch && leaseTypeMatch && expiringMatch)) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      const haystack = [
+        lease.leaseNickname,
+        lease.property.title,
+        lease.unit.label,
+        lease.tenant.firstName,
+        lease.tenant.lastName,
+        lease.tenant.email,
+        lease.leaseType,
+        lease.status,
+        lease.startDate,
+        lease.endDate ?? '',
+        `${lease.rentAmount}`,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
       
-      return propertyMatch && unitMatch && leaseTypeMatch;
+      return haystack.includes(normalizedQuery);
     });
   };
 
-  const filteredCurrentLeases = filterLeases(currentLeases);
-  const filteredPastLeases = filterLeases(pastLeases);
-
-  const filteredUnits = units.filter(unit => 
-    selectedProperty === 'all' || unit.propertyId === selectedProperty
-  );
+  const filteredCurrentLeases = filterLeases(currentLeases, leaseSearch);
+  const filteredPastLeases = filterLeases(pastLeases, leaseSearch);
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -152,20 +504,10 @@ const Leases = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PENDING':
-        return 'bg-amber-50 border-amber-200 text-amber-800';
-      case 'ACTIVE':
-        return 'bg-emerald-50 border-emerald-200 text-emerald-800';
-      case 'COMPLETED':
-        return 'bg-blue-50 border-blue-200 text-blue-800';
-      case 'TERMINATED':
-        return 'bg-rose-50 border-rose-200 text-rose-800';
-      case 'CANCELLED':
-        return 'bg-slate-100 border-slate-300 text-slate-700';
-      default:
-        return 'bg-slate-100 border-slate-300 text-slate-700';
-    }
+    return (
+      LEASE_STATUS_THEME[status as keyof typeof LEASE_STATUS_THEME]?.badge ??
+      "bg-slate-100 border-slate-300 text-slate-700"
+    );
   };
 
   const getStatusIcon = (status: string) => {
@@ -243,67 +585,139 @@ const Leases = () => {
     navigate(`/landlord/leases/${leaseId}/details`);
   };
 
-  const handleLeaseFormat = () => {
-    navigate('/lease/format');
+  const handleRefresh = () => {
+    if (!refreshing) {
+      fetchLeasesData({ silent: true });
+    }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6 flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading lease portfolio...</p>
-        </div>
-      </div>
-    );
+    return <LeasesLoadingSkeleton />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Lease Portfolio
-          </h1>
-          <p className="text-gray-600 mt-1 text-sm">
-            Professional lease management and monitoring system
-          </p>
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="relative overflow-hidden rounded-2xl"
+      >
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-teal-200/80 via-cyan-200/70 to-emerald-200/70 opacity-95" />
+        <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-teal-300/50 to-cyan-400/40 blur-3xl"
+            initial={{ opacity: 0.4, scale: 0.85 }}
+            animate={{ opacity: 0.7, scale: 1.05 }}
+            transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-emerald-200/40 to-cyan-200/35 blur-3xl"
+            initial={{ opacity: 0.3 }}
+            animate={{ opacity: 0.6 }}
+            transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+
+          <div className="px-4 sm:px-6 py-5 space-y-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4 min-w-0">
+                <motion.div
+                  whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                  className="relative flex-shrink-0"
+                >
+                  <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-teal-600 via-cyan-600 to-emerald-600 text-white grid place-items-center shadow-xl shadow-cyan-500/30">
+                    <FileText className="h-5 w-5 relative z-10" />
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                  </div>
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-teal-600 border border-teal-100 shadow-sm grid place-items-center"
+                  >
+                    <ScrollText className="h-3 w-3" />
+                  </motion.div>
+                  <motion.div
+                    className="absolute inset-0 rounded-2xl border-2 border-cyan-400/30"
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                </motion.div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                      Lease Operations Hub
+                    </h1>
+                    <motion.div
+                      animate={{ rotate: [0, 8, -8, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <Sparkles className="h-4 w-4 text-emerald-500" />
+                    </motion.div>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-cyan-500" />
+                    Keep agreements, renewals, and compliance synced across properties
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                <Button
+                  variant="outline"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="h-11 rounded-xl border-slate-200 bg-white/80 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white disabled:opacity-70"
+                >
+                  {refreshing ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Refreshing
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4" />
+                      Refresh Data
+                    </span>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleCreateLease}
+                  className="h-11 rounded-xl bg-gradient-to-r from-teal-500 via-cyan-500 to-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-cyan-500/30 hover:brightness-110"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Create Lease
+                </Button>
+              </div>
+            </div>
+
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+              style={{ originX: 0 }}
+              className="relative h-1 w-full rounded-full overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-teal-400/80 via-cyan-400/80 to-emerald-400/80" />
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                animate={{ x: ["-100%", "100%"] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+              />
+            </motion.div>
+          </div>
         </div>
-        
-        <div className="flex flex-wrap gap-2">
-          <Button 
-            variant="outline"
-            size="sm"
-            className="border-gray-300 hover:bg-white text-xs"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          <Button 
-            variant="outline"
-            size="sm"
-            className="border-gray-300 hover:bg-white text-xs"
-            onClick={handleLeaseFormat}
-          >
-            <FileCode className="w-4 h-4 mr-2" />
-            Lease Format
-          </Button>
-          <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-xs"
-            onClick={handleCreateLease}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Lease
-          </Button>
-        </div>
-      </div>
+      </motion.div>
 
       {/* Main Content */}
       <div className="space-y-6">
-        {/* Leases Table with Tabs */}
-        <Card className="shadow-sm border border-gray-200">
-          <CardHeader className="pb-3 border-b border-gray-200 bg-white">
+          {/* Leases Table with Tabs */}
+          <Card className="shadow-sm border border-gray-200">
+          <CardHeader className="pb-4 border-b border-gray-200 bg-white space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-600" />
@@ -312,19 +726,40 @@ const Leases = () => {
                   {leases.length} total
                 </Badge>
               </CardTitle>
-              
-              {/* Advanced Filters */}
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  value={leaseSearch}
+                  onChange={(e) => setLeaseSearch(e.target.value)}
+                  placeholder="Search tenant, property, status..."
+                  className="pl-9 h-9 text-sm bg-slate-50 border-gray-200"
+                />
+                {leaseSearch && (
+                  <button
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    onClick={() => setLeaseSearch('')}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-2 w-full">
               <div className="flex flex-wrap gap-2 items-center">
-                <Select value={selectedProperty} onValueChange={(value) => {
-                  setSelectedProperty(value);
-                  setSelectedUnit('all');
-                }}>
-                  <SelectTrigger className="w-[140px] h-8 text-xs border-gray-300">
+                <Select
+                  value={selectedProperty}
+                  onValueChange={(value) => {
+                    setSelectedProperty(value);
+                    setSelectedUnit('all');
+                  }}
+                >
+                  <SelectTrigger className="w-[170px] h-9 text-sm border-gray-300">
                     <SelectValue placeholder="All Properties" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Properties</SelectItem>
-                    {properties.map((property) => (
+                    {propertyOptions.map((property) => (
                       <SelectItem key={property.id} value={property.id}>
                         {property.name}
                       </SelectItem>
@@ -332,17 +767,21 @@ const Leases = () => {
                   </SelectContent>
                 </Select>
 
-                <Select value={selectedUnit} onValueChange={setSelectedUnit}>
-                  <SelectTrigger className="w-[120px] h-8 text-xs border-gray-300">
-                    <SelectValue placeholder="All Units" />
+                <Select value={selectedUnit} onValueChange={setSelectedUnit} disabled={isUnitFilterDisabled}>
+                  <SelectTrigger
+                    className="w-[160px] h-9 text-sm border-gray-300"
+                    disabled={isUnitFilterDisabled}
+                  >
+                    <SelectValue placeholder="Select Unit" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Units</SelectItem>
-                    {filteredUnits.map((unit) => (
+                    {currentPropertyUnits?.map((unit) => (
                       <SelectItem key={unit.id} value={unit.id}>
-                        Unit {unit.number}
+                        Unit {unit.label}
                       </SelectItem>
-                    ))}
+                    )) ??
+                      null}
                   </SelectContent>
                 </Select>
 
@@ -359,6 +798,22 @@ const Leases = () => {
                   </SelectContent>
                 </Select>
 
+                <button
+                  type="button"
+                  onClick={() => setShowExpiringSoon((prev) => !prev)}
+                  className={`flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition ${
+                    showExpiringSoon
+                      ? 'bg-cyan-600 text-white border-cyan-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-gray-300 hover:border-cyan-400'
+                  }`}
+                >
+                  <Calendar className={`h-3.5 w-3.5 ${showExpiringSoon ? 'text-white' : 'text-cyan-600'}`} />
+                  <span>Expiring 30d</span>
+                  <span className={`text-[10px] ${showExpiringSoon ? 'text-white/80' : 'text-slate-500'}`}>
+                    {expiringSoonCount}
+                  </span>
+                </button>
+
                 {(selectedProperty !== 'all' || selectedUnit !== 'all' || selectedLeaseType !== 'all') && (
                   <Button
                     variant="ghost"
@@ -367,6 +822,7 @@ const Leases = () => {
                       setSelectedProperty('all');
                       setSelectedUnit('all');
                       setSelectedLeaseType('all');
+                      setShowExpiringSoon(false);
                     }}
                     className="h-8 px-2 text-xs border border-gray-300"
                   >
@@ -380,64 +836,75 @@ const Leases = () => {
           
           <CardContent className="p-0">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="w-full grid grid-cols-2 p-4 pb-0 bg-transparent border-b">
-                <TabsTrigger 
-                  value="current" 
-                  className="data-[state=active]:bg-white data-[state=active]:border data-[state=active]:border-gray-200 data-[state=active]:text-gray-900 rounded-t-lg border-b-0 data-[state=active]:border-b-2 data-[state=active]:border-b-blue-600 transition-all duration-200 py-2 text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium">Current</span>
-                    <Badge variant="secondary" className="ml-1 text-xs bg-blue-50 text-blue-700">
+              {/* Creative Tabs with Color Scheme - Transparent Gradients */}
+              <div className="border-b bg-gradient-to-br from-slate-50/80 via-gray-50/60 to-slate-50/80 backdrop-blur-sm">
+                <TabsList className="w-full h-auto bg-transparent p-2 sm:p-3 gap-2 grid grid-cols-2">
+                  <TabsTrigger 
+                    value="current" 
+                    className={`relative flex-1 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl font-medium transition-all overflow-hidden ${
+                      activeTab === 'current' 
+                        ? `bg-gradient-to-r from-emerald-500 to-teal-500/20 text-emerald-700 border border-emerald-200/50 shadow-sm backdrop-blur-sm` 
+                        : `bg-gray-50/50 border border-gray-200 text-gray-600 hover:bg-gray-100/50`
+                    }`}
+                  >
+                    {activeTab === 'current' && (
+                      <div className={`absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500/10 opacity-50`} />
+                    )}
+                    <CheckCircle className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'current' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 font-medium">Current</span>
+                    <Badge className={`ml-1 text-xs px-1.5 py-0 relative z-10 ${
+                      activeTab === 'current' 
+                        ? `bg-emerald-100 text-emerald-800 border border-emerald-200/50` 
+                        : `bg-gray-100 text-gray-700`
+                    }`}>
                       {currentLeases.length}
                     </Badge>
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="past" 
-                  className="data-[state=active]:bg-white data-[state=active]:border data-[state=active]:border-gray-200 data-[state=active]:text-gray-900 rounded-t-lg border-b-0 data-[state=active]:border-b-2 data-[state=active]:border-b-gray-600 transition-all duration-200 py-2 text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-600" />
-                    <span className="font-medium">History</span>
-                    <Badge variant="secondary" className="ml-1 text-xs bg-gray-100 text-gray-700">
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="past" 
+                    className={`relative flex-1 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl font-medium transition-all overflow-hidden ${
+                      activeTab === 'past' 
+                        ? `bg-gradient-to-r from-emerald-500 to-teal-500/20 text-emerald-700 border border-emerald-200/50 shadow-sm backdrop-blur-sm` 
+                        : `bg-gray-50/50 border border-gray-200 text-gray-600 hover:bg-gray-100/50`
+                    }`}
+                  >
+                    {activeTab === 'past' && (
+                      <div className={`absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500/10 opacity-50`} />
+                    )}
+                    <Calendar className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'past' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 font-medium">History</span>
+                    <Badge className={`ml-1 text-xs px-1.5 py-0 relative z-10 ${
+                      activeTab === 'past' 
+                        ? `bg-emerald-100 text-emerald-800 border border-emerald-200/50` 
+                        : `bg-gray-100 text-gray-700`
+                    }`}>
                       {pastLeases.length}
                     </Badge>
-                  </div>
-                </TabsTrigger>
-              </TabsList>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
               {/* Current Leases Tab */}
-              <TabsContent value="current" className="m-0 p-4">
+              <TabsContent value="current" className="m-0 p-3 sm:p-4 md:p-6 space-y-5">
                 {/* Stats for Current Leases */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <Card className="border-l-3 border-l-amber-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-amber-700">Pending Approval</p>
-                          <h3 className="text-xl font-bold text-gray-900 mt-1">{currentPendingCount}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {currentStats.map((stat) => {
+                    const theme = LEASE_STATUS_THEME[stat.status];
+                    return (
+                      <div
+                        key={stat.label}
+                        className={`rounded-xl ${theme.borderCard} ${theme.backgroundCard} p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)]`}
+                      >
+                        <div className={`h-10 w-10 rounded-lg grid place-items-center ${theme.iconBackground}`}>
+                          <stat.icon className={`h-4 w-4 text-white`} />
                         </div>
-                        <div className="p-2 bg-amber-100 rounded-lg">
-                          <Clock className="w-5 h-5 text-amber-600" />
+                        <div>
+                          <p className={`text-xs uppercase tracking-wide ${theme.textColorLight}`}>{stat.label}</p>
+                          <p className={`text-lg font-semibold ${theme.textColorDark}`}>{stat.value}</p>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-l-3 border-l-emerald-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-emerald-700">Active & Running</p>
-                          <h3 className="text-xl font-bold text-gray-900 mt-1">{currentActiveCount}</h3>
-                        </div>
-                        <div className="p-2 bg-emerald-100 rounded-lg">
-                          <CheckCircle className="w-5 h-5 text-emerald-600" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    );
+                  })}
                 </div>
 
                 {/* Current Leases Table */}
@@ -459,8 +926,8 @@ const Leases = () => {
                         <TableRow>
                           <TableCell colSpan={7} className="text-center text-gray-500 py-12">
                             <div className="flex flex-col items-center gap-3">
-                              <div className="p-3 bg-blue-50 rounded-full">
-                                <FileText className="w-8 h-8 text-blue-300" />
+                              <div className="p-3 bg-emerald-50 rounded-full">
+                                <FileText className="w-8 h-8 text-emerald-300" />
                               </div>
                               <div>
                                 <p className="font-medium text-gray-500">No current leases found</p>
@@ -474,7 +941,7 @@ const Leases = () => {
                               {leases.length === 0 && (
                                 <Button 
                                   onClick={handleCreateLease}
-                                  className="mt-2 bg-blue-600 hover:bg-blue-700 text-xs"
+                                  className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-xs"
                                   size="sm"
                                 >
                                   <Plus className="w-4 h-4 mr-2" />
@@ -488,7 +955,7 @@ const Leases = () => {
                         filteredCurrentLeases.map((lease) => (
                           <TableRow 
                             key={lease.id}
-                            className="group hover:bg-blue-50/30 transition-colors border-b border-gray-100 last:border-b-0"
+                            className="group hover:bg-emerald-50/30 transition-colors border-b border-gray-100 last:border-b-0"
                           >
                             <TableCell>
                               <div className="space-y-1">
@@ -496,7 +963,7 @@ const Leases = () => {
                                   {lease.leaseNickname || `${getTenantFullName(lease.tenant)} - ${lease.property.title}`}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs bg-white border-blue-200 text-blue-700">
+                                  <Badge variant="outline" className="text-xs bg-white border-emerald-200 text-emerald-700">
                                     {getLeaseTypeDisplay(lease.leaseType)}
                                   </Badge>
                                   <span className="text-xs text-gray-500">
@@ -524,7 +991,7 @@ const Leases = () => {
                                   {lease.property.title}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  Unit {lease.unit.label}
+                                  {lease.unit.label}
                                 </div>
                               </div>
                             </TableCell>
@@ -558,7 +1025,7 @@ const Leases = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleViewLeaseDetails(lease.id)}
-                                className="h-7 w-7 p-0 opacity-70 hover:opacity-100 hover:bg-blue-100 hover:text-blue-700 transition-all rounded"
+                                className="h-7 w-7 p-0 opacity-70 hover:opacity-100 hover:bg-emerald-100 hover:text-emerald-700 transition-all rounded"
                                 title="View lease details"
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -573,50 +1040,26 @@ const Leases = () => {
               </TabsContent>
 
               {/* Past Leases Tab */}
-              <TabsContent value="past" className="m-0 p-4">
+              <TabsContent value="past" className="m-0 p-3 sm:p-4 md:p-6 space-y-5">
                 {/* Stats for Past Leases */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <Card className="border-l-3 border-l-blue-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-blue-700">Completed</p>
-                          <h3 className="text-xl font-bold text-gray-900 mt-1">{pastCompletedCount}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {pastStats.map((stat) => {
+                    const theme = LEASE_STATUS_THEME[stat.status];
+                    return (
+                      <div
+                        key={stat.label}
+                        className={`rounded-xl ${theme.borderCard} ${theme.backgroundCard} p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)]`}
+                      >
+                        <div className={`h-10 w-10 rounded-lg grid place-items-center ${theme.iconBackground}`}>
+                          <stat.icon className={`h-4 w-4 text-white`} />
                         </div>
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <Calendar className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <p className={`text-xs uppercase tracking-wide ${theme.textColorLight}`}>{stat.label}</p>
+                          <p className={`text-lg font-semibold ${theme.textColorDark}`}>{stat.value}</p>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-l-3 border-l-rose-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-rose-700">Terminated</p>
-                          <h3 className="text-xl font-bold text-gray-900 mt-1">{pastTerminatedCount}</h3>
-                        </div>
-                        <div className="p-2 bg-rose-100 rounded-lg">
-                          <AlertTriangle className="w-5 h-5 text-rose-600" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-l-3 border-l-slate-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-slate-700">Cancelled</p>
-                          <h3 className="text-xl font-bold text-gray-900 mt-1">{pastCancelledCount}</h3>
-                        </div>
-                        <div className="p-2 bg-slate-100 rounded-lg">
-                          <Ban className="w-5 h-5 text-slate-600" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    );
+                  })}
                 </div>
 
                 {/* Past Leases Table */}

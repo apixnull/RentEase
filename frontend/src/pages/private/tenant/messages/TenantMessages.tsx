@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getUserChatChannelsRequest } from "@/api/chatApi";
+import { useSocket } from "@/hooks/useSocket";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -15,14 +16,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import PageHeader from "@/components/PageHeader";
+import MessagesHeader from "@/components/MessagesHeader";
 import { 
   Search, 
   MessageCircle, 
-  Building,
   Check,
   CheckCheck,
-  Home,
   MessageSquare,
   Send,
   HelpCircle
@@ -37,23 +36,11 @@ type User = {
   avatarUrl: string | null;
 };
 
-type Property = {
-  id: string; 
-  title: string;
-};
-
-type Unit = {
-  id: string;
-  label: string;
-  property: Property;
-};
-
 type Channel = {
   id: string;
   tenantId: string;
   landlordId: string;
-  unitId: string;
-  status: "INQUIRY" | "LEASE" | "PREV-LEASE";
+  status: "INQUIRY" | "ACTIVE" | "ENDED";
   createdAt: string;
   updatedAt: string;
   lastMessageText: string | null;
@@ -62,14 +49,14 @@ type Channel = {
   readAt: string | null;
   tenant: User;
   landlord: User;
-  unit: Unit;
 };
 
-type FilterType = "ALL" | "INQUIRY" | "LEASE" | "PREV-LEASE";
+type FilterType = "ALL" | "INQUIRY" | "ACTIVE" | "ENDED";
 
-// Custom Hook for Channels - Real-time updates via polling
+// Custom Hook for Channels - Real-time updates via Socket.IO
 const useChannels = () => {
   const currentUser = useAuthStore((state) => state.user);
+  const { socket, isConnected } = useSocket();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -86,32 +73,48 @@ const useChannels = () => {
     }
   };
 
-  // Silent refetch for real-time updates (no loading state)
-  const silentRefetch = async () => {
-    try {
-      const response = await getUserChatChannelsRequest();
-      const channelsData = Array.isArray(response.data) ? response.data : [];
-      setChannels(channelsData);
-    } catch (error) {
-      console.error("Failed to silently refetch channels:", error);
-    }
-  };
-
+  // Initial load on mount
   useEffect(() => {
     if (!currentUser) return;
-
-    // Initial load
     loadChannels();
-
-    // Polling for real-time updates every 10 seconds
-    const interval = setInterval(() => {
-      silentRefetch();
-    }, 10000);
-
-    return () => {
-      clearInterval(interval);
-    };
   }, [currentUser]);
+
+  // Listen for real-time channel updates via Socket.IO
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleChannelUpdate = (updatedChannel: Channel) => {
+      console.log("📩 Received channel update:", updatedChannel);
+      
+      setChannels((prevChannels) => {
+        // Check if channel already exists
+        const existingIndex = prevChannels.findIndex(
+          (ch) => ch.id === updatedChannel.id
+        );
+
+        if (existingIndex >= 0) {
+          // Update existing channel
+          const updated = [...prevChannels];
+          updated[existingIndex] = updatedChannel;
+          return updated;
+        } else {
+          // Add new channel (if it has messages)
+          if (updatedChannel.lastMessageText) {
+            return [updatedChannel, ...prevChannels];
+          }
+          return prevChannels;
+        }
+      });
+    };
+
+    // Listen for channel updates
+    socket.on("chat:channel:update", handleChannelUpdate);
+
+    // Cleanup listener on unmount
+    return () => {
+      socket.off("chat:channel:update", handleChannelUpdate);
+    };
+  }, [socket, isConnected]);
 
   return { channels, loading, loadChannels };
 };
@@ -217,8 +220,8 @@ const ChannelItem = ({
   const getStatusColor = (status: string) => {
     const colors = {
       "INQUIRY": "bg-blue-50 text-blue-700 border-blue-200",
-      "LEASE": "bg-emerald-50 text-emerald-700 border-emerald-200",
-      "PREV-LEASE": "bg-amber-50 text-amber-700 border-amber-200"
+      "ACTIVE": "bg-emerald-50 text-emerald-700 border-emerald-200",
+      "ENDED": "bg-amber-50 text-amber-700 border-amber-200"
     };
     return colors[status as keyof typeof colors] || "bg-slate-100 text-slate-700 border-slate-200";
   };
@@ -226,8 +229,8 @@ const ChannelItem = ({
   const getStatusDisplayText = (status: string) => {
     const texts = {
       "INQUIRY": "My Inquiry",
-      "LEASE": "Current Lease",
-      "PREV-LEASE": "Previous Lease"
+      "ACTIVE": "Active Lease",
+      "ENDED": "Ended Lease"
     };
     return texts[status as keyof typeof texts] || status;
   };
@@ -309,22 +312,11 @@ const ChannelItem = ({
             {getStatusDisplayText(channel.status)}
           </Badge>
 
-          <p className={`text-xs mb-2 line-clamp-2 ${
+          <p className={`text-xs line-clamp-2 ${
             hasUnread ? 'text-slate-800 font-medium' : 'text-slate-600'
           }`}>
             {getLastMessageDisplay(channel)}
           </p>
-
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <div className="flex items-center gap-1">
-              <Building className="w-3 h-3" />
-              <span className="truncate">{channel.unit.property.title}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Home className="w-3 h-3" />
-              <span className="truncate">{channel.unit.label}</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -342,8 +334,8 @@ const FilterButtons = ({
   const filters: { key: FilterType; label: string }[] = [
     { key: "ALL", label: "All Chats" },
     { key: "INQUIRY", label: "My Inquiry" },
-    { key: "LEASE", label: "Current Lease" },
-    { key: "PREV-LEASE", label: "Previous Lease" }
+    { key: "ACTIVE", label: "Active Lease" },
+    { key: "ENDED", label: "Ended Lease" }
   ];
 
   return (
@@ -395,7 +387,7 @@ const QuickTipsModal = () => {
         </DialogHeader>
         <div className="space-y-4 mt-4">
           <p className="text-sm text-slate-600">
-            Click any conversation to view messages and communicate with landlords about property details and lease information.
+            Click any conversation to view messages and communicate with landlords about lease information.
           </p>
           <div className="space-y-3">
             <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
@@ -413,15 +405,6 @@ const QuickTipsModal = () => {
                 <p className="text-sm font-medium text-slate-900 mb-1">Read Receipts</p>
                 <p className="text-xs text-slate-600">
                   A double check icon indicates that your message has been read by the recipient.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-              <Building className="w-4 h-4 text-slate-500 mt-1 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-slate-900 mb-1">Property Information</p>
-                <p className="text-xs text-slate-600">
-                  Each conversation shows the property and unit you're discussing with your landlord.
                 </p>
               </div>
             </div>
@@ -464,8 +447,6 @@ const ChatChannelsList = ({
         const searchableText = [
           counterpart.firstName,
           counterpart.lastName,
-          channel.unit.label,
-          channel.unit.property.title,
           channel.lastMessageText
         ].join(" ").toLowerCase();
         return searchableText.includes(query);
@@ -490,17 +471,12 @@ const ChatChannelsList = ({
   return (
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Header Section */}
-      <PageHeader
+      <MessagesHeader
         title="Messages"
         description="Connect with landlords and manage your conversations"
-        icon={MessageCircle}
         actions={
           <div className="flex items-center gap-2">
             <QuickTipsModal />
-            <div className="hidden sm:flex items-center gap-2 text-sky-500/80">
-              <MessageSquare className="h-4 w-4" />
-              <Send className="h-4 w-4" />
-            </div>
           </div>
         }
       />

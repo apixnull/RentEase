@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { 
-  LayoutDashboard, X, Zap, HelpCircle, Menu, Bell,Home,
-  Calendar, CreditCard, Settings
+  LayoutDashboard, X, Zap, HelpCircle, Menu, Bell, ChevronRight
 } from "lucide-react";
 
 // ============================================================================
@@ -79,35 +80,6 @@ const NotificationModal = ({
     }
   ]);
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'viewing':
-        return <Calendar className="h-5 w-5 text-blue-600" />;
-      case 'payment':
-        return <CreditCard className="h-5 w-5 text-green-600" />;
-      case 'message':
-        return <Settings className="h-5 w-5 text-purple-600" />;
-      case 'system':
-        return <Settings className="h-5 w-5 text-gray-600" />;
-      default:
-        return <Bell className="h-5 w-5 text-gray-600" />;
-    }
-  };
-
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case 'viewing':
-        return 'bg-blue-50 border-blue-200';
-      case 'payment':
-        return 'bg-green-50 border-green-200';
-      case 'message':
-        return 'bg-purple-50 border-purple-200';
-      case 'system':
-        return 'bg-gray-50 border-gray-200';
-      default:
-        return 'bg-gray-50 border-gray-200';
-    }
-  };
 
   const markAllAsRead = () => {
     setNotifications(notifications.map(notif => ({ ...notif, read: true })));
@@ -127,93 +99,101 @@ const NotificationModal = ({
     <div className="fixed inset-0 z-50">
       {/* Overlay */}
       <div 
-        className="absolute inset-0 bg-black/50" 
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
         onClick={onClose}
+        style={{ pointerEvents: 'auto' }}
       />
       
       {/* Modal Panel */}
-      <div className="absolute right-0 top-16 sm:top-20 sm:right-4 w-full sm:w-96 max-w-[calc(100vw-2rem)] sm:max-w-md bg-white rounded-lg sm:rounded-xl shadow-2xl border border-gray-200 max-h-[80vh] flex flex-col">
+      <motion.div
+        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        className="absolute inset-x-0 top-0 sm:top-auto sm:right-4 sm:inset-x-auto sm:top-20 w-full sm:w-96 sm:max-w-md h-full sm:h-auto sm:max-h-[80vh] bg-white/95 backdrop-blur-sm sm:rounded-lg shadow-xl border-0 sm:border border-gray-200/60 flex flex-col z-[60] overflow-hidden"
+        style={{ pointerEvents: 'auto' }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-t-lg sm:rounded-t-xl">
-          <div className="flex items-center gap-3">
-            <Bell className="h-5 w-5" />
-            <h2 className="text-lg sm:text-xl font-bold">Notifications</h2>
-            {unreadCount > 0 && (
-              <span className="bg-white text-green-600 text-xs font-bold px-2 py-1 rounded-full">
-                {unreadCount} new
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-sm hover:bg-white/20 px-2 py-1 rounded transition-colors"
+        <div className="p-3 sm:p-3 border-b border-gray-100/60 bg-gradient-to-r from-white to-gray-50/50 flex-shrink-0">
+          <div className="flex justify-between items-center gap-2">
+            <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+              <Bell className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate">Notifications</span>
+            </h3>
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="text-xs sm:text-sm text-emerald-600 hover:underline font-medium whitespace-nowrap hidden sm:block"
+                >
+                  Mark all as read
+                </button>
+              )}
+              <button 
+                onClick={onClose}
+                className="p-1.5 sm:p-1 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
               >
-                Mark all read
+                <X className="h-4 w-4 text-gray-500" />
               </button>
-            )}
-            <button 
-              onClick={onClose}
-              className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            </div>
           </div>
         </div>
 
         {/* Notifications List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-              <Bell className="h-16 w-16 text-gray-300 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No notifications</h3>
-              <p className="text-gray-500 text-sm">
+              <Bell className="h-12 w-12 sm:h-16 sm:w-16 text-gray-300 mb-4" />
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">No notifications</h3>
+              <p className="text-gray-500 text-xs sm:text-sm px-4">
                 You're all caught up! New notifications will appear here.
               </p>
             </div>
           ) : (
-            <div className="p-2 sm:p-3 space-y-2">
+            <div>
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
                   onClick={() => markAsRead(notification.id)}
-                  className={`p-3 sm:p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md ${
-                    notification.read 
-                      ? getNotificationColor(notification.type) 
-                      : `${getNotificationColor(notification.type)} border-l-4 border-l-green-500`
-                  }`}
+                  className={cn(
+                    "p-3 sm:p-3 hover:bg-gray-50/50 transition-all duration-200 border-b border-gray-100/50 last:border-b-0 group text-sm cursor-pointer",
+                    !notification.read && "bg-emerald-50/30"
+                  )}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-0.5">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className={`font-semibold text-sm sm:text-base ${
-                          notification.read ? 'text-gray-900' : 'text-gray-900'
-                        }`}>
-                          {notification.title}
-                        </h3>
-                        {!notification.read && (
-                          <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 mt-2"></div>
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex gap-2 sm:gap-3"
+                  >
+                    <div className={cn(
+                      "w-2 h-2 rounded-full mt-2 flex-shrink-0",
+                      !notification.read ? "bg-emerald-500" : "bg-gray-300"
+                    )} />
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p
+                        className={cn(
+                          "font-medium group-hover:text-emerald-700 transition-colors text-sm break-words",
+                          !notification.read
+                            ? "text-gray-900"
+                            : "text-gray-700"
                         )}
-                      </div>
-                      <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                      >
+                        {notification.title}
+                      </p>
+                      <p className="text-gray-600 text-xs mt-1 line-clamp-2 break-words">
                         {notification.description}
                       </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">
+                      <div className="flex items-center justify-between mt-1 gap-2">
+                        <p className="text-xs text-gray-500 whitespace-nowrap">
                           {notification.time}
-                        </span>
-                        {notification.action && (
-                          <button className="text-xs font-medium text-green-600 hover:text-green-700 transition-colors">
-                            {notification.action}
-                          </button>
-                        )}
+                        </p>
+                        <motion.div
+                          whileHover={{ x: 2 }}
+                          className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        >
+                          <ChevronRight className="h-3 w-3" />
+                        </motion.div>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
               ))}
             </div>
@@ -221,17 +201,12 @@ const NotificationModal = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 sm:p-4 border-t bg-gray-50 rounded-b-lg sm:rounded-b-xl">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">
-              {unreadCount} unread of {notifications.length} total
-            </span>
-            <button className="text-green-600 font-medium hover:text-green-700 transition-colors">
-              Notification Settings
-            </button>
-          </div>
+        <div className="p-3 sm:p-3 text-center border-t border-gray-100/60 bg-gray-50/30 flex-shrink-0">
+          <button className="text-xs sm:text-sm text-emerald-600 hover:underline font-medium">
+            View all notifications
+          </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };
@@ -246,7 +221,7 @@ const TopNavigationBar = ({
   onOpenNotifications: () => void;
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(3); // Mock notification count
+  const notificationCount = 3; // Mock notification count
 
   return (
     <nav className="bg-white border-b border-gray-200 shadow-sm">
@@ -255,10 +230,10 @@ const TopNavigationBar = ({
           {/* Logo Section */}
           <div className="flex items-center gap-4">
             <Link to="/tenant" className="flex items-center gap-2">
-              <Zap className="h-7 w-7 text-green-500" fill="currentColor" />
+              <Zap className="h-7 w-7 text-teal-500" fill="currentColor" />
             </Link>
             <div className="hidden sm:block">
-              <h1 className="text-xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+              <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-600 via-sky-600 to-emerald-600 bg-clip-text text-transparent">
                 RentEase
               </h1>
               <p className="text-sm text-gray-600">Find your perfect home</p>
@@ -276,9 +251,13 @@ const TopNavigationBar = ({
               <Bell className="h-4 w-4" />
               <span className="text-sm">Notifications</span>
               {notificationCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center shadow-sm"
+                >
                   {notificationCount}
-                </span>
+                </motion.span>
               )}
             </Button>
 
@@ -294,7 +273,7 @@ const TopNavigationBar = ({
             {/* Dashboard Icon */}
             <Link 
               to="/tenant"
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:text-green-600 hover:bg-green-50 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
             >
               <LayoutDashboard className="h-5 w-5" />
               <span className="text-sm font-medium">Dashboard</span>
@@ -312,9 +291,13 @@ const TopNavigationBar = ({
             >
               <Bell className="h-5 w-5" />
               {notificationCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center shadow-sm"
+                >
                   {notificationCount}
-                </span>
+                </motion.span>
               )}
             </Button>
 
@@ -335,7 +318,7 @@ const TopNavigationBar = ({
             <div className="flex flex-col space-y-3">
               <Link 
                 to="/tenant"
-                className="flex items-center gap-3 px-2 py-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                className="flex items-center gap-3 px-2 py-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <LayoutDashboard className="h-5 w-5" />
@@ -373,7 +356,7 @@ const BrowseUnitLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50/30 via-white to-sky-50/30">
       {/* Top Navigation Bar */}
       <TopNavigationBar 
         onOpenNotifications={handleOpenNotifications}

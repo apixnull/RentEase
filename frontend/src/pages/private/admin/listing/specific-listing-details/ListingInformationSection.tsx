@@ -833,9 +833,17 @@ const ListingInformation = ({ listing, loading = false }: ListingInformationProp
               <div>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Payment Details</h3>
                 <div className="space-y-2">
+                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                    <span className="text-sm text-slate-600">Listing ID</span>
+                    <span className="text-xs font-mono text-slate-800 break-all max-w-[240px]" title={listing.id}>
+                      {listing.id || 'N/A'}
+                    </span>
+                  </div>
                   <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
                     <span className="text-sm text-slate-600">Amount Paid</span>
-                    <span className="font-semibold text-green-700">₱{listing.paymentAmount?.toLocaleString()}</span>
+                    <span className="font-semibold text-green-700">
+                      {listing.paymentAmount != null ? `₱${listing.paymentAmount.toLocaleString()}` : 'N/A'}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
                     <span className="text-sm text-slate-600">Payment Method</span>

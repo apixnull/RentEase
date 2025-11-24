@@ -37,3 +37,12 @@ export const getSpecificScreeningLandlordRequest = (
   privateApi.get(`/landlord/screening/${screeningId}/details`, {
     signal: options?.signal,
   });
+
+// ✅ LANDLORD: Delete pending screening (hard delete)
+export const deletePendingScreeningRequest = (
+  screeningId: string,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.delete(`/landlord/screening/${screeningId}`, {
+    signal: options?.signal,
+  });

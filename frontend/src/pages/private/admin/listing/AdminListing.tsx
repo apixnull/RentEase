@@ -4,12 +4,12 @@ import { getAllListingsForAdminRequest } from "@/api/admin/listingApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import AdminPageHeader from "@/components/AdminPageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building, MapPin, Calendar, Info, Eye, Flag, Clock, Ban, CheckCircle2, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Building, Calendar, Info, Eye, Flag, Clock, Ban, CheckCircle2, Search, ChevronDown, ChevronUp, RefreshCcw, Loader2, Sparkles, FileSearch } from "lucide-react";
+import { motion } from "framer-motion";
 
 type AdminListingItem = {
   id: string;
@@ -29,11 +29,6 @@ type AdminListingItem = {
       id: string;
       title: string;
       type: string;
-      street: string;
-      barangay: string;
-      zipCode: string;
-      city: { name: string } | null;
-      municipality: { name: string } | null | null;
     };
   };
   landlord: {
@@ -54,35 +49,59 @@ const AdminListing = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'VISIBLE' | 'HIDDEN' | 'FLAGGED' | 'EXPIRED' | 'BLOCKED'>('all');
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewed' | 'unreviewed'>('all');
-  const [searchUnit, setSearchUnit] = useState('');
-  const [searchProperty, setSearchProperty] = useState('');
-  const [searchLandlord, setSearchLandlord] = useState('');
-  const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
+  const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [lifecycleOpen, setLifecycleOpen] = useState(true);
   const [timeRange, setTimeRange] = useState<'all' | 'day' | 'week' | 'month'>('all');
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const fetchListings = async ({ silent = false }: { silent?: boolean } = {}) => {
     const abort = new AbortController();
-    async function load() {
-      try {
+    try {
+      if (!silent) {
         setLoading(true);
-        setError(null);
-        const res = await getAllListingsForAdminRequest({ signal: abort.signal });
-        const body: AdminListingsResponse = res.data;
-        setData(body.listings ?? []);
-      } catch (err: any) {
-        if (err?.name === "CanceledError") return;
-        setError("Failed to load listings");
-        console.error(err);
-      } finally {
+      }
+      setRefreshing(true);
+      setError(null);
+      const res = await getAllListingsForAdminRequest({ signal: abort.signal });
+      const body: AdminListingsResponse = res.data;
+      setData(body.listings ?? []);
+    } catch (err: any) {
+      if (err?.name === "CanceledError") return;
+      setError("Failed to load listings");
+      console.error(err);
+    } finally {
+      if (!silent) {
         setLoading(false);
       }
+      setRefreshing(false);
     }
-    load();
-    return () => abort.abort();
+  };
+
+  useEffect(() => {
+    fetchListings();
   }, []);
+
+  const handleRefresh = () => {
+    if (!refreshing) {
+      fetchListings({ silent: true });
+    }
+  };
+
+  const handleClearFilters = () => {
+    setSelectedStatus('all');
+    setReviewFilter('all');
+    setTimeRange('all');
+    setSearchQuery('');
+    setPage(1);
+  };
+
+  const hasActiveFilters =
+    selectedStatus !== 'all' ||
+    reviewFilter !== 'all' ||
+    timeRange !== 'all' ||
+    searchQuery.trim().length > 0;
 
   const getSortTimestamp = (item: AdminListingItem) => {
     const updated = new Date(item.updatedAt).getTime();
@@ -111,17 +130,19 @@ const AdminListing = () => {
     } else if (reviewFilter === 'unreviewed') {
       list = list.filter(l => isNeedsReview(l.lifecycleStatus));
     }
-    if (searchUnit.trim()) {
-      const q = searchUnit.toLowerCase().trim();
-      list = list.filter(l => l.unit.label.toLowerCase().includes(q));
-    }
-    if (searchProperty.trim()) {
-      const q = searchProperty.toLowerCase().trim();
-      list = list.filter(l => l.unit.property.title.toLowerCase().includes(q));
-    }
-    if (searchLandlord.trim()) {
-      const q = searchLandlord.toLowerCase().trim();
-      list = list.filter(l => `${(l.landlord.firstName||'').trim()} ${(l.landlord.lastName||'').trim()}`.toLowerCase().includes(q) || (l.landlord.email||'').toLowerCase().includes(q));
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((l) => {
+        const landlordName = `${(l.landlord.firstName || '').trim()} ${(l.landlord.lastName || '').trim()}`.toLowerCase();
+        const landlordEmail = (l.landlord.email || '').toLowerCase();
+        const propertyTitle = l.unit.property.title.toLowerCase();
+        return (
+          l.unit.label.toLowerCase().includes(q) ||
+          propertyTitle.includes(q) ||
+          landlordName.includes(q) ||
+          landlordEmail.includes(q)
+        );
+      });
     }
     // Time range filter
     if (timeRange !== 'all') {
@@ -142,10 +163,10 @@ const AdminListing = () => {
       const aNeed = isNeedsReview(a.lifecycleStatus) ? 0 : 1;
       const bNeed = isNeedsReview(b.lifecycleStatus) ? 0 : 1;
       if (aNeed !== bNeed) return aNeed - bNeed;
-      return sortOrder === 'latest' ? getSortTimestamp(b) - getSortTimestamp(a) : getSortTimestamp(a) - getSortTimestamp(b);
+      return getSortTimestamp(b) - getSortTimestamp(a);
     });
     return list;
-  }, [data, selectedStatus, reviewFilter, searchUnit, searchProperty, searchLandlord, sortOrder, timeRange]);
+  }, [data, selectedStatus, reviewFilter, searchQuery, timeRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -195,6 +216,13 @@ const AdminListing = () => {
           gradient: 'from-red-200/70 via-red-100/50 to-red-200/70',
           iconBg: 'bg-red-500',
         };
+      case 'WAITING_REVIEW':
+        return {
+          badge: 'bg-purple-100 text-purple-700 border-purple-200',
+          bg: 'bg-purple-50 border-purple-300',
+          gradient: 'from-purple-200/70 via-purple-100/50 to-purple-200/70',
+          iconBg: 'bg-purple-500',
+        };
       default:
         return {
           badge: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -240,20 +268,123 @@ const AdminListing = () => {
 
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <AdminPageHeader
-          title="Admin Listing Management"
-          description="Moderate listings, review statuses, and act on risks"
-        />
+    <div className="min-h-screen p-6">
+      <div className="space-y-6">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="relative overflow-hidden rounded-2xl"
+        >
+          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-purple-200/80 via-indigo-200/75 to-blue-200/70 opacity-95" />
+          <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-purple-300/50 to-indigo-400/40 blur-3xl"
+              initial={{ opacity: 0.4, scale: 0.85 }}
+              animate={{ opacity: 0.7, scale: 1.05 }}
+              transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+            />
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-blue-200/40 to-indigo-200/35 blur-3xl"
+              initial={{ opacity: 0.3 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+            />
 
-        {/* Listing Lifecycle Management */}
+            <div className="px-4 sm:px-6 py-5 space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-4 min-w-0">
+                  <motion.div
+                    whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                    className="relative flex-shrink-0"
+                  >
+                    <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white grid place-items-center shadow-xl shadow-indigo-500/30">
+                      <Building className="h-5 w-5 relative z-10" />
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                    </div>
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-purple-600 border border-purple-100 shadow-sm grid place-items-center"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                    </motion.div>
+                    <motion.div
+                      className="absolute inset-0 rounded-2xl border-2 border-indigo-400/30"
+                      animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                  </motion.div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                        Admin Listing Management
+                      </h1>
+                      <motion.div
+                        animate={{ rotate: [0, 8, -8, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        <Sparkles className="h-4 w-4 text-indigo-500" />
+                      </motion.div>
+                    </div>
+                    <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                      <Building className="h-4 w-4 text-purple-500" />
+                      Moderate listings, review statuses, and act on risks
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                  <Button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    className="h-11 rounded-xl bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 px-5 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 hover:brightness-110 disabled:opacity-70"
+                  >
+                    {refreshing ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Refreshing
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <RefreshCcw className="h-4 w-4" />
+                        Refresh
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+                style={{ originX: 0 }}
+                className="relative h-1 w-full rounded-full overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-400/80 via-indigo-400/80 to-blue-400/80" />
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+                />
+              </motion.div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Combined Listing Lifecycle Management & Filters */}
         <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
           <CardHeader className="pb-2 pt-3 px-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 flex-1">
                 <div>
-                  <CardTitle className="text-sm font-semibold text-slate-900">Listing Lifecycle Management</CardTitle>
+                  <CardTitle className="text-sm font-semibold text-slate-900">Listing Lifecycle Management & Filters</CardTitle>
                   <p className="text-xs text-slate-600 mt-0.5">Monitor and manage listings through their lifecycle stages</p>
                 </div>
               </div>
@@ -271,158 +402,150 @@ const AdminListing = () => {
           </CardHeader>
           {lifecycleOpen && (
           <CardContent id="lifecycle-section" className="px-4 pb-4 space-y-3">
+            {/* Filters Section */}
+            <div className="pb-3 border-b border-slate-200">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-[220px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Search by unit, property, landlord name, or email"
+                    className="pl-9 h-10 text-sm border-blue-200 focus:border-blue-400"
+                  />
+                </div>
+                <Select value={timeRange} onValueChange={(v: 'all'|'day'|'week'|'month')=>{ setTimeRange(v); setPage(1); }}>
+                  <SelectTrigger className="h-10 w-[160px] text-sm border-blue-200">
+                    <SelectValue placeholder="Time range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="day">Today</SelectItem>
+                    <SelectItem value="week">This Week</SelectItem>
+                    <SelectItem value="month">This Month</SelectItem>
+                  </SelectContent>
+                </Select>
+                {hasActiveFilters && (
+                  <Button 
+                    variant="outline" 
+                    onClick={handleClearFilters}
+                    className="h-10 text-sm border-blue-200 text-blue-700 hover:bg-blue-50 px-4"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <div className="text-xs text-slate-600 mt-2">
+                Showing {(filtered.length === 0) ? 0 : ((page - 1) * pageSize + 1)} - {Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              </div>
+            </div>
+
+            {/* Status Cards - Smaller */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-              {/* Unreviewed */}
+              {/* Unreviewed - Purple color scheme */}
               <div 
-                className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${reviewFilter === 'unreviewed' ? 'bg-blue-50 border-blue-300 shadow-lg' : 'bg-white border-blue-200 hover:border-blue-300 hover:shadow-md'}`}
+                className={`relative p-2 rounded-lg border-2 transition-all cursor-pointer group ${reviewFilter === 'unreviewed' ? 'bg-purple-50 border-purple-300 shadow-lg' : 'bg-white border-purple-200 hover:border-purple-300 hover:shadow-md'}`}
                 onClick={() => { setSelectedStatus('all'); setReviewFilter('unreviewed'); setPage(1); }}
               >
-                <div className="flex items-start gap-2.5">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
-                    <Info className="h-4 w-4 text-white" />
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-purple-500 flex items-center justify-center group-hover:bg-purple-600 transition-colors">
+                    <FileSearch className="h-3.5 w-3.5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-900">Unreviewed</p>
-                    <p className="text-[10px] text-slate-600 mt-0.5">Needs admin review</p>
-                    <p className="text-base font-bold text-blue-700 mt-1.5">{(data||[]).filter(l=>isNeedsReview(l.lifecycleStatus)).length}</p>
+                    <p className="text-[10px] font-semibold text-slate-900">Unreviewed</p>
+                    <p className="text-[9px] text-slate-600 mt-0.5">Needs review</p>
+                    <p className="text-sm font-bold text-purple-700 mt-1">{(data||[]).filter(l=>isNeedsReview(l.lifecycleStatus)).length}</p>
                   </div>
                 </div>
                 {reviewFilter === 'unreviewed' && (
-                  <div className="absolute top-1.5 right-1.5"><CheckCircle2 className="h-3 w-3 text-blue-600" /></div>
+                  <div className="absolute top-1 right-1"><CheckCircle2 className="h-3 w-3 text-purple-600" /></div>
                 )}
               </div>
               {/* Active (Visible + Hidden) */}
               <div 
-                className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${selectedStatus === 'active' ? 'bg-emerald-50 border-emerald-400 shadow-lg' : 'bg-white border-emerald-200 hover:border-emerald-300 hover:shadow-md'}`}
+                className={`relative p-2 rounded-lg border-2 transition-all cursor-pointer group ${selectedStatus === 'active' ? 'bg-emerald-50 border-emerald-400 shadow-lg' : 'bg-white border-emerald-200 hover:border-emerald-300 hover:shadow-md'}`}
                 onClick={() => { setSelectedStatus('active'); setPage(1); }}
               >
-                <div className="flex items-start gap-2.5">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center group-hover:bg-emerald-600 transition-colors">
-                    <Eye className="h-4 w-4 text-white" />
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center group-hover:bg-emerald-600 transition-colors">
+                    <Eye className="h-3.5 w-3.5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-900">Active</p>
+                    <p className="text-[10px] font-semibold text-slate-900">Active</p>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-[10px] text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">Vis: {(data||[]).filter(l=>l.lifecycleStatus==='VISIBLE').length}</span>
-                      <span className="text-[10px] text-teal-800 bg-teal-100 px-1.5 py-0.5 rounded">Hid: {(data||[]).filter(l=>l.lifecycleStatus==='HIDDEN').length}</span>
+                      <span className="text-[9px] text-emerald-800 bg-emerald-100 px-1 py-0.5 rounded">Vis: {(data||[]).filter(l=>l.lifecycleStatus==='VISIBLE').length}</span>
+                      <span className="text-[9px] text-teal-800 bg-teal-100 px-1 py-0.5 rounded">Hid: {(data||[]).filter(l=>l.lifecycleStatus==='HIDDEN').length}</span>
                     </div>
-                    <p className="text-base font-bold text-emerald-700 mt-1.5">{(data||[]).filter(l=>l.lifecycleStatus==='VISIBLE'||l.lifecycleStatus==='HIDDEN').length}</p>
+                    <p className="text-sm font-bold text-emerald-700 mt-1">{(data||[]).filter(l=>l.lifecycleStatus==='VISIBLE'||l.lifecycleStatus==='HIDDEN').length}</p>
                   </div>
                 </div>
                 {selectedStatus === 'active' && (
-                  <div className="absolute top-1.5 right-1.5"><CheckCircle2 className="h-3 w-3 text-emerald-600" /></div>
+                  <div className="absolute top-1 right-1"><CheckCircle2 className="h-3 w-3 text-emerald-600" /></div>
                 )}
               </div>
               {/* Flagged */}
               <div 
-                className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${selectedStatus === 'FLAGGED' ? 'bg-amber-50 border-amber-300 shadow-lg' : 'bg-white border-amber-200 hover:border-amber-300 hover:shadow-md'}`}
+                className={`relative p-2 rounded-lg border-2 transition-all cursor-pointer group ${selectedStatus === 'FLAGGED' ? 'bg-amber-50 border-amber-300 shadow-lg' : 'bg-white border-amber-200 hover:border-amber-300 hover:shadow-md'}`}
                 onClick={() => { setSelectedStatus('FLAGGED'); setPage(1); }}
               >
-                <div className="flex items-start gap-2.5">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center group-hover:bg-amber-600 transition-colors">
-                    <Flag className="h-4 w-4 text-white" />
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center group-hover:bg-amber-600 transition-colors">
+                    <Flag className="h-3.5 w-3.5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-900">Flagged</p>
-                    <p className="text-[10px] text-slate-600 mt-0.5">Under review</p>
-                    <p className="text-base font-bold text-amber-700 mt-1.5">{(data||[]).filter(l=>l.lifecycleStatus==='FLAGGED').length}</p>
+                    <p className="text-[10px] font-semibold text-slate-900">Flagged</p>
+                    <p className="text-[9px] text-slate-600 mt-0.5">Under review</p>
+                    <p className="text-sm font-bold text-amber-700 mt-1">{(data||[]).filter(l=>l.lifecycleStatus==='FLAGGED').length}</p>
                   </div>
                 </div>
                 {selectedStatus === 'FLAGGED' && (
-                  <div className="absolute top-1.5 right-1.5"><CheckCircle2 className="h-3 w-3 text-amber-600" /></div>
+                  <div className="absolute top-1 right-1"><CheckCircle2 className="h-3 w-3 text-amber-600" /></div>
                 )}
               </div>
               {/* Expired */}
               <div 
-                className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${selectedStatus === 'EXPIRED' ? 'bg-gray-50 border-gray-300 shadow-lg' : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+                className={`relative p-2 rounded-lg border-2 transition-all cursor-pointer group ${selectedStatus === 'EXPIRED' ? 'bg-gray-50 border-gray-300 shadow-lg' : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
                 onClick={() => { setSelectedStatus('EXPIRED'); setPage(1); }}
               >
-                <div className="flex items-start gap-2.5">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-500 flex items-center justify-center group-hover:bg-gray-600 transition-colors">
-                    <Clock className="h-4 w-4 text-white" />
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-gray-500 flex items-center justify-center group-hover:bg-gray-600 transition-colors">
+                    <Clock className="h-3.5 w-3.5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-900">Expired</p>
-                    <p className="text-[10px] text-slate-600 mt-0.5">Expired listings</p>
-                    <p className="text-base font-bold text-gray-700 mt-1.5">{(data||[]).filter(l=>l.lifecycleStatus==='EXPIRED').length}</p>
+                    <p className="text-[10px] font-semibold text-slate-900">Expired</p>
+                    <p className="text-[9px] text-slate-600 mt-0.5">Expired listings</p>
+                    <p className="text-sm font-bold text-gray-700 mt-1">{(data||[]).filter(l=>l.lifecycleStatus==='EXPIRED').length}</p>
                   </div>
                 </div>
                 {selectedStatus === 'EXPIRED' && (
-                  <div className="absolute top-1.5 right-1.5"><CheckCircle2 className="h-3 w-3 text-gray-600" /></div>
+                  <div className="absolute top-1 right-1"><CheckCircle2 className="h-3 w-3 text-gray-600" /></div>
                 )}
               </div>
               {/* Blocked */}
               <div 
-                className={`relative p-3 rounded-lg border-2 transition-all cursor-pointer group ${selectedStatus === 'BLOCKED' ? 'bg-red-50 border-red-300 shadow-lg' : 'bg-white border-red-200 hover:border-red-300 hover:shadow-md'}`}
+                className={`relative p-2 rounded-lg border-2 transition-all cursor-pointer group ${selectedStatus === 'BLOCKED' ? 'bg-red-50 border-red-300 shadow-lg' : 'bg-white border-red-200 hover:border-red-300 hover:shadow-md'}`}
                 onClick={() => { setSelectedStatus('BLOCKED'); setPage(1); }}
               >
-                <div className="flex items-start gap-2.5">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center group-hover:bg-red-600 transition-colors">
-                    <Ban className="h-4 w-4 text-white" />
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-red-500 flex items-center justify-center group-hover:bg-red-600 transition-colors">
+                    <Ban className="h-3.5 w-3.5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-900">Blocked</p>
-                    <p className="text-[10px] text-slate-600 mt-0.5">Suspended</p>
-                    <p className="text-base font-bold text-red-700 mt-1.5">{(data||[]).filter(l=>l.lifecycleStatus==='BLOCKED').length}</p>
+                    <p className="text-[10px] font-semibold text-slate-900">Blocked</p>
+                    <p className="text-[9px] text-slate-600 mt-0.5">Suspended</p>
+                    <p className="text-sm font-bold text-red-700 mt-1">{(data||[]).filter(l=>l.lifecycleStatus==='BLOCKED').length}</p>
                   </div>
                 </div>
                 {selectedStatus === 'BLOCKED' && (
-                  <div className="absolute top-1.5 right-1.5"><CheckCircle2 className="h-3 w-3 text-red-600" /></div>
+                  <div className="absolute top-1 right-1"><CheckCircle2 className="h-3 w-3 text-red-600" /></div>
                 )}
               </div>
             </div>
           </CardContent>
           )}
-        </Card>
-
-        {/* Filters */}
-        <Card className="bg-white/80 backdrop-blur-sm border-blue-100">
-          <CardContent className="p-3 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                <Input value={searchUnit} onChange={e=>{ setSearchUnit(e.target.value); setPage(1); }} placeholder="Search unit" className="pl-8 h-8 text-xs border-blue-200 focus:border-blue-400" />
-              </div>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                <Input value={searchProperty} onChange={e=>{ setSearchProperty(e.target.value); setPage(1); }} placeholder="Search property" className="pl-8 h-8 text-xs border-blue-200 focus:border-blue-400" />
-              </div>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                <Input value={searchLandlord} onChange={e=>{ setSearchLandlord(e.target.value); setPage(1); }} placeholder="Search landlord (name or email)" className="pl-8 h-8 text-xs border-blue-200 focus:border-blue-400 min-w-[220px]" />
-              </div>
-              <Select value={timeRange} onValueChange={(v: 'all'|'day'|'week'|'month')=>{ setTimeRange(v); setPage(1); }}>
-                <SelectTrigger className="h-8 w-[140px] text-xs border-blue-200">
-                  <SelectValue placeholder="Time range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All time</SelectItem>
-                  <SelectItem value="day">Past day</SelectItem>
-                  <SelectItem value="week">Past week</SelectItem>
-                  <SelectItem value="month">Past month</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sortOrder} onValueChange={(v: 'latest'|'oldest')=>{ setSortOrder(v); setPage(1); }}>
-                <SelectTrigger className="h-8 w-[130px] text-xs border-blue-200">
-                  <SelectValue placeholder="Sort" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="latest">Latest</SelectItem>
-                  <SelectItem value="oldest">Oldest</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button 
-                variant="outline" 
-                onClick={()=>{ setSelectedStatus('all'); setReviewFilter('all'); setSearchUnit(''); setSearchProperty(''); setSearchLandlord(''); setSortOrder('latest'); setTimeRange('all'); setPage(1); }}
-                className="h-8 text-xs border-blue-200 text-blue-700 hover:bg-blue-50 px-3"
-              >
-                Clear
-              </Button>
-            </div>
-            <div className="text-xs text-slate-600">
-              Showing {(filtered.length === 0) ? 0 : ((page - 1) * pageSize + 1)} - {Math.min(page * pageSize, filtered.length)} of {filtered.length}
-            </div>
-          </CardContent>
         </Card>
 
         {/* Listings management table */}
@@ -441,8 +564,8 @@ const AdminListing = () => {
                 <TableHeader className="bg-gradient-to-r from-purple-50 to-blue-50">
                   <TableRow className="hover:bg-transparent border-blue-100">
                     <TableHead className="font-semibold text-blue-900 py-2 text-xs">Landlord</TableHead>
-                    <TableHead className="font-semibold text-blue-900 py-2 text-xs">Unit & Property</TableHead>
-                    <TableHead className="font-semibold text-blue-900 py-2 text-xs">Location</TableHead>
+                    <TableHead className="font-semibold text-blue-900 py-2 text-xs">Unit</TableHead>
+                    <TableHead className="font-semibold text-blue-900 py-2 text-xs">Property</TableHead>
                     <TableHead className="font-semibold text-blue-900 py-2 text-xs">Status</TableHead>
                     <TableHead className="font-semibold text-blue-900 py-2 text-xs">Featured</TableHead>
                     {/* AI Risk column removed based on backend response */}
@@ -460,9 +583,6 @@ const AdminListing = () => {
                   ) : paginated.map((item) => {
                     const cls = getStatusStyles(item.lifecycleStatus);
                     const prop = item.unit.property;
-                    const addr = [prop.street, prop.barangay, prop.zipCode, prop.city?.name ?? prop.municipality?.name]
-                      .filter(Boolean)
-                      .join(', ');
                     return (
                       <TableRow key={item.id} className="group hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-blue-50/50 border-b border-blue-50 transition-all duration-200">
                         <TableCell className="py-2">
@@ -483,19 +603,14 @@ const AdminListing = () => {
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="font-semibold text-gray-900 text-xs truncate">{item.unit.label}</div>
-                              <div className="text-[10px] text-gray-600 mt-0.5 truncate">{prop.title}</div>
-                              <div className="text-[10px] text-gray-500 capitalize mt-0.5">{prop.type.toLowerCase().replace('_', ' ')}</div>
+                              <div className="text-[10px] text-gray-500 mt-0.5">Unit ID: {item.unit.id.slice(0, 6)}...</div>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell className="py-2">
-                          <div className="max-w-[220px]">
-                            <div className="flex items-start gap-1.5" title={addr}>
-                              <MapPin className="h-3 w-3 mt-0.5 text-blue-500 flex-shrink-0" />
-                              <span className="text-xs text-gray-700 leading-relaxed truncate block max-w-[200px]">
-                                {addr.length > 48 ? `${addr.substring(0, 48)}...` : addr}
-                              </span>
-                            </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-gray-900 text-xs truncate">{prop.title}</div>
+                            <div className="text-[10px] text-gray-500 capitalize mt-0.5">{prop.type.toLowerCase().replace('_', ' ')}</div>
                           </div>
                         </TableCell>
                         <TableCell className="py-2">

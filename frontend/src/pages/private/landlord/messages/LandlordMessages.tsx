@@ -1,6 +1,8 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { motion } from "framer-motion";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { getUserChatChannelsRequest } from "@/api/chatApi";
+import { getUserChatChannelsRequest, sendAndCreateChannelRequest, searchUsersForMessagingRequest } from "@/api/chatApi";
+import { useSocket } from "@/hooks/useSocket";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -15,19 +17,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import PageHeader from "@/components/PageHeader";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Search, 
   MessageCircle, 
-  Building,
   Check,
   CheckCheck,
-  Home,
   MessageSquare,
   Send,
-  HelpCircle
+  HelpCircle,
+  Sparkles,
+  UserPlus,
+  Loader2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 // Types
 type User = {
@@ -37,23 +41,11 @@ type User = {
   avatarUrl: string | null;
 };
 
-type Property = {
-  id: string; 
-  title: string;
-};
-
-type Unit = {
-  id: string;
-  label: string;
-  property: Property;
-};
-
 type Channel = {
   id: string;
   tenantId: string;
   landlordId: string;
-  unitId: string;
-  status: "INQUIRY" | "LEASE" | "PREV-LEASE";
+  status: "INQUIRY" | "ACTIVE" | "ENDED";
   createdAt: string;
   updatedAt: string;
   lastMessageText: string | null;
@@ -62,14 +54,14 @@ type Channel = {
   readAt: string | null;
   tenant: User;
   landlord: User;
-  unit: Unit;
 };
 
-type FilterType = "ALL" | "INQUIRY" | "LEASE" | "PREV-LEASE";
+type FilterType = "ALL" | "INQUIRY" | "ACTIVE" | "ENDED";
 
-// Custom Hook for Channels - Real-time updates via polling
+// Custom Hook for Channels - Real-time updates via Socket.IO
 const useChannels = () => {
   const currentUser = useAuthStore((state) => state.user);
+  const { socket, isConnected } = useSocket();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -86,32 +78,48 @@ const useChannels = () => {
     }
   };
 
-  // Silent refetch for real-time updates (no loading state)
-  const silentRefetch = async () => {
-    try {
-      const response = await getUserChatChannelsRequest();
-      const channelsData = Array.isArray(response.data) ? response.data : [];
-      setChannels(channelsData);
-    } catch (error) {
-      console.error("Failed to silently refetch channels:", error);
-    }
-  };
-
+  // Initial load on mount
   useEffect(() => {
     if (!currentUser) return;
-
-    // Initial load
     loadChannels();
-
-    // Polling for real-time updates every 10 seconds
-    const interval = setInterval(() => {
-      silentRefetch();
-    }, 10000);
-
-    return () => {
-      clearInterval(interval);
-    };
   }, [currentUser]);
+
+  // Listen for real-time channel updates via Socket.IO
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleChannelUpdate = (updatedChannel: Channel) => {
+      console.log("📩 Received channel update:", updatedChannel);
+      
+      setChannels((prevChannels) => {
+        // Check if channel already exists
+        const existingIndex = prevChannels.findIndex(
+          (ch) => ch.id === updatedChannel.id
+        );
+
+        if (existingIndex >= 0) {
+          // Update existing channel
+          const updated = [...prevChannels];
+          updated[existingIndex] = updatedChannel;
+          return updated;
+        } else {
+          // Add new channel (if it has messages)
+          if (updatedChannel.lastMessageText) {
+            return [updatedChannel, ...prevChannels];
+          }
+          return prevChannels;
+        }
+      });
+    };
+
+    // Listen for channel updates
+    socket.on("chat:channel:update", handleChannelUpdate);
+
+    // Cleanup listener on unmount
+    return () => {
+      socket.off("chat:channel:update", handleChannelUpdate);
+    };
+  }, [socket, isConnected]);
 
   return { channels, loading, loadChannels };
 };
@@ -143,10 +151,6 @@ const MessagesSkeleton = () => (
             <Skeleton className="h-8 w-24" />
             <Skeleton className="h-8 w-24" />
             <Skeleton className="h-8 w-24" />
-          </div>
-          <div className="flex gap-2">
-            <Skeleton className="h-10 flex-1" />
-            <Skeleton className="h-10 flex-1" />
           </div>
         </div>
       </CardHeader>
@@ -221,8 +225,8 @@ const ChannelItem = ({
   const getStatusColor = (status: string) => {
     const colors = {
       "INQUIRY": "bg-blue-50 text-blue-700 border-blue-200",
-      "LEASE": "bg-emerald-50 text-emerald-700 border-emerald-200",
-      "PREV-LEASE": "bg-amber-50 text-amber-700 border-amber-200"
+      "ACTIVE": "bg-emerald-50 text-emerald-700 border-emerald-200",
+      "ENDED": "bg-amber-50 text-amber-700 border-amber-200"
     };
     return colors[status as keyof typeof colors] || "bg-slate-100 text-slate-700 border-slate-200";
   };
@@ -230,8 +234,8 @@ const ChannelItem = ({
   const getStatusDisplayText = (status: string) => {
     const texts = {
       "INQUIRY": "Inquiry",
-      "LEASE": "Current Lease",
-      "PREV-LEASE": "Previous Lease"
+      "ACTIVE": "Active Lease",
+      "ENDED": "Ended Lease"
     };
     return texts[status as keyof typeof texts] || status;
   };
@@ -313,22 +317,11 @@ const ChannelItem = ({
             {getStatusDisplayText(channel.status)}
           </Badge>
 
-          <p className={`text-xs mb-2 line-clamp-2 ${
+          <p className={`text-xs line-clamp-2 ${
             hasUnread ? 'text-slate-800 font-medium' : 'text-slate-600'
           }`}>
             {getLastMessageDisplay(channel)}
           </p>
-
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <div className="flex items-center gap-1">
-              <Building className="w-3 h-3" />
-              <span className="truncate">{channel.unit.property.title}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Home className="w-3 h-3" />
-              <span className="truncate">{channel.unit.label}</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -346,8 +339,8 @@ const FilterButtons = ({
   const filters: { key: FilterType; label: string }[] = [
     { key: "ALL", label: "All Chats" },
     { key: "INQUIRY", label: "Inquiries" },
-    { key: "LEASE", label: "Current Leases" },
-    { key: "PREV-LEASE", label: "Previous Leases" }
+    { key: "ACTIVE", label: "Active Leases" },
+    { key: "ENDED", label: "Ended Leases" }
   ];
 
   return (
@@ -399,7 +392,7 @@ const QuickTipsModal = () => {
         </DialogHeader>
         <div className="space-y-4 mt-4">
           <p className="text-sm text-slate-600">
-            Click any conversation to view messages and communicate with tenants about property details and lease information.
+            Click any conversation to view messages and communicate with tenants about lease information.
           </p>
           <div className="space-y-3">
             <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
@@ -420,15 +413,6 @@ const QuickTipsModal = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-              <Building className="w-4 h-4 text-slate-500 mt-1 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-slate-900 mb-1">Filter by Property</p>
-                <p className="text-xs text-slate-600">
-                  Use the property and unit filters to quickly find conversations related to specific properties.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </DialogContent>
@@ -436,63 +420,248 @@ const QuickTipsModal = () => {
   );
 };
 
-// Property and Unit Filters Component
-const PropertyUnitFilters = ({
-  propertyFilter,
-  unitFilter,
-  properties,
-  units,
-  onPropertyFilterChange,
-  onUnitFilterChange,
-}: {
-  propertyFilter: string;
-  unitFilter: string;
-  properties: Property[];
-  units: Unit[];
-  onPropertyFilterChange: (filter: string) => void;
-  onUnitFilterChange: (filter: string) => void;
+// Search and Message Tenant Component
+const SearchAndMessageTenant = ({ 
+  onMessageSent 
+}: { 
+  onMessageSent: () => void;
 }) => {
-  return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <div className="flex items-center gap-2">
-        <Building className="w-3.5 h-3.5 text-slate-500" />
-        <select
-          value={propertyFilter}
-          onChange={(e) => {
-            onPropertyFilterChange(e.target.value);
-            onUnitFilterChange("ALL");
-          }}
-          className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 bg-white transition-all min-w-[140px]"
-        >
-          <option value="ALL">All Properties</option>
-          {properties.map(property => (
-            <option key={property.id} value={property.id}>
-              {property.title.length > 20 ? property.title.substring(0, 20) + '...' : property.title}
-            </option>
-          ))}
-        </select>
-      </div>
+  const { loadChannels } = useChannels();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<any | null>(null);
+  const [messageContent, setMessageContent] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const navigate = useNavigate();
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const response = await searchUsersForMessagingRequest(searchQuery);
+        console.log("🔍 Full search response:", response);
+        console.log("🔍 Response data:", response.data);
+        console.log("🔍 Response data.users:", response.data?.users);
+        
+        const users = response.data?.users || response.data || [];
+        console.log("🔍 Setting search results:", users);
+        console.log("🔍 Results count:", users.length);
+        setSearchResults(users);
+      } catch (error: any) {
+        console.error("Error searching users:", error);
+        console.error("Error details:", error?.response?.data);
+        toast.error(error?.response?.data?.error || "Failed to search users");
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  const handleSelectTenant = (tenant: any) => {
+    setSelectedTenant(tenant);
+    setSearchQuery(`${tenant.firstName} ${tenant.lastName}`);
+    setSearchResults([]);
+    setIsDialogOpen(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedTenant || !messageContent.trim()) {
+      toast.error("Please select a tenant and enter a message");
+      return;
+    }
+
+    // If conversation already exists, navigate to it instead
+    if (selectedTenant.existingChannelId) {
+      navigate(`/landlord/messages/${selectedTenant.existingChannelId}`);
+      setIsDialogOpen(false);
+      setSelectedTenant(null);
+      setSearchQuery("");
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const response = await sendAndCreateChannelRequest({
+        recipientId: selectedTenant.id,
+        content: messageContent.trim(),
+      });
       
-      {propertyFilter !== "ALL" && (
-        <div className="flex items-center gap-2">
-          <Home className="w-3.5 h-3.5 text-slate-500" />
-          <select
-            value={unitFilter}
-            onChange={(e) => onUnitFilterChange(e.target.value)}
-            className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 bg-white transition-all min-w-[120px]"
-          >
-            <option value="ALL">All Units</option>
-            {units
-              .filter(unit => unit.property.id === propertyFilter)
-              .map(unit => (
-                <option key={unit.id} value={unit.id}>
-                  {unit.label}
-                </option>
-              ))
-            }
-          </select>
+      toast.success("Message sent successfully!");
+      setMessageContent("");
+      setSelectedTenant(null);
+      setSearchQuery("");
+      setIsDialogOpen(false);
+      
+      // Refresh channels list
+      loadChannels();
+      onMessageSent();
+      
+      // Navigate to the new channel
+      if (response.data.channelId) {
+        navigate(`/landlord/messages/${response.data.channelId}`);
+      }
+    } catch (error: any) {
+      console.error("Error sending message:", error);
+      const message = error?.response?.data?.message || "Failed to send message. Please try again.";
+      toast.error(message);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <div className="relative" ref={searchContainerRef}>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 z-10" />
+          <Input
+            placeholder="Search tenants to message..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => {
+              // Trigger search if query exists
+              if (searchQuery.length >= 2) {
+                // Search will be triggered by useEffect
+              }
+            }}
+            className="pl-10 h-11 bg-slate-50 border-slate-200 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 rounded-lg text-sm"
+          />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 z-10">
+              <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Search Results Dropdown */}
+        {searchQuery.length >= 2 && !isSearching && searchResults.length > 0 && !selectedTenant && (
+          <div className="absolute z-[100] w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+            {searchResults.map((user) => (
+              <button
+                key={user.id}
+                onClick={() => {
+                  // If conversation exists, navigate directly
+                  if (user.existingChannelId) {
+                    navigate(`/landlord/messages/${user.existingChannelId}`);
+                    setSearchQuery("");
+                    setSearchResults([]);
+                  } else {
+                    handleSelectTenant(user);
+                  }
+                }}
+                className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 transition-colors text-left border-b last:border-b-0"
+              >
+                <Avatar className="h-10 w-10 flex-shrink-0">
+                  <AvatarImage src={user.avatarUrl || undefined} />
+                  <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white text-xs">
+                    {user.firstName?.[0]}{user.lastName?.[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      {user.firstName} {user.lastName}
+                    </p>
+                    {user.existingChannelId && (
+                      <Badge variant="outline" className="text-xs px-1.5 py-0 flex-shrink-0">
+                        Existing
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                </div>
+                {user.existingChannelId ? (
+                  <MessageCircle className="w-4 h-4 text-sky-500 flex-shrink-0" />
+                ) : (
+                  <UserPlus className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && !selectedTenant && (
+          <div className="absolute z-[100] w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-xl p-4 text-center">
+            <p className="text-sm text-slate-500">No tenants found</p>
+          </div>
+        )}
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={selectedTenant?.avatarUrl || undefined} />
+                <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white">
+                  {selectedTenant?.firstName?.[0]}{selectedTenant?.lastName?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <DialogTitle>
+                  Message {selectedTenant?.firstName} {selectedTenant?.lastName}
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  {selectedTenant?.email}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Textarea
+                placeholder="Type your message here..."
+                value={messageContent}
+                onChange={(e) => setMessageContent(e.target.value)}
+                className="min-h-[120px] resize-none"
+                disabled={isSending}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDialogOpen(false);
+                  setMessageContent("");
+                }}
+                disabled={isSending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSendMessage}
+                disabled={isSending || !messageContent.trim()}
+                className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Message
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -502,28 +671,18 @@ const ChatChannelsList = ({
   channels,
   searchQuery,
   statusFilter,
-  propertyFilter,
-  unitFilter,
   currentUser,
-  properties,
-  units,
   onSearchChange,
   onStatusFilterChange,
-  onPropertyFilterChange,
-  onUnitFilterChange,
+  onRefreshChannels,
 }: {
   channels: Channel[];
   searchQuery: string;
   statusFilter: FilterType;
-  propertyFilter: string;
-  unitFilter: string;
   currentUser: any;
-  properties: Property[];
-  units: Unit[];
   onSearchChange: (query: string) => void;
   onStatusFilterChange: (filter: FilterType) => void;
-  onPropertyFilterChange: (filter: string) => void;
-  onUnitFilterChange: (filter: string) => void;
+  onRefreshChannels: () => void;
 }) => {
   const navigate = useNavigate();
 
@@ -534,8 +693,6 @@ const ChatChannelsList = ({
   const filteredChannels = useMemo(() => {
     return channels.filter(channel => {
       if (statusFilter !== "ALL" && channel.status !== statusFilter) return false;
-      if (propertyFilter !== "ALL" && channel.unit.property.id !== propertyFilter) return false;
-      if (unitFilter !== "ALL" && channel.unit.id !== unitFilter) return false;
 
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -543,8 +700,6 @@ const ChatChannelsList = ({
         const searchableText = [
           counterpart.firstName,
           counterpart.lastName,
-          channel.unit.label,
-          channel.unit.property.title,
           channel.lastMessageText
         ].join(" ").toLowerCase();
         return searchableText.includes(query);
@@ -552,7 +707,53 @@ const ChatChannelsList = ({
 
       return true;
     });
-  }, [channels, searchQuery, statusFilter, propertyFilter, unitFilter, currentUser]);
+  }, [channels, searchQuery, statusFilter, currentUser]);
+
+  const inquiryCount = useMemo(
+    () => channels.filter((channel) => channel.status === "INQUIRY").length,
+    [channels]
+  );
+
+  const activeCount = useMemo(
+    () => channels.filter((channel) => channel.status === "ACTIVE").length,
+    [channels]
+  );
+
+  const endedCount = useMemo(
+    () => channels.filter((channel) => channel.status === "ENDED").length,
+    [channels]
+  );
+
+  const heroStats = [
+    {
+      label: "Total Chats",
+      value: channels.length,
+      detail: "All tenant threads",
+      iconBg: "bg-sky-500/90",
+      icon: MessageCircle,
+    },
+    {
+      label: "Active Leases",
+      value: activeCount,
+      detail: "Lease-related",
+      iconBg: "bg-emerald-500/90",
+      icon: MessageSquare,
+    },
+    {
+      label: "New Inquiries",
+      value: inquiryCount,
+      detail: "Awaiting reply",
+      iconBg: "bg-cyan-500/90",
+      icon: HelpCircle,
+    },
+    {
+      label: "Ended Leases",
+      value: endedCount,
+      detail: "Closed threads",
+      iconBg: "bg-amber-500/90",
+      icon: Send,
+    },
+  ];
 
   const sortedChannels = useMemo(() => {
     return [...filteredChannels].sort((a, b) => {
@@ -567,29 +768,131 @@ const ChatChannelsList = ({
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+    <div className="min-h-screen space-y-6 px-4 pb-6 pt-3 sm:px-6 sm:pt-4">
       {/* Header Section */}
-      <PageHeader
-        title="Messages"
-        description="Manage conversations with your tenants"
-        icon={MessageCircle}
-        actions={
-          <div className="flex items-center gap-2">
-            <QuickTipsModal />
-            <div className="hidden sm:flex items-center gap-2 text-sky-500/80">
-              <MessageSquare className="h-4 w-4" />
-              <Send className="h-4 w-4" />
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="relative overflow-hidden rounded-2xl"
+      >
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-emerald-200/70 opacity-95" />
+        <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-300/50 to-cyan-400/40 blur-3xl"
+            initial={{ opacity: 0.4, scale: 0.85 }}
+            animate={{ opacity: 0.7, scale: 1.05 }}
+            transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-emerald-200/40 to-cyan-200/35 blur-3xl"
+            initial={{ opacity: 0.3 }}
+            animate={{ opacity: 0.6 }}
+            transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+
+          <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4 min-w-0">
+                <motion.div
+                  whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                  className="relative flex-shrink-0"
+                >
+                  <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-600 via-cyan-600 to-emerald-600 text-white grid place-items-center shadow-xl shadow-cyan-500/30">
+                    <MessageSquare className="h-5 w-5 relative z-10" />
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                  </div>
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-sky-600 border border-sky-100 shadow-sm grid place-items-center"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                  </motion.div>
+                  <motion.div
+                    className="absolute inset-0 rounded-2xl border-2 border-cyan-400/30"
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                </motion.div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                      Messages
+                    </h1>
+                    <motion.div
+                      animate={{ rotate: [0, 8, -8, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <Sparkles className="h-4 w-4 text-cyan-500" />
+                    </motion.div>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                    <MessageCircle className="h-4 w-4 text-emerald-500" />
+                    Collaborate with tenants and stay on top of every conversation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center justify-end">
+                <QuickTipsModal />
+              </div>
+            </div>
+
+            {/* Search Tenant to Message */}
+            <div className="pt-2">
+              <SearchAndMessageTenant onMessageSent={() => {}} />
+            </div>
+
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+              style={{ originX: 0 }}
+              className="relative h-1 w-full rounded-full overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/80 via-cyan-400/80 to-emerald-400/80" />
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                animate={{ x: ["-100%", "100%"] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+              />
+            </motion.div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {heroStats.map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div
+                    key={stat.label}
+                    className="flex items-center gap-3 rounded-xl border border-white/70 bg-white/80 p-3 shadow-[0_12px_35px_-18px_rgba(15,23,42,0.7)]"
+                  >
+                    <div className={`h-11 w-11 rounded-xl grid place-items-center text-white ${stat.iconBg}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">{stat.label}</p>
+                      <p className="text-lg font-semibold text-slate-900">{stat.value}</p>
+                      <p className="text-xs text-slate-500">{stat.detail}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        }
-      />
+        </div>
+      </motion.div>
 
       {/* Main Content */}
       <div className="space-y-4">
         <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
           <CardHeader>
             <div className="flex flex-col gap-3">
-              {/* Search */}
+              {/* Search Conversations */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <Input
@@ -600,24 +903,11 @@ const ChatChannelsList = ({
                 />
               </div>
               
-              {/* Filters Row - Status and Property/Unit filters together */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <FilterButtons 
-                  statusFilter={statusFilter} 
-                  onStatusFilterChange={onStatusFilterChange} 
-                />
-                
-                <div className="h-6 w-px bg-slate-200 hidden sm:block" />
-                
-                <PropertyUnitFilters
-                  propertyFilter={propertyFilter}
-                  unitFilter={unitFilter}
-                  properties={properties}
-                  units={units}
-                  onPropertyFilterChange={onPropertyFilterChange}
-                  onUnitFilterChange={onUnitFilterChange}
-                />
-              </div>
+              {/* Filters Row */}
+              <FilterButtons 
+                statusFilter={statusFilter} 
+                onStatusFilterChange={onStatusFilterChange} 
+              />
             </div>
           </CardHeader>
           <CardContent>
@@ -629,12 +919,12 @@ const ChatChannelsList = ({
                     <MessageCircle className="w-8 h-8 text-slate-500" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                    {searchQuery || statusFilter !== "ALL" || propertyFilter !== "ALL" 
+                    {searchQuery || statusFilter !== "ALL" 
                       ? "No matches found" 
                       : "No conversations yet"}
                   </h3>
                   <p className="text-slate-600 text-sm max-w-sm">
-                    {searchQuery || statusFilter !== "ALL" || propertyFilter !== "ALL"
+                    {searchQuery || statusFilter !== "ALL"
                       ? "Try adjusting your search or filter criteria"
                       : "Your conversations with tenants will appear here once they start messaging you"}
                   </p>
@@ -663,24 +953,6 @@ const LandlordMessages = () => {
   const { channels, loading } = useChannels();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<FilterType>("ALL");
-  const [propertyFilter, setPropertyFilter] = useState<string>("ALL");
-  const [unitFilter, setUnitFilter] = useState<string>("ALL");
-
-  // Get unique properties and units for filters
-  const { properties, units } = useMemo(() => {
-    const propertyMap = new Map<string, Property>();
-    const unitMap = new Map<string, Unit>();
-
-    channels.forEach(channel => {
-      propertyMap.set(channel.unit.property.id, channel.unit.property);
-      unitMap.set(channel.unit.id, channel.unit);
-    });
-
-    return {
-      properties: Array.from(propertyMap.values()),
-      units: Array.from(unitMap.values())
-    };
-  }, [channels]);
 
   if (loading) {
     return (
@@ -691,20 +963,15 @@ const LandlordMessages = () => {
   }
 
   return (
-    <div className="min-h-screen py-4">
+    <div className="min-h-screen py-2">
       <ChatChannelsList
         channels={channels}
         searchQuery={searchQuery}
         statusFilter={statusFilter}
-        propertyFilter={propertyFilter}
-        unitFilter={unitFilter}
         currentUser={currentUser}
-        properties={properties}
-        units={units}
         onSearchChange={setSearchQuery}
         onStatusFilterChange={setStatusFilter}
-        onPropertyFilterChange={setPropertyFilter}
-        onUnitFilterChange={setUnitFilter}
+        onRefreshChannels={() => {}}
       />
     </div>
   );

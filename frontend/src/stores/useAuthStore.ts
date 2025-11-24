@@ -16,9 +16,11 @@ interface User {
   messengerUrl?: string;
   facebookUrl?: string;
   isDisabled: boolean;
+  isVerified?: boolean;
   lastLogin?: string;
-  lastPasswordChange?: string,
-  hasSeenOnboarding: true,
+  lastPasswordChange?: string;
+  hasSeenOnboarding: boolean;
+  createdAt?: string;
 }
 
 interface AuthState {

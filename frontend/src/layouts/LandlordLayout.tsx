@@ -17,6 +17,7 @@ import {
   BarChart3,
   MoreHorizontal,
   Zap,
+  CreditCard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,13 @@ const sidebarItems = [
     icon: FileText,
     description: "Rental agreements",
     badge: "2 Renewals",
+  },
+  {
+    path: "/landlord/payments",
+    name: "Rent Payments",
+    icon: CreditCard,
+    description: "Track rent inflows",
+    badge: null,
   },
   {
     path: "/landlord/maintenance",
@@ -148,12 +156,15 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/landlord/maintenance": { name: "Maintenance" },
 
   "/landlord/messages": { name: "Messages" },
+  
+  // financials
+  "/landlord/financials": { name: "Financials" },
   "/landlord/messages/:channelId": { name: "Convo",  parent: "/landlord/messages" },
 
   "/landlord/tenants": { name: "Tenants" },
-  "/landlord/payments": { name: "Payments" },
-  "/landlord/financials": { name: "Financials" },
+  "/landlord/payments": { name: "Rent Payments" },
   "/landlord/reports": { name: "Reports" },
+  "/landlord/reports/engagement": { name: "Engagement", parent: "/landlord/reports" },
   "/landlord/account": { name: "Account" },
   "/landlord/settings": { name: "Settings" },
 };

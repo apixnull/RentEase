@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getSpecificListingAdminRequest, getListingUnitAndPropertyRequest, updateListingStatusRequest } from "@/api/admin/listingApi";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,12 @@ import {
   Sparkles, 
   Shield,
   Ban,
-  CheckCircle2
+  CheckCircle2,
+  Building,
+  ClipboardList,
+  RefreshCcw,
+  Loader2,
+  MapPin
 } from "lucide-react";
 import ListingInformation from "./ListingInformationSection";
 import PropertyUnitSection from "./PropertyUnitSection";
@@ -35,55 +40,64 @@ const AdminListingDetails = () => {
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(() => {
     const saved = sessionStorage.getItem(`adminListingTab_${listingId}`);
     return saved || "listing";
   });
 
-  useEffect(() => {
+  const fetchListingDetails = useCallback(async ({ signal, silent = false }: { signal?: AbortSignal; silent?: boolean } = {}) => {
     if (!listingId) return;
-    const abort = new AbortController();
-    
-    async function load() {
-      try {
+    try {
+      if (!silent) {
         setLoading(true);
-        setError(null);
-        const res = await getSpecificListingAdminRequest(listingId as string, { signal: abort.signal });
-        const body: ListingDetailsResponse = res.data;
-        setData(body.listing ?? null);
-      } catch (err: any) {
-        if (err?.name === "CanceledError") return;
-        setError("Failed to load listing details");
-        console.error(err);
-      } finally {
+      }
+      setError(null);
+      const res = await getSpecificListingAdminRequest(listingId as string, signal ? { signal } : undefined);
+      const body: ListingDetailsResponse = res.data;
+      setData(body.listing ?? null);
+    } catch (err: any) {
+      if (err?.name === "CanceledError") return;
+      setError("Failed to load listing details");
+      console.error(err);
+    } finally {
+      if (!silent) {
         setLoading(false);
       }
     }
-    
-    load();
-    return () => abort.abort();
+  }, [listingId]);
+
+  const fetchUnitPropertyDetails = useCallback(async ({ signal, silent = false }: { signal?: AbortSignal; silent?: boolean } = {}) => {
+    if (!listingId) return;
+    try {
+      if (!silent) {
+        setUnitPropertyLoading(true);
+      }
+      const res = await getListingUnitAndPropertyRequest(listingId as string, signal ? { signal } : undefined);
+      setUnitPropertyData(res.data);
+    } catch (err: any) {
+      if (err?.name === "CanceledError") return;
+      console.error("Failed to load unit and property data", err);
+    } finally {
+      if (!silent) {
+        setUnitPropertyLoading(false);
+      }
+    }
   }, [listingId]);
 
   useEffect(() => {
     if (!listingId) return;
     const abort = new AbortController();
-    
-    async function loadUnitProperty() {
-      try {
-        setUnitPropertyLoading(true);
-        const res = await getListingUnitAndPropertyRequest(listingId as string, { signal: abort.signal });
-        setUnitPropertyData(res.data);
-      } catch (err: any) {
-        if (err?.name === "CanceledError") return;
-        console.error("Failed to load unit and property data", err);
-      } finally {
-        setUnitPropertyLoading(false);
-      }
-    }
-    
-    loadUnitProperty();
+    fetchListingDetails({ signal: abort.signal });
     return () => abort.abort();
-  }, [listingId]);
+  }, [listingId, fetchListingDetails]);
+
+  useEffect(() => {
+    if (!listingId) return;
+    const abort = new AbortController();
+    fetchUnitPropertyDetails({ signal: abort.signal });
+    return () => abort.abort();
+  }, [listingId, fetchUnitPropertyDetails]);
 
   useEffect(() => {
     if (listingId && activeTab) {
@@ -140,9 +154,10 @@ const AdminListingDetails = () => {
         action: "approve",
       });
       setApproveModalOpen(false);
-      // Reload data after approval
-      const res = await getSpecificListingAdminRequest(listingId);
-      setData(res.data.listing);
+      await Promise.all([
+        fetchListingDetails({ silent: true }),
+        fetchUnitPropertyDetails({ silent: true })
+      ]);
     } catch (err: any) {
       console.error("Failed to approve listing", err);
       alert("Failed to approve listing. Please try again.");
@@ -164,9 +179,10 @@ const AdminListingDetails = () => {
       });
       setFlagModalOpen(false);
       setFlagReason("");
-      // Reload data after flagging
-      const res = await getSpecificListingAdminRequest(listingId);
-      setData(res.data.listing);
+      await Promise.all([
+        fetchListingDetails({ silent: true }),
+        fetchUnitPropertyDetails({ silent: true })
+      ]);
     } catch (err: any) {
       console.error("Failed to flag listing", err);
       const errorMessage = err?.response?.data?.error || "Failed to flag listing. Please try again.";
@@ -189,15 +205,29 @@ const AdminListingDetails = () => {
       });
       setBlockModalOpen(false);
       setBlockReason("");
-      // Reload data after blocking
-      const res = await getSpecificListingAdminRequest(listingId);
-      setData(res.data.listing);
+      await Promise.all([
+        fetchListingDetails({ silent: true }),
+        fetchUnitPropertyDetails({ silent: true })
+      ]);
     } catch (err: any) {
       console.error("Failed to block listing", err);
       const errorMessage = err?.response?.data?.error || "Failed to block listing. Please try again.";
       alert(errorMessage);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleReload = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchListingDetails({ silent: true }),
+        fetchUnitPropertyDetails({ silent: true })
+      ]);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -248,6 +278,12 @@ const AdminListingDetails = () => {
   // Fallback to listing data for display in header if unitProperty data is not available
   const unit = unitProperty || listing?.unit;
   const property = unitProperty?.property || listing?.unit?.property;
+  const propertyAddress = [
+    property?.street,
+    property?.barangay,
+    property?.city?.name || property?.municipality?.name,
+    property?.zipCode
+  ].filter(Boolean).join(", ");
 
   // Moderation Actions Component (reusable)
   const ModerationActions = () => {
@@ -311,7 +347,7 @@ const AdminListingDetails = () => {
 
   return (
     <div className="min-h-screen p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="space-y-6">
         {/* Custom Page Header */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
@@ -338,74 +374,146 @@ const AdminListingDetails = () => {
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent" />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-sky-300/60 to-transparent" />
             
-            <div className="px-4 sm:px-6 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
+            <div className="px-4 sm:px-6 py-5 space-y-5">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
                   <motion.div
-                    whileHover={{ scale: 1.03 }}
+                    whileHover={{ scale: 1.05, rotate: -2 }}
                     transition={{ type: "spring", stiffness: 260, damping: 18 }}
-                    className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-500 text-white grid place-items-center shadow-md"
+                    className="relative h-12 w-12 rounded-2xl bg-white/80 shadow-xl shadow-emerald-500/20 grid place-items-center"
                   >
-                    <Shield className="h-5 w-5" />
-                  </motion.div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900 truncate">
-                        Admin Listing Details
-                      </h1>
-                      <Sparkles className="h-4 w-4 text-emerald-500" />
+                    <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 text-white grid place-items-center">
+                      <Shield className="h-4 w-4" />
                     </div>
-                    <p className="text-sm text-gray-600 leading-5 truncate">
-                      {unit?.label} • {property?.title}
+                    <motion.div
+                      aria-hidden
+                      className="absolute inset-0 rounded-2xl border border-white/50"
+                      animate={{ opacity: [0.6, 0.2, 0.6] }}
+                      transition={{ duration: 2.4, repeat: Infinity }}
+                    />
+                  </motion.div>
+                  <div className="min-w-0 flex-1 space-y-2.5">
+                    <p className="text-xs uppercase tracking-[0.35em] text-emerald-700/80 font-semibold">
+                      Listing Moderation
                     </p>
-                    {property && (
-                      <p className="text-xs text-gray-500 mt-1 truncate">
-                        {[property.street, property.barangay, property.zipCode, property.city?.name, property.municipality?.name]
-                          .filter(Boolean)
-                          .join(', ') || 'N/A'}
-                      </p>
-                    )}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 break-words">
+                          {[
+                            unit?.label,
+                            property?.title || "Property Details",
+                            property?.type ? property.type.replace(/_/g, " ").toLowerCase() : null
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </h1>
+                      </div>
+                      {propertyAddress && (
+                        <p className="text-sm text-slate-700 leading-6 flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-violet-500 flex-shrink-0" />
+                          <span className="truncate">{propertyAddress}</span>
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-600">
+                        <span className="px-3 py-1 rounded-full border border-slate-200 bg-white/70">
+                          Last Updated:{" "}
+                          {listing.updatedAt
+                            ? new Date(listing.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                            : "N/A"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge className={getStatusColor(listing.lifecycleStatus) + " text-sm py-1.5 px-3"}>
-                    {listing.lifecycleStatus.replace(/_/g, ' ')}
+                <div className="flex flex-wrap gap-2 justify-end">
+                  <Badge className={getStatusColor(listing.lifecycleStatus) + " text-xs sm:text-sm py-2 px-4 rounded-full shadow-sm"}>
+                    {listing.lifecycleStatus.replace(/_/g, " ")}
                   </Badge>
-                  <Badge className={listing.isFeatured ? "bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-purple-200 text-sm py-1.5 px-3 flex items-center gap-1" : "bg-gray-100 text-gray-600 border-gray-200 text-sm py-1.5 px-3 flex items-center gap-1"}>
+                  <Badge className={(listing.isFeatured ? "bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-purple-200" : "bg-gray-100 text-gray-600 border-gray-200") + " text-xs sm:text-sm py-2 px-4 rounded-full shadow-sm flex items-center gap-1"}>
                     <Sparkles className="h-3 w-3" />
-                    {listing.isFeatured ? 'Featured' : 'Not Featured'}
+                    {listing.isFeatured ? "Featured" : "Not Featured"}
                   </Badge>
+                  <Button
+                    onClick={handleReload}
+                    disabled={refreshing}
+                    className="h-10 rounded-xl bg-gradient-to-r from-violet-500 via-indigo-500 to-purple-500 px-4 text-sm font-semibold text-white shadow-md shadow-violet-500/30 hover:brightness-110 disabled:opacity-70"
+                  >
+                    {refreshing ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Refreshing
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <RefreshCcw className="h-4 w-4" />
+                        Reload Data
+                      </span>
+                    )}
+                  </Button>
                 </div>
               </div>
+
               <motion.div
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+                transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
                 style={{ originX: 0 }}
-                className="mt-3 h-0.5 w-full bg-gradient-to-r from-emerald-400/70 via-emerald-300/70 to-sky-400/70 rounded-full"
+                className="h-1 w-full rounded-full bg-gradient-to-r from-emerald-400/80 via-teal-300/70 to-sky-400/80"
               />
             </div>
           </div>
         </motion.div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="listing" className="min-w-[120px]">Listing Information</TabsTrigger>
-            <TabsTrigger value="property" className="min-w-[120px]">Property & Unit</TabsTrigger>
-          </TabsList>
+        <Card className="bg-white/90 backdrop-blur-sm border-violet-100/70 shadow-sm">
+          <CardContent className="p-0">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <div className="border-b bg-gradient-to-br from-violet-50/80 via-white to-violet-50/80 backdrop-blur-sm">
+                <TabsList className="w-full h-auto bg-transparent p-2 sm:p-3 gap-2 grid grid-cols-2">
+                  <TabsTrigger
+                    value="listing"
+                    className={`relative flex-1 flex items-center justify-center gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl font-medium transition-all overflow-hidden border ${
+                      activeTab === "listing"
+                        ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white border-transparent shadow-lg shadow-violet-400/40 backdrop-blur"
+                        : "bg-white/90 border-violet-100 text-slate-600 hover:bg-violet-50/70"
+                    }`}
+                  >
+                    {activeTab === "listing" && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-violet-500/40 to-indigo-500/25" />
+                    )}
+                    <ClipboardList className={`h-4 w-4 relative z-10 ${activeTab === "listing" ? "text-white" : "text-violet-500"}`} />
+                    <span className="relative z-10">Listing Information</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="property"
+                    className={`relative flex-1 flex items-center justify-center gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl font-medium transition-all overflow-hidden border ${
+                      activeTab === "property"
+                        ? "bg-gradient-to-r from-purple-500 to-violet-500 text-white border-transparent shadow-lg shadow-violet-400/40 backdrop-blur"
+                        : "bg-white/90 border-violet-100 text-slate-600 hover:bg-violet-50/70"
+                    }`}
+                  >
+                    {activeTab === "property" && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/35 to-violet-500/25" />
+                    )}
+                    <Building className={`h-4 w-4 relative z-10 ${activeTab === "property" ? "text-white" : "text-violet-500"}`} />
+                    <span className="relative z-10">Property & Unit</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-          {/* Listing Information Tab */}
-          <TabsContent value="listing" className="mt-4 space-y-6">
-            <ModerationActions />
-            <ListingInformation listing={listing} loading={loading} />
-          </TabsContent>
+              {/* Listing Information Tab */}
+              <TabsContent value="listing" className="space-y-6 p-4 sm:p-6">
+                <ModerationActions />
+                <ListingInformation listing={listing} loading={loading} />
+              </TabsContent>
 
-          {/* Property & Unit Tab */}
-          <TabsContent value="property" className="mt-4 space-y-6">
-            <ModerationActions />
-            <PropertyUnitSection unitProperty={unitProperty} landlordInfo={landlordInfo} loading={unitPropertyLoading} />
-          </TabsContent>
-        </Tabs>
+              {/* Property & Unit Tab */}
+              <TabsContent value="property" className="space-y-6 p-4 sm:p-6">
+                <ModerationActions />
+                <PropertyUnitSection unitProperty={unitProperty} landlordInfo={landlordInfo} loading={unitPropertyLoading} />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
 
         {/* Modals */}
         {/* Approve Listing Modal */}

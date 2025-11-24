@@ -33,14 +33,20 @@ import Maintenance from "./pages/private/landlord/maintenance/Maintenance.tsx";
 import Tenants from "./pages/private/landlord/tenants/Tenants.tsx";
 import Financials from "./pages/private/landlord/financials/Financials.tsx";
 import Reports from "./pages/private/landlord/reports/Reports.tsx";
+import Engagement from "./pages/private/landlord/reports/Engagement.tsx";
 import TenantScreeningLandlord from "./pages/private/landlord/screening/TenantScreeningLandlord.tsx";
 import TenantScreeningTenant from "./pages/private/tenant/screening/TenantScreeningTenant.tsx";
 import ViewSpecificScreeningLandlord from "./pages/private/landlord/screening/ViewSpecificScreeningLandlord.tsx";
 import ViewSpecificScreeningTenant from "./pages/private/tenant/screening/ViewSpecificScreeningTenant.tsx";
 import CreateLease from "./pages/private/landlord/lease/CreateLease.tsx";
+import EditLease from "./pages/private/landlord/lease/EditLease.tsx";
 import MyLeaseDetails from "./pages/private/tenant/lease/MyLeaseDetails.tsx";
 import AdminListing from "./pages/private/admin/listing/AdminListing.tsx";
 import AdminListingDetails from "./pages/private/admin/listing/specific-listing-details/AdminListingDetailsLayout.tsx";
+import AllUsers from "./pages/private/admin/users/AllUsers.tsx";
+import UserDetails from "./pages/private/admin/users/UserDetails.tsx";
+import AdminEarnings from "./pages/private/admin/earnings/AdminEarnings.tsx";
+import RentPayments from "./pages/private/landlord/payments/RentPayments.tsx";
 
 
 // ------------------------------- Lazy Imports
@@ -171,8 +177,7 @@ const router = createBrowserRouter([
       { path: "screening/:screeningId/details", element: <Suspense fallback={<Loader />}><ViewSpecificScreeningLandlord /></Suspense>},                                         // view specific screening 
 
       // leases
-      { path: "leases", element: <Suspense fallback={<Loader />}><Leases /></Suspense>},                                                                        // display all leases
-      { path: "leases/create", element: <Suspense fallback={<Loader />}><CreateLease /></Suspense>},                                                  // create a new lease
+      { path: "leases", element: <Suspense fallback={<Loader />}><Leases /></Suspense>},                                                                        // display all leases                                         // create a new lease
       { path: "leases/:leaseId/details", element: <Suspense fallback={<Loader />}><ViewSpecificLease /></Suspense>},                                                    // display specific lease 
       
       // maintenance
@@ -182,10 +187,14 @@ const router = createBrowserRouter([
       { path: "tenants", element: <Suspense fallback={<Loader />}><Tenants /></Suspense>},                                                    // display specific lease 
 
       // financials
-      { path: "financials", element: <Suspense fallback={<Loader />}><Financials /></Suspense>},                                                    // display specific lease 
+      { path: "financials", element: <Suspense fallback={<Loader />}><Financials /></Suspense>},
 
       // reports 
-      { path: "reports", element: <Suspense fallback={<Loader />}><Reports /></Suspense>},                                                    // display specific lease 
+      { path: "reports", element: <Suspense fallback={<Loader />}><Reports /></Suspense>},
+      { path: "reports/engagement", element: <Suspense fallback={<Loader />}><Engagement /></Suspense>},
+
+      // payments
+      { path: "payments", element: <Suspense fallback={<Loader />}><RentPayments /></Suspense>},
 
     ],    
   },
@@ -195,8 +204,11 @@ const router = createBrowserRouter([
   // create property
   { path: "landlord/properties/create", element: ( <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}> <CreateProperty /></Suspense></ProtectedRoute>), },
   // listing success
-  { path: "landlord/listing/:listingId/success",  element: ( <Suspense fallback={<Loader />}> <ListingPaymentSuccess /> </Suspense>) },
-
+  { path: "landlord/listing/payment-success",  element: ( <Suspense fallback={<Loader />}> <ListingPaymentSuccess /> </Suspense>) },
+    // create lease
+  { path: "landlord/leases/create", element: ( <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}> <CreateLease /> </Suspense></ProtectedRoute> ), },
+  // edit lease
+  { path: "landlord/leases/:leaseId/edit", element: ( <ProtectedRoute allowedRoles={["LANDLORD"]}><Suspense fallback={<Loader />}> <EditLease /> </Suspense></ProtectedRoute> ), },
 
   // tenant routes
   {
@@ -242,6 +254,10 @@ const router = createBrowserRouter([
       { index: true, element: <Suspense fallback={<Loader />}><AdminDashboard /></Suspense> },
       { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },
 
+      // users
+      { path: "users", element: <Suspense fallback={<Loader />}><AllUsers /></Suspense> },
+      { path: "users/:userId", element: <Suspense fallback={<Loader />}><UserDetails /></Suspense> },
+      { path: "earnings", element: <Suspense fallback={<Loader />}><AdminEarnings /></Suspense> },
       // listing
       { path: "listing", element: <Suspense fallback={<Loader />}><AdminListing /></Suspense> },
       { path: "listing/:listingId/details", element: <Suspense fallback={<Loader />}><AdminListingDetails/></Suspense> },

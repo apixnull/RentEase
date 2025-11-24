@@ -2,13 +2,14 @@ import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getChannelMessagesRequest, sendMessageRequest, markMessagesAsReadRequest } from "@/api/chatApi";
+import { useSocket } from "@/hooks/useSocket";
 import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import PageHeader from "@/components/PageHeader";
+import MessagesHeader from "@/components/MessagesHeader";
 import {
   MessageCircle,
   Send,
@@ -34,21 +35,13 @@ interface Participant {
   role: "TENANT" | "LANDLORD" | "ADMIN";
 }
 
-interface Unit {
-  id: string;
-  label: string;
-  property: {
-    id: string;
-    title: string;
-  };
-}
-
 interface Channel {
   id: string;
   status: "INQUIRY" | "ACTIVE" | "ENDED";
   tenantId: string;
   landlordId: string;
-  unit: Unit;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ChannelMessagesResponse {
@@ -94,6 +87,7 @@ const MessagesSkeleton = () => (
 const ViewChannelMessagesTenant = () => {
   const { channelId } = useParams<{ channelId: string }>();
   const { user: currentUser } = useAuthStore();
+  const { socket, isConnected } = useSocket();
   const [data, setData] = useState<ChannelMessagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,9 +104,9 @@ const ViewChannelMessagesTenant = () => {
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return "Current Lease";
+        return "Active Lease";
       case "ENDED":
-        return "Previous Lease";
+        return "Ended Lease";
       case "INQUIRY":
         return "My Inquiry";
       default:
@@ -184,8 +178,7 @@ const ViewChannelMessagesTenant = () => {
       setSending(true);
       await sendMessageRequest(channelId, { content: newMessage.trim() });
       setNewMessage("");
-      // Refresh messages to show the new one
-      await fetchMessages();
+      // Don't need to fetch - Socket.IO will update in real-time
     } catch (err) {
       setError("Failed to send message");
       console.error("Error sending message:", err);
@@ -201,16 +194,113 @@ const ViewChannelMessagesTenant = () => {
     }
   };
 
-  // Simulate real-time updates with polling
+  // Initial load and join channel room
   useEffect(() => {
+    if (!channelId) return;
+    
     fetchMessages();
     
-    const interval = setInterval(() => {
-      fetchMessages();
-    }, 5000);
+    // Join channel room for real-time updates
+    if (socket && isConnected) {
+      socket.emit("join:channel", channelId);
+    }
 
-    return () => clearInterval(interval);
-  }, [channelId]);
+    return () => {
+      // Leave channel room on unmount
+      if (socket && isConnected) {
+        socket.emit("leave:channel", channelId);
+      }
+    };
+  }, [channelId, socket, isConnected]);
+
+  // Listen for new messages via Socket.IO
+  useEffect(() => {
+    if (!socket || !isConnected || !channelId) return;
+
+    const handleNewMessage = async (messageData: Message & { channelId: string }) => {
+      // Only process messages for this channel
+      if (messageData.channelId !== channelId) return;
+
+      console.log("📩 Received new message:", messageData);
+      console.log("Current user ID:", currentUser?.id);
+      console.log("Message sender ID:", messageData.senderId);
+      
+      // Check if message is from the other participant (not current user)
+      const isFromOtherParticipant = currentUser?.id && messageData.senderId !== currentUser.id;
+      console.log("Is from other participant:", isFromOtherParticipant);
+      
+      setData((prevData) => {
+        if (!prevData) return prevData;
+
+        // Check if message already exists (avoid duplicates)
+        const messageExists = prevData.messages.some((msg) => msg.id === messageData.id);
+        if (messageExists) return prevData;
+
+        // Add new message to the list
+        return {
+          ...prevData,
+          messages: [...prevData.messages, messageData],
+        };
+      });
+
+      setLastUpdate(new Date());
+      // Scroll to bottom after a short delay to ensure DOM is updated
+      setTimeout(() => scrollToBottom(), 100);
+
+      // IMMEDIATELY mark messages as read if the incoming message is from the other participant
+      // User is viewing the channel (component is mounted), so mark as read right away
+      if (isFromOtherParticipant && channelId && currentUser?.id) {
+        console.log("🔄 Calling markMessagesAsReadRequest for channel:", channelId);
+        markMessagesAsReadRequest(channelId)
+          .then(() => {
+            console.log("✅ Successfully marked messages as read");
+          })
+          .catch((err) => {
+            console.error("❌ Error marking messages as read:", err);
+          });
+      } else {
+        console.log("⏭️ Skipping mark as read - isFromOtherParticipant:", isFromOtherParticipant, "channelId:", channelId, "currentUser:", !!currentUser?.id);
+      }
+    };
+
+    const handleReadReceipt = (receiptData: { channelId: string; readAt: string }) => {
+      // Only process read receipts for this channel
+      if (receiptData.channelId !== channelId) return;
+
+      console.log("✅ Received read receipt:", receiptData);
+      
+      setData((prevData) => {
+        if (!prevData) return prevData;
+
+        // Update readAt for messages sent BY the other participant (messages we received)
+        // This happens when we mark their messages as read
+        const updatedMessages = prevData.messages.map((msg) => {
+          // If message was sent by the other participant and not yet read, mark as read
+          if (msg.senderId !== currentUser?.id && !msg.readAt) {
+            return { ...msg, readAt: receiptData.readAt };
+          }
+          // Also update messages sent BY current user if they were read by the other participant
+          if (msg.senderId === currentUser?.id && !msg.readAt) {
+            return { ...msg, readAt: receiptData.readAt };
+          }
+          return msg;
+        });
+
+        return {
+          ...prevData,
+          messages: updatedMessages,
+        };
+      });
+    };
+
+    socket.on("chat:message:new", handleNewMessage);
+    socket.on("chat:message:read", handleReadReceipt);
+
+    return () => {
+      socket.off("chat:message:new", handleNewMessage);
+      socket.off("chat:message:read", handleReadReceipt);
+    };
+  }, [socket, isConnected, channelId, currentUser?.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -262,9 +352,6 @@ const ViewChannelMessagesTenant = () => {
   // Description with highlighted status badge
   const pageHeaderDescription: React.ReactNode = (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-sm text-gray-600">
-        {data.channel.unit.property.title} • {data.channel.unit.label}
-      </span>
       <Badge 
         variant="outline" 
         className={`text-xs font-semibold border ${
@@ -275,6 +362,9 @@ const ViewChannelMessagesTenant = () => {
       >
         {getStatusDisplay(data.channel.status)}
       </Badge>
+      <span className="text-xs sm:text-sm text-gray-600">
+        Conversation with {otherParticipant?.name || "your landlord"}
+      </span>
     </div>
   );
 
@@ -301,7 +391,7 @@ const ViewChannelMessagesTenant = () => {
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
         {/* Page Header */}
         {otherParticipant && (
-          <PageHeader
+          <MessagesHeader
             title={pageHeaderTitle}
             description={pageHeaderDescription}
             customIcon={<AvatarWithIcon />}

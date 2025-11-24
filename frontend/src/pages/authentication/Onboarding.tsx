@@ -18,10 +18,139 @@ import { supabase } from "@/lib/supabaseClient";
 import { onboardingRequest } from "@/api/authApi";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { format, subYears, isAfter, isFuture } from "date-fns";
 
 type GenderOption = "Male" | "Female" | "Other" | "Prefer not to say";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
+
+const YEARS = Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i);
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+
+const SimpleDatePicker = ({
+  value,
+  onChange,
+}: {
+  value: Date | null;
+  onChange: (date: Date | null) => void;
+}) => {
+  const [selectedYear, setSelectedYear] = useState<number>(
+    value?.getFullYear() || new Date().getFullYear() - 25,
+  );
+  const [selectedMonth, setSelectedMonth] = useState<number>(value?.getMonth() ?? 0);
+  const [selectedDay, setSelectedDay] = useState<number>(value?.getDate() ?? 1);
+
+  useEffect(() => {
+    if (value) {
+      setSelectedYear(value.getFullYear());
+      setSelectedMonth(value.getMonth());
+      setSelectedDay(value.getDate());
+    }
+  }, [value]);
+
+  const handleDateChange = (year: number, month: number, day: number) => {
+    const newDate = new Date(year, month, day);
+    if (!isFuture(newDate)) {
+      onChange(newDate);
+    }
+  };
+
+  const isDateValid = (year: number, month: number, day: number) => {
+    const date = new Date(year, month, day);
+    return (
+      date.getDate() === day &&
+      date.getMonth() === month &&
+      date.getFullYear() === year
+    );
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <Select
+        value={selectedYear.toString()}
+        onValueChange={(val) => {
+          const year = parseInt(val, 10);
+          setSelectedYear(year);
+          if (isDateValid(year, selectedMonth, selectedDay)) {
+            handleDateChange(year, selectedMonth, selectedDay);
+          }
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Year" />
+        </SelectTrigger>
+        <SelectContent className="max-h-60">
+          {YEARS.map((year) => (
+            <SelectItem key={year} value={year.toString()}>
+              {year}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={selectedMonth.toString()}
+        onValueChange={(val) => {
+          const month = parseInt(val, 10);
+          setSelectedMonth(month);
+          if (isDateValid(selectedYear, month, selectedDay)) {
+            handleDateChange(selectedYear, month, selectedDay);
+          }
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Month" />
+        </SelectTrigger>
+        <SelectContent>
+          {MONTHS.map((month, index) => (
+            <SelectItem key={month} value={index.toString()}>
+              {month}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={selectedDay.toString()}
+        onValueChange={(val) => {
+          const day = parseInt(val, 10);
+          setSelectedDay(day);
+          if (isDateValid(selectedYear, selectedMonth, day)) {
+            handleDateChange(selectedYear, selectedMonth, day);
+          }
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Day" />
+        </SelectTrigger>
+        <SelectContent>
+          {DAYS.map((day) => (
+            <SelectItem key={day} value={day.toString()}>
+              {day}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -37,11 +166,7 @@ const Onboarding = () => {
   const [lastName, setLastName] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarError, setAvatarError] = useState<string>("");
-  // Birthdate picker (month/day/year)
-  const [birthYear, setBirthYear] = useState<string>("");
-  const [birthMonth, setBirthMonth] = useState<string>("");
-  const [birthDay, setBirthDay] = useState<string>("");
-  const [birthdate, setBirthdate] = useState<string>("");
+  const [birthdate, setBirthdate] = useState<Date | null>(null);
   const [gender, setGender] = useState<GenderOption | "">("");
   const [bio, setBio] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -52,6 +177,13 @@ const Onboarding = () => {
   const navigate = useNavigate();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const isBirthdateValid = (date: Date | null) => {
+    if (!date) return false;
+    if (isFuture(date)) return false;
+    const eighteenYearsAgo = subYears(new Date(), 18);
+    return !isAfter(date, eighteenYearsAgo);
+  };
 
   const avatarPreviewUrl = useMemo(() => {
     if (!avatarFile) return "";
@@ -131,30 +263,22 @@ const Onboarding = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const hasBirthParts = birthYear && birthMonth && birthDay;
-    if (hasBirthParts) {
-      const mm = birthMonth.padStart(2, "0");
-      const dd = birthDay.padStart(2, "0");
-      const composed = `${birthYear}-${mm}-${dd}`;
-      setBirthdate(composed);
-    }
 
-    if (!firstName || !lastName || !hasBirthParts || !gender || !bio) {
+    if (!firstName || !lastName || !birthdate || !gender || !bio) {
       const msg = "Please fill out all required fields.";
       setAvatarError(msg);
       toast.error(msg);
       return;
     }
-    const today = new Date();
-    const birth = new Date(`${birthYear}-${birthMonth.padStart(2, "0")}-${birthDay.padStart(2, "0")}`);
-    if (birth > today) {
+
+    if (isFuture(birthdate)) {
       const msg = "Birthdate cannot be a future date.";
       setAvatarError(msg);
       toast.error(msg);
       return;
     }
-    const age = today.getFullYear() - birth.getFullYear();
-    if (age < 18) {
+
+    if (!isBirthdateValid(birthdate)) {
       const msg = "You must be at least 18 years old.";
       setAvatarError(msg);
       toast.error(msg);
@@ -169,12 +293,14 @@ const Onboarding = () => {
         avatarUrl = await uploadAvatarToSupabase();
       }
 
+      const formattedBirthdate = birthdate ? format(birthdate, "yyyy-MM-dd") : undefined;
+
       const onboardingData = {
         firstName,
         middleName: middleName || undefined,
         lastName,
         avatarUrl,
-        birthdate,
+        birthdate: formattedBirthdate,
         gender,
         bio,
         phoneNumber: phoneNumber || undefined,
@@ -412,54 +538,33 @@ const Onboarding = () => {
                   {/* Birthdate and Gender */}
                   <div>
                     <h3 className="text-xl font-bold text-gray-800 mb-4">Birthdate & Gender</h3>
-                    <div className="grid grid-cols-3 gap-3 mb-6">
-                      <div>
-                        <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-2">
-                          <Calendar className="h-4 w-4 text-emerald-500" /> Month *
+                    <div className="grid grid-cols-1 gap-6 mb-6">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                          <Calendar className="h-4 w-4 text-emerald-500" /> Birthdate *
                         </label>
-                        <select
-                          required
-                          value={birthMonth}
-                          onChange={(e) => setBirthMonth(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        >
-                          <option value="">Month</option>
-                          {[
-                            ["01", "Jan"], ["02", "Feb"], ["03", "Mar"], ["04", "Apr"],
-                            ["05", "May"], ["06", "Jun"], ["07", "Jul"], ["08", "Aug"],
-                            ["09", "Sep"], ["10", "Oct"], ["11", "Nov"], ["12", "Dec"],
-                          ].map(([v, l]) => (
-                            <option key={v} value={v}>{l}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-2">Day *</label>
-                        <select
-                          required
-                          value={birthDay}
-                          onChange={(e) => setBirthDay(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        >
-                          <option value="">Day</option>
-                          {Array.from({ length: 31 }, (_, i) => (
-                            <option key={i + 1} value={String(i + 1).padStart(2, "0")}>{i + 1}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-2">Year *</label>
-                        <select
-                          required
-                          value={birthYear}
-                          onChange={(e) => setBirthYear(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        >
-                          <option value="">Year</option>
-                          {Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                            <option key={y} value={String(y)}>{y}</option>
-                          ))}
-                        </select>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full justify-between rounded-xl border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-white"
+                            >
+                              <span className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-emerald-500" />
+                                {birthdate ? format(birthdate, "PPP") : "Select your birthdate"}
+                              </span>
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 p-4" align="start">
+                            <SimpleDatePicker value={birthdate} onChange={setBirthdate} />
+                            {birthdate && !isBirthdateValid(birthdate) && (
+                              <p className="mt-3 text-sm text-red-600">
+                                Must be at least 18 years old and not a future date
+                              </p>
+                            )}
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     </div>
 

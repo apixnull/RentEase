@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getChannelMessagesRequest, sendMessageRequest, markMessagesAsReadRequest } from "@/api/chatApi";
+import { useSocket } from "@/hooks/useSocket";
 import { inviteTenantForScreeningRequest } from "@/api/landlord/screeningApi";
 import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -10,17 +11,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import PageHeader from "@/components/PageHeader";
 import {
   MessageCircle,
   Send,
   Check,
   CheckCheck,
   Clock,
-  FileCheck,
   FileText,
   Info,
-  ShieldAlert
+  ShieldAlert,
+  ShieldCheck,
+  Users
 } from "lucide-react";
 import {
   AlertDialog,
@@ -32,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { motion } from "framer-motion";
 
 interface Message {
   id: string;
@@ -49,21 +51,13 @@ interface Participant {
   email: string;
 }
 
-interface Unit {
-  id: string;
-  label: string;
-  property: {
-    id: string;
-    title: string;
-  };
-}
-
 interface Channel {
   id: string;
   status: "INQUIRY" | "ACTIVE" | "ENDED";
   tenantId: string;
   landlordId: string;
-  unit: Unit
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ChannelMessagesResponse {
@@ -109,17 +103,18 @@ const MessagesSkeleton = () => (
 const ViewChannelMessagesLandlord = () => {
   const { channelId } = useParams<{ channelId: string }>();
   const { user: currentUser } = useAuthStore();
+  const { socket, isConnected } = useSocket();
   const [data, setData] = useState<ChannelMessagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [inviting, setInviting] = useState(false);
-  const [invitingToLease, setInvitingToLease] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showScreeningConfirmation, setShowScreeningConfirmation] = useState(false);
+  const navigate = useNavigate();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -128,9 +123,9 @@ const ViewChannelMessagesLandlord = () => {
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return "Current Lease";
+        return "Active Lease";
       case "ENDED":
-        return "Previous Lease";
+        return "Ended Lease";
       case "INQUIRY":
         return "Inquiry";
       default:
@@ -201,7 +196,7 @@ const ViewChannelMessagesLandlord = () => {
       setSending(true);
       await sendMessageRequest(channelId, { content: newMessage.trim() });
       setNewMessage("");
-      await fetchMessages();
+      // Don't need to fetch - Socket.IO will update in real-time
     } catch (err) {
       setError("Failed to send message");
       console.error("Error sending message:", err);
@@ -263,26 +258,6 @@ const ViewChannelMessagesLandlord = () => {
     }
   };
 
-  const inviteTenantToLease = async () => {
-    if (!channelId || invitingToLease) return;
-
-    try {
-      setInvitingToLease(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      await sendMessageRequest(channelId, { 
-        content: "I'd like to invite you to proceed with the lease agreement. Let's discuss the lease terms and move forward with the rental process." 
-      });
-      
-      await fetchMessages();
-    } catch (err) {
-      setError("Failed to send lease invitation");
-      console.error("Error inviting to lease:", err);
-    } finally {
-      setInvitingToLease(false);
-    }
-  };
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -290,15 +265,113 @@ const ViewChannelMessagesLandlord = () => {
     }
   };
 
+  // Initial load and join channel room
   useEffect(() => {
+    if (!channelId) return;
+    
     fetchMessages();
     
-    const interval = setInterval(() => {
-      fetchMessages();
-    }, 5000);
+    // Join channel room for real-time updates
+    if (socket && isConnected) {
+      socket.emit("join:channel", channelId);
+    }
 
-    return () => clearInterval(interval);
-  }, [channelId]);
+    return () => {
+      // Leave channel room on unmount
+      if (socket && isConnected) {
+        socket.emit("leave:channel", channelId);
+      }
+    };
+  }, [channelId, socket, isConnected]);
+
+  // Listen for new messages via Socket.IO
+  useEffect(() => {
+    if (!socket || !isConnected || !channelId) return;
+
+    const handleNewMessage = async (messageData: Message & { channelId: string }) => {
+      // Only process messages for this channel
+      if (messageData.channelId !== channelId) return;
+
+      console.log("📩 Received new message:", messageData);
+      console.log("Current user ID:", currentUser?.id);
+      console.log("Message sender ID:", messageData.senderId);
+      
+      // Check if message is from the other participant (not current user)
+      const isFromOtherParticipant = currentUser?.id && messageData.senderId !== currentUser.id;
+      console.log("Is from other participant:", isFromOtherParticipant);
+      
+      setData((prevData) => {
+        if (!prevData) return prevData;
+
+        // Check if message already exists (avoid duplicates)
+        const messageExists = prevData.messages.some((msg) => msg.id === messageData.id);
+        if (messageExists) return prevData;
+
+        // Add new message to the list
+        return {
+          ...prevData,
+          messages: [...prevData.messages, messageData],
+        };
+      });
+
+      setLastUpdate(new Date());
+      // Scroll to bottom after a short delay to ensure DOM is updated
+      setTimeout(() => scrollToBottom(), 100);
+
+      // IMMEDIATELY mark messages as read if the incoming message is from the other participant
+      // User is viewing the channel (component is mounted), so mark as read right away
+      if (isFromOtherParticipant && channelId && currentUser?.id) {
+        console.log("🔄 Calling markMessagesAsReadRequest for channel:", channelId);
+        markMessagesAsReadRequest(channelId)
+          .then(() => {
+            console.log("✅ Successfully marked messages as read");
+          })
+          .catch((err) => {
+            console.error("❌ Error marking messages as read:", err);
+          });
+      } else {
+        console.log("⏭️ Skipping mark as read - isFromOtherParticipant:", isFromOtherParticipant, "channelId:", channelId, "currentUser:", !!currentUser?.id);
+      }
+    };
+
+    const handleReadReceipt = (receiptData: { channelId: string; readAt: string }) => {
+      // Only process read receipts for this channel
+      if (receiptData.channelId !== channelId) return;
+
+      console.log("✅ Received read receipt:", receiptData);
+      
+      setData((prevData) => {
+        if (!prevData) return prevData;
+
+        // Update readAt for messages sent BY the other participant (messages we received)
+        // This happens when we mark their messages as read
+        const updatedMessages = prevData.messages.map((msg) => {
+          // If message was sent by the other participant and not yet read, mark as read
+          if (msg.senderId !== currentUser?.id && !msg.readAt) {
+            return { ...msg, readAt: receiptData.readAt };
+          }
+          // Also update messages sent BY current user if they were read by the other participant
+          if (msg.senderId === currentUser?.id && !msg.readAt) {
+            return { ...msg, readAt: receiptData.readAt };
+          }
+          return msg;
+        });
+
+        return {
+          ...prevData,
+          messages: updatedMessages,
+        };
+      });
+    };
+
+    socket.on("chat:message:new", handleNewMessage);
+    socket.on("chat:message:read", handleReadReceipt);
+
+    return () => {
+      socket.off("chat:message:new", handleNewMessage);
+      socket.off("chat:message:read", handleReadReceipt);
+    };
+  }, [socket, isConnected, channelId, currentUser?.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -324,146 +397,133 @@ const ViewChannelMessagesLandlord = () => {
   }
 
   const otherParticipant = getOtherParticipant();
+  const participantInitials = otherParticipant?.name
+    ? otherParticipant.name
+        .split(" ")
+        .map((part) => part.charAt(0))
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "";
   const groupedMessages = groupMessagesByDate(data.messages);
 
-  // Custom title with role badge
-  const pageHeaderTitle: React.ReactNode = (
-    <div className="flex items-center gap-2 flex-wrap">
-      <span>{otherParticipant?.name || ''}</span>
-      {otherParticipant?.role && (
-        <Badge 
-          variant="outline" 
-          className={`text-xs font-semibold border ${
-            otherParticipant.role === "LANDLORD"
-              ? "bg-purple-50 text-purple-700 border-purple-200 shadow-sm"
-              : otherParticipant.role === "TENANT"
-              ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm"
-              : "bg-slate-50 text-slate-700 border-slate-200 shadow-sm"
-          }`}
-        >
-          {otherParticipant.role}
-        </Badge>
-      )}
-    </div>
-  );
-
-  // Description with highlighted status badge
-  const pageHeaderDescription: React.ReactNode = (
-    <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-sm text-gray-600">
-        {otherParticipant?.email || ''} • {data.channel.unit.property.title} • {data.channel.unit.label}
-      </span>
-      <Badge 
-        variant="outline" 
-        className={`text-xs font-semibold border ${
-          data.channel.status === "INQUIRY" 
-            ? "bg-blue-100 text-blue-700 border-blue-300 shadow-sm animate-pulse" 
-            : getStatusColor(data.channel.status)
-        }`}
-      >
-        {getStatusDisplay(data.channel.status)}
-      </Badge>
-    </div>
-  );
-
-  // Custom icon component that displays avatar with MessageCircle icon
-  // This component will be used in place of the default icon in PageHeader
-  const AvatarWithIcon = () => {
-    if (!otherParticipant) return null;
-    return (
-      <div className="relative h-10 w-10">
-        <Avatar className="h-10 w-10 border-2 border-white shadow-md">
-          <AvatarImage src={otherParticipant.avatarUrl || undefined} />
-          <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-sm">
-            {otherParticipant.name.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="absolute -bottom-1 -right-1 h-5 w-5 bg-gradient-to-br from-emerald-600 to-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm">
-          <MessageCircle className="h-3 w-3 text-white" />
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="min-h-screen pb-4">
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+    <div className="min-h-screen space-y-6 px-4 pb-6 pt-3 sm:px-6 sm:pt-4">
+      <div className="space-y-6">
         {/* Page Header */}
         {otherParticipant && (
-          <PageHeader
-            title={pageHeaderTitle}
-            description={pageHeaderDescription}
-            customIcon={<AvatarWithIcon />}
-            actions={
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {/* Invite Actions - Show based on status */}
-                {data.channel.status === "INQUIRY" && (
-                  <>
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="relative overflow-hidden rounded-2xl"
+          >
+            <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-emerald-200/70 opacity-95" />
+            <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+              <motion.div
+                aria-hidden
+                className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-300/50 to-cyan-400/40 blur-3xl"
+                initial={{ opacity: 0.4, scale: 0.85 }}
+                animate={{ opacity: 0.7, scale: 1.05 }}
+                transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+              />
+              <motion.div
+                aria-hidden
+                className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-emerald-200/40 to-cyan-200/35 blur-3xl"
+                initial={{ opacity: 0.3 }}
+                animate={{ opacity: 0.6 }}
+                transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+              />
+              <div className="px-4 sm:px-6 py-5 space-y-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-center gap-4 min-w-0">
+                    {otherParticipant && (
+                      <motion.div
+                        whileHover={{ scale: 1.03 }}
+                        className="relative h-12 w-12 flex-shrink-0"
+                      >
+                        <Avatar className="h-12 w-12 border-2 border-white shadow-md">
+                          <AvatarImage src={otherParticipant.avatarUrl || undefined} />
+                          <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-sm">
+                            {participantInitials || "TN"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <motion.div
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                          className="absolute -bottom-1.5 -right-1.5 h-6 w-6 rounded-full bg-gradient-to-br from-sky-600 via-cyan-600 to-emerald-600 border-2 border-white text-white shadow-sm grid place-items-center"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </motion.div>
+                      </motion.div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                          {otherParticipant?.name || "Conversation"}
+                        </h1>
+                        <motion.div
+                          animate={{ rotate: [0, 8, -8, 0] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                          <Users className="h-4 w-4 text-emerald-500" />
+                        </motion.div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                        <span className="text-sm text-slate-600">{otherParticipant?.email || "Tenant conversation"}</span>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs font-semibold border ${
+                            data.channel.status === "INQUIRY"
+                              ? "bg-blue-100 text-blue-700 border-blue-300 shadow-sm"
+                              : getStatusColor(data.channel.status)
+                          } rounded-full px-3`}
+                        >
+                          {getStatusDisplay(data.channel.status)}
+                        </Badge>
+                        <span className="flex items-center gap-1 text-xs text-slate-500">
+                          <Clock className="h-3 w-3" />
+                          Updated {formatDistanceToNow(lastUpdate)} ago
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                    {(data.channel.status === "INQUIRY" || data.channel.status === "ENDED") && (
+                      <Button
+                        onClick={handleInviteTenantForScreening}
+                        disabled={inviting}
+                        variant="outline"
+                        className="gap-2 rounded-xl border-emerald-200 bg-white/70 text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        Screen Tenant
+                      </Button>
+                    )}
                     <Button
-                      onClick={handleInviteTenantForScreening}
-                      disabled={inviting}
-                      size="sm"
-                      className="gap-1.5 h-8 px-2.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                      variant="outline"
+                      onClick={() => navigate("/landlord/leases/create")}
+                      className="rounded-xl bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-cyan-500/30 hover:brightness-110"
                     >
-                      <FileCheck className="h-3 w-3" />
-                      <span className="hidden sm:inline">Screening</span>
+                      <FileText className="h-4 w-4 mr-2" />
+                      New Lease
                     </Button>
-                    <Button
-                      onClick={inviteTenantToLease}
-                      disabled={invitingToLease}
-                      size="sm"
-                      className="gap-1.5 h-8 px-2.5 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
-                      variant="outline"
-                    >
-                      <FileText className="h-3 w-3" />
-                      <span className="hidden sm:inline">Lease</span>
-                    </Button>
-                  </>
-                )}
-                {data.channel.status === "ENDED" && (
-                  <>
-                    <Button
-                      onClick={handleInviteTenantForScreening}
-                      disabled={inviting}
-                      size="sm"
-                      className="gap-1.5 h-8 px-2.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                      variant="outline"
-                    >
-                      <FileCheck className="h-3 w-3" />
-                      <span className="hidden sm:inline">Screening</span>
-                    </Button>
-                    <Button
-                      onClick={inviteTenantToLease}
-                      disabled={invitingToLease}
-                      size="sm"
-                      className="gap-1.5 h-8 px-2.5 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
-                      variant="outline"
-                    >
-                      <FileText className="h-3 w-3" />
-                      <span className="hidden sm:inline">Lease</span>
-                    </Button>
-                  </>
-                )}
-                {/* Last updated */}
-                <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
-                  <Clock className="h-3 w-3" />
-                  <span>{formatDistanceToNow(lastUpdate)} ago</span>
+                  </div>
                 </div>
               </div>
-            }
-          />
+            </div>
+          </motion.div>
         )}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Messages Area - Takes 2 columns on large screens */}
-          <div className="lg:col-span-2 flex flex-col h-[calc(100vh-16rem)] min-h-[500px] max-w-full">
-            <Card className="flex-1 flex flex-col overflow-hidden border-slate-200 shadow-sm">
+          <div className="lg:col-span-2 flex flex-col max-w-full min-h-[550px]">
+            <Card className="flex-1 flex flex-col overflow-hidden border-slate-200 shadow-sm h-full">
               {/* Messages Container - Scrollable */}
               <div 
                 ref={messagesContainerRef}
-                className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 bg-slate-50/50"
+                className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 bg-slate-50/50 max-h-[70vh]"
               >
                 <div className="space-y-6">
                   {groupedMessages.length === 0 ? (

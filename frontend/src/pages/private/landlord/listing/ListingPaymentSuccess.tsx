@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   CheckCircle,
   MapPin,
@@ -8,7 +8,7 @@ import {
   HelpCircle,
   ExternalLink,
 } from "lucide-react";
-import { getLandlordListingInfoSuccessRequest } from "@/api/landlord/listingApi";
+import { getListingByUnitIdForSuccessRequest } from "@/api/landlord/listingApi";
 import {
   Card,
   CardContent,
@@ -19,27 +19,66 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface SuccessUnit { id: string; label: string }
 interface SuccessAddress { street: string; barangay: string; zipCode: string; city: string }
 interface SuccessProperty { id: string; title: string; address: SuccessAddress }
-interface SuccessData { listingId: string; isFeatured: boolean; unit: SuccessUnit; property: SuccessProperty }
+interface SuccessData { 
+  listingId: string; 
+  isFeatured: boolean; 
+  paymentAmount: number | null;
+  paymentDate: string | null;
+  providerName: string | null;
+  unit: SuccessUnit; 
+  property: SuccessProperty 
+}
 
 const ListingPaymentSuccess = () => {
-  const { listingId } = useParams<{ listingId: string }>();
   const navigate = useNavigate();
   const [listingData, setListingData] = useState<SuccessData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchListingData = async () => {
-    if (!listingId) return;
+    // Get unitId from URL query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const unitId = urlParams.get('unitId');
+
+    if (!unitId) {
+      setError("Missing unit ID. Please return to the listing page.");
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
       setError(null);
-      const response = await getLandlordListingInfoSuccessRequest(listingId);
-      setListingData(response.data);
-      // Smooth transition delay
-      await new Promise((resolve) => setTimeout(resolve, 4000));
+      
+      // Poll for listing (webhook might still be processing)
+      let attempts = 0;
+      const maxAttempts = 10;
+      let response = null;
+
+      while (attempts < maxAttempts) {
+        try {
+          response = await getListingByUnitIdForSuccessRequest(unitId);
+          if (response.data && response.data.listingId) {
+            setListingData(response.data);
+            break;
+          }
+        } catch (err: any) {
+          // If 404, wait and retry (webhook might still be processing)
+          if (err?.response?.status === 404 && attempts < maxAttempts - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds
+            attempts++;
+            continue;
+          }
+          throw err;
+        }
+        attempts++;
+      }
+
+      if (!response?.data?.listingId) {
+        setError("Payment is being processed. Please wait a moment and refresh the page.");
+      }
     } catch (err) {
-      setError("Failed to load listing data");
+      setError("Failed to load listing data. Payment may still be processing.");
       console.error("Error fetching listing data:", err);
     } finally {
       setLoading(false);
@@ -61,10 +100,8 @@ const ListingPaymentSuccess = () => {
   };
 
   useEffect(() => {
-    if (listingId) {
-      fetchListingData();
-    }
-  }, [listingId]);
+    fetchListingData();
+  }, []);
 
   if (loading) {
     return (
@@ -134,7 +171,7 @@ const ListingPaymentSuccess = () => {
   }
 
   const { unit, property } = listingData;
-  const price = listingData.isFeatured ? 150 : 100;
+  const price = listingData.paymentAmount || (listingData.isFeatured ? 150 : 100);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-cyan-50 p-4 sm:p-6">
@@ -163,7 +200,11 @@ const ListingPaymentSuccess = () => {
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-slate-500">Date</div>
-                      <div className="text-sm font-medium text-slate-800">{new Date().toLocaleString()}</div>
+                      <div className="text-sm font-medium text-slate-800">
+                        {listingData.paymentDate 
+                          ? new Date(listingData.paymentDate).toLocaleString() 
+                          : new Date().toLocaleString()}
+                      </div>
                     </div>
                   </div>
                   <div className="p-4 grid gap-3 text-sm">

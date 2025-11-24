@@ -16,13 +16,13 @@ export const getUnitForListingReviewRequest = (
     signal: options?.signal,
   });
 
-// Create listing + payment session
-export const createListingWithPaymentRequest = (
+// Create payment session (listing created after payment via webhook)
+export const createPaymentSessionRequest = (
   unitId: string,
-  payload: any, // this is the isFeatured 
+  payload: { isFeatured: boolean },
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post(`/landlord/listing/${unitId}/create`, payload, {
+  privateApi.post(`/landlord/listing/${unitId}/payment-session`, payload, {
     signal: options?.signal,
   });
 
@@ -38,12 +38,30 @@ export const getLandlordSpecificListingRequest = (
 
 
   
-// ✅ Get basic listing info when success
+// ✅ Get listing by unitId for payment success page
+export const getListingByUnitIdForSuccessRequest = (
+  unitId: string,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.get(`/landlord/listing/payment-success?unitId=${unitId}`, {
+    signal: options?.signal,
+  });
+
+// ✅ Get basic listing info when success (by listingId - kept for backward compatibility)
 export const getLandlordListingInfoSuccessRequest = (
   listingId: string,
   options?: { signal?: AbortSignal }
 ) =>
   privateApi.get(`/landlord/listing/${listingId}/success`, {
+    signal: options?.signal,
+  });
+
+// 🔄 Toggle listing visibility (VISIBLE ↔ HIDDEN)
+export const toggleListingVisibilityRequest = (
+  listingId: string,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.patch(`/landlord/listing/${listingId}/toggle-visibility`, {}, {
     signal: options?.signal,
   });
 
@@ -55,11 +73,3 @@ export const getEligibleUnitsForListingRequest = (options?: { signal?: AbortSign
     signal: options?.signal,
   });
 
-// Cancel listing + payment session
-export const cancelListingPaymentRequest = (
-  listingId: string,
-  options?: { signal?: AbortSignal }
-) =>
-  privateApi.delete(`/landlord/listing/${listingId}/cancel`, {
-    signal: options?.signal,
-  });

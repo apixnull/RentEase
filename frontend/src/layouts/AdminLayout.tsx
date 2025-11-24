@@ -53,10 +53,10 @@ const sidebarItems = [
     badge: "5",
   },
   {
-    path: "/admin/payments",
-    name: "Payments Logs",
+    path: "/admin/earnings",
+    name: "Earnings",
     icon: DollarSign,
-    description: "Payment monitoring",
+    description: "Website Revenue",
     badge: "2 Issues",
   },
   {
@@ -82,6 +82,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin": { name: "Dashboard" },
   "/admin/analytics": { name: "Analytics" },
   "/admin/users": { name: "All Users" },
+  "/admin/users/:id": { name: "Details", parent: "/admin/users" },
   "/admin/verifications": { name: "Verifications" },
   "/admin/properties": { name: "All Properties" },
   "/admin/listing": { name: "Listing Management" },
@@ -862,7 +863,7 @@ const AdminLayout = () => {
           onToggleSidebar={toggleCollapsed}
         />
         <main className="flex-1 overflow-y-auto bg-transparent min-h-0">
-          <div className="p-4 sm:p-6 h-full">
+          <div className="h-full">
             <Outlet />
           </div>
         </main>

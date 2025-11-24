@@ -34,7 +34,7 @@ For "reason" field, use ONLY one of these exact values:
 - "inappropriate" (sexual/explicit content)
 - "discriminatory" (race, gender, religion, etc.)
 - "scam" (fraudulent pricing, upfront payment requests through online, viewing fees, etc.)
-- "fake_info" (fake addresses, fake institutions)
+- "fake_info" (fake addresses, fake institutions) (this will be low severity if detected)
 - "privacy" (personal info violations)
 - "spam" (repetitive, promotional spam)
 - "illegal" (illegal activities)
@@ -500,6 +500,28 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
       },
     });
 
+    // Record listing payment as an EXPENSE transaction
+    // This represents the cost the landlord pays to list their property
+    if (listing.unit.property && paymentDetails.paymentAmount > 0) {
+      const listingDescription = listing.isFeatured 
+        ? "Featured listing payment" 
+        : "Listing payment";
+      
+      await tx.transaction.create({
+        data: {
+          propertyId: listing.unit.property.id,
+          unitId: unitId,
+          amount: paymentDetails.paymentAmount,
+          description: listingDescription,
+          type: "EXPENSE",
+          category: "LISTING_ADVERTISING",
+          date: now,
+          recurringInterval: null,
+        },
+      });
+      console.log(`💰 Recorded listing payment as expense transaction: ${paymentDetails.paymentAmount} for property ${listing.unit.property.id}`);
+    }
+
     // Record landlord offenses as individual rows linked to the listing (new schema)
     // We create offenses for ALL sanitizations to build an audit trail
     if (detectionSanitizations.length > 0 && listing.landlordId) {
@@ -542,6 +564,9 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
 // ============================================================================
 // 🎯 PayMongo Webhook Controller
 // ============================================================================
+// This webhook is triggered after successful payment.
+// It creates the listing record and then activates/analyzes it.
+// ============================================================================
 export const handlePaymongoWebhook = async (req, res) => {
   try {
     const payload = req.body?.data;
@@ -553,12 +578,16 @@ export const handlePaymongoWebhook = async (req, res) => {
       return res.status(200).send("Event ignored (non-payment event)");
     }
 
+    // Extract metadata from checkout session (contains all data needed to create listing)
     const metadata = payload?.attributes?.data?.attributes?.metadata || {};
-    const { listingId, unitId } = metadata;
+    const { unitId, propertyId, landlordId, isFeatured, paymentAmount } = metadata;
 
-    if (!listingId || !unitId)
-      return res.status(400).send("Missing metadata: listingId or unitId");
+    // Validate required metadata fields
+    if (!unitId || !propertyId || !landlordId) {
+      return res.status(400).send("Missing required metadata: unitId, propertyId, or landlordId");
+    }
 
+    // Extract payment details
     const payment = payload?.attributes?.data?.attributes?.payments?.[0];
     const paymentDetails = {
       providerName:
@@ -567,9 +596,52 @@ export const handlePaymongoWebhook = async (req, res) => {
       paymentAmount: (payment?.attributes?.amount || 0) / 100,
     };
 
+    // Verify unit exists and belongs to the landlord
+    const unit = await prisma.unit.findUnique({
+      where: { id: unitId },
+      select: {
+        id: true,
+        propertyId: true,
+        property: {
+          select: {
+            ownerId: true,
+          },
+        },
+      },
+    });
+
+    if (!unit) {
+      console.error(`❌ Unit ${unitId} not found in webhook`);
+      return res.status(400).send("Unit not found");
+    }
+
+    if (unit.property.ownerId !== landlordId) {
+      console.error(`❌ Landlord ${landlordId} does not own unit ${unitId}`);
+      return res.status(403).send("Unauthorized: landlord does not own this unit");
+    }
+
+    // Create listing record (will be activated/analyzed next)
+    const listing = await prisma.listing.create({
+      data: {
+        propertyId: propertyId,
+        unitId: unitId,
+        landlordId: landlordId,
+        lifecycleStatus: "WAITING_REVIEW", // Temporary status, will be updated by activateListing
+        isFeatured: isFeatured === "true" || isFeatured === true,
+        paymentAmount: parseFloat(paymentAmount || "0"),
+        providerName: paymentDetails.providerName,
+        providerTxnId: paymentDetails.providerTxnId,
+        paymentDate: new Date(),
+        createdAt: new Date(),
+      },
+    });
+
+    console.log(`📝 Listing ${listing.id} created from payment session`);
+
+    // Now activate and analyze the listing
     const updatedListing = await activateListing({
-      listingId,
-      unitId,
+      listingId: listing.id,
+      unitId: unitId,
       paymentDetails,
     });
 
@@ -578,7 +650,7 @@ export const handlePaymongoWebhook = async (req, res) => {
         `🚨 Listing ${updatedListing.id} BLOCKED automatically (scamming/fraud detected)`
       );
     } else {
-      console.log("✅ Listing activated & analyzed:", updatedListing.id);
+      console.log("✅ Listing created, activated & analyzed:", updatedListing.id);
     }
 
     res.status(200).send("Webhook processed successfully.");

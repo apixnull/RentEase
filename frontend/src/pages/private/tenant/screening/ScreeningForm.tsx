@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,7 +11,20 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, subYears, isAfter, isFuture } from 'date-fns';
-import { CalendarIcon, User, FileText, Home, X, Plus, AlertCircle, Briefcase, History } from 'lucide-react';
+import { CalendarIcon, User, FileText, Home, X, Plus, AlertCircle, Briefcase, History, Sparkles, LogOut, AlertTriangle } from 'lucide-react';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { tenantSubmitScreeningInfoRequest } from '@/api/tenant/screeningApi';
 
 // Types
@@ -82,6 +95,7 @@ const MONTHS = [
 ];
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
+
 // Date Picker Component
 const SimpleDatePicker = ({ 
   value, 
@@ -93,6 +107,14 @@ const SimpleDatePicker = ({
   const [selectedYear, setSelectedYear] = useState<number>(value?.getFullYear() || new Date().getFullYear() - 25);
   const [selectedMonth, setSelectedMonth] = useState<number>(value?.getMonth() || 0);
   const [selectedDay, setSelectedDay] = useState<number>(value?.getDate() || 1);
+
+  useEffect(() => {
+    if (value) {
+      setSelectedYear(value.getFullYear());
+      setSelectedMonth(value.getMonth());
+      setSelectedDay(value.getDate());
+    }
+  }, [value]);
 
   const handleDateChange = (year: number, month: number, day: number) => {
     const newDate = new Date(year, month, day);
@@ -187,18 +209,24 @@ const BasicInfoStep = ({ formData, handleInputChange }: { formData: FormData; ha
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <User className="w-5 h-5" />
+    <Card className="border border-orange-100/70 shadow-sm">
+      <CardHeader className="space-y-1 rounded-t-2xl bg-gradient-to-r from-orange-50 via-amber-50 to-white border-b border-orange-100/60">
+        <CardTitle className="flex items-center gap-2 text-orange-900">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-orange-600 via-amber-600 to-red-600 text-white shadow-sm shadow-orange-100">
+            <User className="w-5 h-5" />
+          </span>
           Basic Information
         </CardTitle>
-        <CardDescription>Tell us about yourself for the screening process</CardDescription>
+        <CardDescription className="text-slate-600">
+          Tell us about yourself to help landlords confirm your application quickly.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>All information provided will be kept confidential and used solely for screening purposes.</AlertDescription>
+      <CardContent className="space-y-6 pt-6">
+        <Alert className="border-orange-200/60 bg-orange-50/70 text-orange-700">
+          <AlertCircle className="h-4 w-4 text-orange-600" />
+          <AlertDescription>
+            All information you share stays private between you and the landlord who invited you.
+          </AlertDescription>
         </Alert>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -217,7 +245,11 @@ const BasicInfoStep = ({ formData, handleInputChange }: { formData: FormData; ha
             <Label htmlFor="birthdate">Birthdate *</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {formData.birthdate ? format(formData.birthdate, 'PPP') : 'Select your birthdate'}
                 </Button>
@@ -269,7 +301,7 @@ const BasicInfoStep = ({ formData, handleInputChange }: { formData: FormData; ha
 
           <div className="space-y-2">
             <Label htmlFor="monthlyIncome">
-              {formData.employmentStatus === 'STUDENT' ? 'Monthly Budget ($)' : 'Monthly Income ($)'}
+              {formData.employmentStatus === 'STUDENT' ? 'Monthly Budget ($)' : 'Monthly Income (₱)'}
             </Label>
             <Input
               id="monthlyIncome"
@@ -299,25 +331,29 @@ const EmploymentStep = ({
   setHasPreviousRental: (value: boolean) => void;
 }) => {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Briefcase className="w-5 h-5" />
+    <Card className="border border-blue-100/70 shadow-sm">
+      <CardHeader className="space-y-1 rounded-t-2xl bg-gradient-to-r from-blue-50 via-sky-50 to-white border-b border-blue-100/60">
+        <CardTitle className="flex items-center gap-2 text-blue-900">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm shadow-blue-100">
+            <Briefcase className="w-5 h-5" />
+          </span>
           Employment & Rental History
         </CardTitle>
-        <CardDescription>
-          Provide details about your employment stability and previous rental experience
+        <CardDescription className="text-slate-600">
+          Show landlords you have consistent income and understand rental responsibilities.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>This information helps verify your ability to maintain consistent rent payments.</AlertDescription>
+      <CardContent className="space-y-6 pt-6">
+        <Alert className="border-blue-200/60 bg-blue-50/70 text-blue-700">
+          <AlertCircle className="h-4 w-4 text-blue-600" />
+          <AlertDescription>
+            These details help landlords understand your ability to maintain rent payments on time.
+          </AlertDescription>
         </Alert>
 
         {['EMPLOYED', 'SELF_EMPLOYED'].includes(formData.employmentStatus) && (
           <div className="space-y-4">
-            <h4 className="font-medium">Employment Details</h4>
+            <h4 className="font-medium text-slate-800">Employment Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="currentEmployer">
@@ -366,12 +402,14 @@ const EmploymentStep = ({
         )}
 
         <div className="space-y-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <History className="w-5 h-5" />
+          <h3 className="font-semibold flex items-center gap-2 text-slate-800">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+              <History className="w-5 h-5" />
+            </span>
             Rental History
           </h3>
 
-          <div className="flex items-center space-x-3 p-4 border rounded-lg">
+          <div className="flex items-center space-x-3 p-4 border border-blue-100 rounded-lg bg-blue-50/50">
             <Checkbox
               id="hasPreviousRental"
               checked={hasPreviousRental}
@@ -383,51 +421,67 @@ const EmploymentStep = ({
           </div>
 
           {hasPreviousRental && (
-            <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+            <div className="space-y-4 p-4 border border-blue-100 rounded-lg bg-white shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="previousLandlordName">Previous Landlord Name</Label>
+                  <Label htmlFor="previousLandlordName">
+                    Previous Landlord Name
+                    {hasPreviousRental && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
                   <Input
                     id="previousLandlordName"
                     value={formData.previousLandlordName}
                     onChange={(e) => handleInputChange('previousLandlordName', e.target.value)}
                     placeholder="Name of previous landlord"
+                    required={hasPreviousRental}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="previousLandlordContact">Previous Landlord Contact</Label>
+                  <Label htmlFor="previousLandlordContact">
+                    Previous Landlord Contact
+                    {hasPreviousRental && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
                   <Input
                     id="previousLandlordContact"
                     value={formData.previousLandlordContact}
                     onChange={(e) => handleInputChange('previousLandlordContact', e.target.value)}
                     placeholder="Phone or email"
+                    required={hasPreviousRental}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="previousRentalAddress">Previous Rental Address</Label>
+                <Label htmlFor="previousRentalAddress">
+                  Previous Rental Address
+                  {hasPreviousRental && <span className="text-red-500 ml-1">*</span>}
+                </Label>
                 <Input
                   id="previousRentalAddress"
                   value={formData.previousRentalAddress}
                   onChange={(e) => handleInputChange('previousRentalAddress', e.target.value)}
                   placeholder="Full address of previous rental"
+                  required={hasPreviousRental}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="reasonForLeaving">Reason for Leaving</Label>
+                <Label htmlFor="reasonForLeaving">
+                  Reason for Leaving
+                  {hasPreviousRental && <span className="text-red-500 ml-1">*</span>}
+                </Label>
                 <Input
                   id="reasonForLeaving"
                   value={formData.reasonForLeaving}
                   onChange={(e) => handleInputChange('reasonForLeaving', e.target.value)}
                   placeholder="Why did you leave your previous rental?"
+                  required={hasPreviousRental}
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex items-center space-x-3 p-4 border rounded-lg bg-white">
+                <div className="flex items-center space-x-3 p-4 border rounded-lg bg-blue-50/60 border-blue-100">
                   <Checkbox
                     id="hadEvictionHistory"
                     checked={formData.hadEvictionHistory}
@@ -438,7 +492,7 @@ const EmploymentStep = ({
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-3 p-4 border rounded-lg bg-white">
+                <div className="flex items-center space-x-3 p-4 border rounded-lg bg-blue-50/60 border-blue-100">
                   <Checkbox
                     id="latePaymentHistory"
                     checked={formData.latePaymentHistory}
@@ -453,8 +507,8 @@ const EmploymentStep = ({
           )}
 
           {!hasPreviousRental && (
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <p className="text-blue-700 text-sm">
+            <div className="bg-blue-50/70 p-4 rounded-lg border border-blue-100">
+              <p className="text-blue-800 text-sm">
                 No previous rental history? That's okay! This is common for first-time renters. 
                 We'll consider other factors like employment stability.
               </p>
@@ -468,26 +522,28 @@ const EmploymentStep = ({
 
 const DocumentsStep = ({ formData, handleInputChange }: { formData: FormData; handleInputChange: (field: string, value: any) => void }) => {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="w-5 h-5" />
+    <Card className="border border-orange-100/70 shadow-sm">
+      <CardHeader className="space-y-1 rounded-t-2xl bg-gradient-to-r from-orange-50 via-amber-50 to-white border-b border-orange-100/60">
+        <CardTitle className="flex items-center gap-2 text-orange-900">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-orange-600 via-amber-600 to-red-600 text-white shadow-sm shadow-orange-100">
+            <FileText className="w-5 h-5" />
+          </span>
           Document Verification
         </CardTitle>
-        <CardDescription>
-          Confirm which documents you can present to the landlord for verification
+        <CardDescription className="text-slate-600">
+          Let the landlord know which documents you can show during the in-person verification.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
+      <CardContent className="space-y-6 pt-6">
+        <Alert className="border-orange-200/60 bg-orange-50/70 text-orange-700">
+          <AlertCircle className="h-4 w-4 text-orange-600" />
           <AlertDescription>
-            These documents will be verified in person with the landlord. Please indicate which ones you can provide.
+            Select all documents you can bring. You can still submit even if a document is not available yet.
           </AlertDescription>
         </Alert>
 
         <div className="space-y-4">
-          <div className="flex items-center space-x-3 p-4 border rounded-lg">
+          <div className="flex items-center space-x-3 p-4 border border-orange-100 rounded-lg bg-white shadow-sm">
             <Checkbox
               id="hasGovernmentId"
               checked={formData.hasGovernmentId}
@@ -506,7 +562,7 @@ const DocumentsStep = ({ formData, handleInputChange }: { formData: FormData; ha
             </Badge>
           </div>
 
-          <div className="flex items-center space-x-3 p-4 border rounded-lg">
+          <div className="flex items-center space-x-3 p-4 border border-orange-100 rounded-lg bg-white shadow-sm">
             <Checkbox
               id="hasNbiClearance"
               checked={formData.hasNbiClearance}
@@ -525,7 +581,7 @@ const DocumentsStep = ({ formData, handleInputChange }: { formData: FormData; ha
             </Badge>
           </div>
 
-          <div className="flex items-center space-x-3 p-4 border rounded-lg">
+          <div className="flex items-center space-x-3 p-4 border border-orange-100 rounded-lg bg-white shadow-sm">
             <Checkbox
               id="hasProofOfIncome"
               checked={formData.hasProofOfIncome}
@@ -545,7 +601,7 @@ const DocumentsStep = ({ formData, handleInputChange }: { formData: FormData; ha
           </div>
         </div>
 
-        <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+        <div className="bg-amber-50/80 p-4 rounded-lg border border-amber-200">
           <h4 className="font-medium text-amber-800 mb-2">Important: Document Presentation</h4>
           <p className="text-amber-700 text-sm">
             Please bring the original documents you've indicated above when you meet with the landlord. 
@@ -576,28 +632,30 @@ const LifestyleStep = ({
   handleKeyPress: (e: React.KeyboardEvent) => void;
 }) => {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Home className="w-5 h-5" />
+    <Card className="border border-emerald-100/70 shadow-sm">
+      <CardHeader className="space-y-1 rounded-t-2xl bg-gradient-to-r from-emerald-50 via-green-50 to-white border-b border-emerald-100/60">
+        <CardTitle className="flex items-center gap-2 text-emerald-900">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm shadow-emerald-100">
+            <Home className="w-5 h-5" />
+          </span>
           Lifestyle Information
         </CardTitle>
-        <CardDescription>
-          Help us understand your living preferences for property compatibility
+        <CardDescription className="text-slate-600">
+          Share your living habits so we can match you with the right property and neighbors.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
+      <CardContent className="space-y-6 pt-6">
+        <Alert className="border-emerald-200/60 bg-emerald-50/70 text-emerald-700">
+          <AlertCircle className="h-4 w-4 text-emerald-600" />
           <AlertDescription>
-            This information helps ensure the property is a good fit for your lifestyle and neighbors.
+            Help us understand how you live day-to-day so your new home feels comfortable from day one.
           </AlertDescription>
         </Alert>
 
         <div className="space-y-4">
-          <h4 className="font-medium">Habits & Preferences</h4>
+          <h4 className="font-medium text-slate-800">Habits & Preferences</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center space-x-3 p-4 border rounded-lg">
+            <div className="flex items-center space-x-3 p-4 border border-emerald-100 rounded-lg bg-white shadow-sm">
               <Checkbox
                 id="smokes"
                 checked={formData.smokes}
@@ -608,7 +666,7 @@ const LifestyleStep = ({
               </Label>
             </div>
 
-            <div className="flex items-center space-x-3 p-4 border rounded-lg">
+            <div className="flex items-center space-x-3 p-4 border border-emerald-100 rounded-lg bg-white shadow-sm">
               <Checkbox
                 id="drinksAlcohol"
                 checked={formData.drinksAlcohol}
@@ -619,7 +677,7 @@ const LifestyleStep = ({
               </Label>
             </div>
 
-            <div className="flex items-center space-x-3 p-4 border rounded-lg">
+            <div className="flex items-center space-x-3 p-4 border border-emerald-100 rounded-lg bg-white shadow-sm">
               <Checkbox
                 id="hasPets"
                 checked={formData.hasPets}
@@ -630,7 +688,7 @@ const LifestyleStep = ({
               </Label>
             </div>
 
-            <div className="flex items-center space-x-3 p-4 border rounded-lg">
+            <div className="flex items-center space-x-3 p-4 border border-emerald-100 rounded-lg bg-white shadow-sm">
               <Checkbox
                 id="worksNightShift"
                 checked={formData.worksNightShift}
@@ -641,7 +699,7 @@ const LifestyleStep = ({
               </Label>
             </div>
 
-            <div className="flex items-center space-x-3 p-4 border rounded-lg">
+            <div className="flex items-center space-x-3 p-4 border border-emerald-100 rounded-lg bg-white shadow-sm">
               <Checkbox
                 id="hasVisitors"
                 checked={formData.hasVisitors}
@@ -687,7 +745,7 @@ const LifestyleStep = ({
                 onKeyPress={handleKeyPress}
                 placeholder="e.g., Gamer, Travels Often, Works from Home"
               />
-              <Button type="button" onClick={handleAddLifestyleTag} variant="outline">
+              <Button type="button" onClick={handleAddLifestyleTag} variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
@@ -695,7 +753,7 @@ const LifestyleStep = ({
             {formData.otherLifestyle.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {formData.otherLifestyle.map((tag, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                  <Badge key={index} variant="secondary" className="flex items-center gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
                     {tag}
                     <button
                       type="button"
@@ -711,7 +769,7 @@ const LifestyleStep = ({
           </div>
         </div>
 
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+        <div className="bg-green-50/80 p-4 rounded-lg border border-green-200">
           <h4 className="font-medium text-green-800 mb-2">Ready to Submit!</h4>
           <p className="text-green-700 text-sm">
             Review your information carefully before submitting. This screening helps ensure the best living environment match for you.
@@ -722,51 +780,140 @@ const LifestyleStep = ({
   );
 };
 
-// Progress Steps Component
+// Progress Steps Component - Compact design for mobile
 const ProgressSteps = ({ currentStep, progress }: { currentStep: number; progress: number }) => {
   const steps = [
-    { number: 1, label: 'Basic Info' },
-    { number: 2, label: 'Employment' },
-    { number: 3, label: 'Documents' },
-    { number: 4, label: 'Lifestyle' },
-  ];
+    { number: 1, label: 'Basic Info', description: 'Introduce yourself', icon: User },
+    { number: 2, label: 'Employment', description: 'Financial stability', icon: Briefcase },
+    { number: 3, label: 'Documents', description: 'Verification items', icon: FileText },
+    { number: 4, label: 'Lifestyle', description: 'Living preferences', icon: Home },
+  ] as const;
+
+  const getStepState = (stepNumber: number) => {
+    if (stepNumber === currentStep) return 'current';
+    if (stepNumber < currentStep) return 'complete';
+    return 'upcoming';
+  };
 
   return (
-    <>
-      <div className="mb-8">
-        <div className="flex justify-between mb-2">
-          <span className="text-sm font-medium text-gray-700">Step {currentStep} of 4</span>
-          <span className="text-sm font-medium text-gray-700">{Math.round(progress)}% Complete</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
-            className="bg-green-600 h-2 rounded-full transition-all duration-300" 
-            style={{ width: `${progress}%` }}
-          ></div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        {steps.map((step) => (
-          <div key={step.number} className="text-center">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
-              step.number === currentStep 
-                ? 'bg-blue-600 text-white' 
-                : step.number < currentStep 
-                ? 'bg-green-500 text-white' 
-                : 'bg-gray-300 text-gray-600'
-            }`}>
-              {step.number}
-            </div>
-            <span className={`text-sm font-medium ${
-              step.number === currentStep ? 'text-blue-600' : 'text-gray-600'
-            }`}>
-              {step.label}
+    <Card className="border border-orange-100/60 shadow-sm">
+      <CardContent className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+        {/* Mobile: Compact horizontal progress bar with step indicators */}
+        <div className="block sm:hidden">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-600">Progress</p>
+            <span className="text-[10px] text-slate-600">
+              {currentStep}/4 · {Math.round(progress)}%
             </span>
           </div>
-        ))}
-      </div>
-    </>
+          <div className="relative">
+            {/* Progress bar */}
+            <div className="h-1.5 rounded-full bg-slate-200">
+              <div
+                className="h-1.5 rounded-full bg-gradient-to-r from-orange-500 via-amber-500 to-red-500 transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            {/* Step indicators */}
+            <div className="flex justify-between mt-2">
+              {steps.map((step) => {
+                const Icon = step.icon;
+                const state = getStepState(step.number);
+                return (
+                  <div key={step.number} className="flex flex-col items-center gap-1">
+                    <div
+                      className={[
+                        'flex h-6 w-6 items-center justify-center rounded-full border text-[10px]',
+                        state === 'current' && 'bg-orange-600 text-white border-orange-600 shadow-sm',
+                        state === 'complete' && 'bg-emerald-500 text-white border-emerald-500 shadow-sm',
+                        state === 'upcoming' && 'bg-white text-slate-400 border-slate-300',
+                      ].filter(Boolean).join(' ')}
+                    >
+                      <Icon className="w-3 h-3" />
+                    </div>
+                    <p
+                      className={[
+                        'text-[9px] font-medium text-center max-w-[50px]',
+                        state === 'current' && 'text-orange-700',
+                        state === 'complete' && 'text-emerald-700',
+                        state === 'upcoming' && 'text-slate-500',
+                      ].filter(Boolean).join(' ')}
+                    >
+                      {step.label}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop: Full detailed view */}
+        <div className="hidden sm:block">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-baseline gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Screening Progress</p>
+            </div>
+            <div className="flex w-full items-center gap-2 sm:max-w-xs">
+              <div className="h-2 rounded-full bg-slate-200 flex-1">
+                <div
+                  className="h-2 rounded-full bg-gradient-to-r from-orange-500 via-amber-500 to-red-500 transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <span className="text-xs text-slate-600">
+                Step {currentStep} of 4 · {Math.round(progress)}%
+              </span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {steps.map((step) => {
+              const Icon = step.icon;
+              const state = getStepState(step.number);
+
+              return (
+                <div
+                  key={step.number}
+                  className={[
+                    'rounded-xl border px-4 py-4 transition-all duration-200',
+                    state === 'current' && 'bg-white border-orange-200 shadow-sm ring-2 ring-orange-100',
+                    state === 'complete' && 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200/70 text-emerald-900 shadow-sm',
+                    state === 'upcoming' && 'bg-slate-50 border-slate-200 text-slate-500',
+                  ].filter(Boolean).join(' ')}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={[
+                        'flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold',
+                        state === 'current' && 'bg-orange-600 text-white border-orange-600 shadow-sm shadow-orange-100',
+                        state === 'complete' && 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-100',
+                        state === 'upcoming' && 'bg-white text-slate-500 border-slate-200 shadow-sm',
+                      ].filter(Boolean).join(' ')}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p
+                        className={[
+                          'text-sm font-semibold',
+                          state === 'current' && 'text-orange-700',
+                          state === 'complete' && 'text-emerald-700',
+                          state === 'upcoming' && 'text-slate-600',
+                        ].filter(Boolean).join(' ')}
+                      >
+                        {step.label}
+                      </p>
+                      <p className="text-xs text-slate-500">{step.description}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -778,33 +925,69 @@ const ScreeningForm = () => {
   const [otherLifestyleInput, setOtherLifestyleInput] = useState('');
   const [hasPreviousRental, setHasPreviousRental] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  const user = useAuthStore((state) => state.user);
   
-  const [formData, setFormData] = useState<FormData>({
-    fullName: '',
-    birthdate: null,
-    employmentStatus: '',
-    incomeSource: '',
-    monthlyIncome: '',
-    currentEmployer: '',
-    jobPosition: '',
-    yearsEmployed: '',
-    previousLandlordName: '',
-    previousLandlordContact: '',
-    previousRentalAddress: '',
-    reasonForLeaving: '',
-    hadEvictionHistory: false,
-    latePaymentHistory: false,
-    hasGovernmentId: false,
-    hasNbiClearance: false,
-    hasProofOfIncome: false,
-    smokes: false,
-    drinksAlcohol: false,
-    hasPets: false,
-    worksNightShift: false,
-    hasVisitors: false,
-    noiseLevel: '',
-    otherLifestyle: [],
+  const [formData, setFormData] = useState<FormData>(() => {
+    const defaultFullName = [user?.firstName, user?.middleName, user?.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const parsedBirthdate =
+      user?.birthdate && !Number.isNaN(new Date(user.birthdate).getTime())
+        ? new Date(user.birthdate)
+        : null;
+
+    return {
+      fullName: defaultFullName || '',
+      birthdate: parsedBirthdate,
+      employmentStatus: '',
+      incomeSource: '',
+      monthlyIncome: '',
+      currentEmployer: '',
+      jobPosition: '',
+      yearsEmployed: '',
+      previousLandlordName: '',
+      previousLandlordContact: '',
+      previousRentalAddress: '',
+      reasonForLeaving: '',
+      hadEvictionHistory: false,
+      latePaymentHistory: false,
+      hasGovernmentId: false,
+      hasNbiClearance: false,
+      hasProofOfIncome: false,
+      smokes: false,
+      drinksAlcohol: false,
+      hasPets: false,
+      worksNightShift: false,
+      hasVisitors: false,
+      noiseLevel: '',
+      otherLifestyle: [],
+    };
   });
+
+  useEffect(() => {
+    if (!user) return;
+
+    setFormData((prev) => {
+      const hasName = prev.fullName.trim().length > 0;
+      const nextFullName = [user.firstName, user.middleName, user.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const parsedBirthdate =
+        user.birthdate && !Number.isNaN(new Date(user.birthdate).getTime())
+          ? new Date(user.birthdate)
+          : null;
+
+      return {
+        ...prev,
+        fullName: hasName ? prev.fullName : nextFullName || prev.fullName,
+        birthdate: prev.birthdate ?? parsedBirthdate ?? prev.birthdate,
+      };
+    });
+  }, [user]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -844,55 +1027,99 @@ const ScreeningForm = () => {
     return !isAfter(date, eighteenYearsAgo);
   };
 
-  const isStepValid = (step: number) => {
+  const getStepValidationMessage = (step: number): string => {
     switch (step) {
       case 1:
-        return formData.fullName.trim() && 
-               formData.birthdate && 
-               isDateValid(formData.birthdate) && 
-               formData.employmentStatus;
-      
+        if (!formData.fullName.trim()) {
+          return 'Please enter your full name.';
+        }
+        if (!formData.birthdate) {
+          return 'Please select your birthdate.';
+        }
+        if (!isDateValid(formData.birthdate)) {
+          return 'Applicants must be at least 18 years old.';
+        }
+        if (!formData.employmentStatus) {
+          return 'Please select your employment status.';
+        }
+        return '';
       case 2:
         if (['EMPLOYED', 'SELF_EMPLOYED'].includes(formData.employmentStatus)) {
-          return formData.currentEmployer.trim() && 
-                 formData.jobPosition.trim() && 
-                 formData.yearsEmployed;
+          if (!formData.currentEmployer.trim()) {
+            return 'Please provide your employer or business name.';
+          }
+          if (!formData.jobPosition.trim()) {
+            return 'Please provide your job position or business type.';
+          }
+          if (!formData.yearsEmployed) {
+            return 'Please select how long you have been employed.';
+          }
         }
-        return true;
-      
+
+        if (hasPreviousRental) {
+          if (!formData.previousLandlordName.trim()) {
+            return 'Previous landlord name is required.';
+          }
+          if (!formData.previousLandlordContact.trim()) {
+            return 'Previous landlord contact is required.';
+          }
+          if (!formData.previousRentalAddress.trim()) {
+            return 'Previous rental address is required.';
+          }
+          if (!formData.reasonForLeaving.trim()) {
+            return 'Please share your reason for leaving your previous rental.';
+          }
+        }
+        return '';
       case 3:
-        return true;
-      
+        return '';
       case 4:
-        return formData.noiseLevel;
-      
+        if (!formData.noiseLevel) {
+          return 'Please select your typical noise level.';
+        }
+        return '';
       default:
-        return false;
+        return '';
     }
   };
 
+  const isStepValid = (step: number) => getStepValidationMessage(step) === '';
+
   const nextStep = () => {
-    if (isStepValid(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, 4));
-    } else {
-      alert(`Please complete all required fields in step ${currentStep} before proceeding.`);
+    const message = getStepValidationMessage(currentStep);
+    if (message) {
+      toast.error('Complete required information', {
+        description: message,
+      });
+      return;
     }
+
+    setCurrentStep(prev => Math.min(prev + 1, 4));
   };
 
   const prevStep = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!isStepValid(4)) {
-      alert('Please complete all required fields in the lifestyle section before submitting.');
-      return;
+  const submitForm = async () => {
+    const stepsToValidate = [1, 2, 4] as const;
+    for (const step of stepsToValidate) {
+      const message = getStepValidationMessage(step);
+      if (message) {
+        setCurrentStep(step);
+        setConfirmDialogOpen(false);
+        toast.error('Complete required information', {
+          description: message,
+        });
+        return;
+      }
     }
 
     if (!screeningId) {
-      alert('Invalid screening application. Please try again.');
+      setConfirmDialogOpen(false);
+      toast.error('Invalid screening application', {
+        description: 'The screening details could not be found. Please try again.',
+      });
       return;
     }
     
@@ -900,125 +1127,272 @@ const ScreeningForm = () => {
     
     try {
       const payload = {
-          // basic info
-          fullName: formData.fullName,
-          birthdate: formData.birthdate ? format(formData.birthdate, 'yyyy-MM-dd') : null,
-          employmentStatus: formData.employmentStatus,
-          incomeSource: formData.incomeSource,
-          monthlyIncome: formData.monthlyIncome ? parseFloat(formData.monthlyIncome) : null,
+        // basic info
+        fullName: formData.fullName,
+        birthdate: formData.birthdate ? format(formData.birthdate, 'yyyy-MM-dd') : null,
+        employmentStatus: formData.employmentStatus,
+        incomeSource: formData.incomeSource,
+        monthlyIncome: formData.monthlyIncome ? parseFloat(formData.monthlyIncome) : null,
 
-          // employment detials
-          currentEmployer: formData.currentEmployer,
-          jobPosition: formData.jobPosition,
-          yearsEmployed: formData.yearsEmployed ? parseInt(formData.yearsEmployed) : null,
-      
-          // rental history
-          hasPreviousRental,
-          previousLandlordName: formData.previousLandlordName,
-          previousLandlordContact: formData.previousLandlordContact,
-          previousRentalAddress: formData.previousRentalAddress,
-          reasonForLeaving: formData.reasonForLeaving,
-          hadEvictionHistory: formData.hadEvictionHistory,
-          latePaymentHistory: formData.latePaymentHistory,
+        // employment details
+        currentEmployer: formData.currentEmployer,
+        jobPosition: formData.jobPosition,
+        yearsEmployed: formData.yearsEmployed ? parseInt(formData.yearsEmployed) : null,
 
-          // documents
-          hasGovernmentId: formData.hasGovernmentId,
-          hasNbiClearance: formData.hasNbiClearance,
-          hasProofOfIncome: formData.hasProofOfIncome,
+        // rental history
+        hasPreviousRental,
+        previousLandlordName: formData.previousLandlordName,
+        previousLandlordContact: formData.previousLandlordContact,
+        previousRentalAddress: formData.previousRentalAddress,
+        reasonForLeaving: formData.reasonForLeaving,
+        hadEvictionHistory: formData.hadEvictionHistory,
+        latePaymentHistory: formData.latePaymentHistory,
 
-          // lifestyle          
-          smokes: formData.smokes,
-          drinksAlcohol: formData.drinksAlcohol,
-          hasPets: formData.hasPets,
-          worksNightShift: formData.worksNightShift,
-          hasVisitors: formData.hasVisitors,
-          noiseLevel: formData.noiseLevel,
-          otherLifestyle: formData.otherLifestyle,
+        // documents
+        hasGovernmentId: formData.hasGovernmentId,
+        hasNbiClearance: formData.hasNbiClearance,
+        hasProofOfIncome: formData.hasProofOfIncome,
+
+        // lifestyle
+        smokes: formData.smokes,
+        drinksAlcohol: formData.drinksAlcohol,
+        hasPets: formData.hasPets,
+        worksNightShift: formData.worksNightShift,
+        hasVisitors: formData.hasVisitors,
+        noiseLevel: formData.noiseLevel,
+        otherLifestyle: formData.otherLifestyle,
       };
 
       await tenantSubmitScreeningInfoRequest(screeningId, payload);
-      
-      alert('Screening form submitted successfully!');
-      navigate(`/tenant/screening/:${screeningId}/details`);
+
+      toast.success('Application submitted', {
+        description: 'Your screening details have been sent to the landlord.',
+      });
+      setConfirmDialogOpen(false);
+      navigate(`/tenant/screening/${screeningId}/details`);
     } catch (error) {
       console.error('Error submitting screening form:', error);
-      alert('There was an error submitting your form. Please try again.');
+      toast.error('Submission failed', {
+        description: 'There was an error submitting your form. Please try again.',
+      });
+      setConfirmDialogOpen(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    await submitForm();
+  };
+
+  const handleExit = () => {
+    setExitDialogOpen(true);
+  };
+
+  const confirmExit = () => {
+    setExitDialogOpen(false);
+    navigate('/tenant/screening');
+  };
+
   const progress = ((currentStep - 1) / 3) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Tenant Screening Application</h1>
-          <p className="text-gray-600 mt-2">Complete your screening application to proceed with your rental application</p>
+    <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header with similar color scheme to TenantScreeningTenant */}
+        <div className="relative overflow-hidden rounded-2xl">
+          {/* Gradient border effect - Orange to Amber to Red (similar to ScreeningHeader) */}
+          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-orange-300/80 via-amber-200/70 via-red-200/70 to-rose-200/60 opacity-95" />
+          
+          {/* Glass card with backdrop */}
+          <div className="relative m-[1px] rounded-[15px] bg-white/80 backdrop-blur-lg border border-white/60 shadow-lg">
+            {/* Animated decorative blobs */}
+            <div className="pointer-events-none absolute -top-12 -left-12 h-48 w-48 rounded-full bg-gradient-to-br from-orange-300/50 to-amber-400/40 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-12 -right-12 h-56 w-56 rounded-full bg-gradient-to-tl from-red-300/50 to-rose-300/40 blur-3xl" />
+            
+            {/* Accent lines */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-orange-400/70 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[1.5px] bg-gradient-to-r from-transparent via-red-400/70 to-transparent" />
+            
+            {/* Content */}
+            <div className="px-4 sm:px-6 py-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-orange-600 via-amber-600 to-red-600 text-white shadow-lg shadow-orange-500/30">
+                    <User className="w-5 h-5" />
+                  </span>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-600">
+                      Tenant Journey
+                    </p>
+                    <h1 className="text-xl font-semibold bg-gradient-to-r from-gray-900 via-orange-900 to-gray-900 bg-clip-text text-transparent sm:text-2xl">
+                      Tenant Screening Application
+                    </h1>
+                    <p className="text-sm text-slate-600">
+                      Share just what landlords need and review everything before you submit.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50/60 px-3 py-2 text-xs text-orange-700 sm:text-sm">
+                    <Sparkles className="w-4 h-4" />
+                    <span>{currentStep} of 4 · {Math.round(progress)}%</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleExit}
+                    className="flex items-center gap-2 border-slate-200 text-slate-700 hover:bg-slate-100"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Exit
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Animated underline with gradient */}
+              <div className="mt-4 relative h-1 w-full rounded-full overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-500/80 via-amber-400/80 via-red-400/80 to-rose-400/80 rounded-full" />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <ProgressSteps currentStep={currentStep} progress={progress} />
+        <div className="space-y-6">
+          <ProgressSteps currentStep={currentStep} progress={progress} />
 
-        <form onSubmit={handleSubmit}>
-          {currentStep === 1 && (
-            <BasicInfoStep formData={formData} handleInputChange={handleInputChange} />
-          )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {currentStep === 1 && (
+              <BasicInfoStep formData={formData} handleInputChange={handleInputChange} />
+            )}
 
-          {currentStep === 2 && (
-            <EmploymentStep
-              formData={formData}
-              handleInputChange={handleInputChange}
-              hasPreviousRental={hasPreviousRental}
-              setHasPreviousRental={setHasPreviousRental}
-            />
-          )}
+            {currentStep === 2 && (
+              <EmploymentStep
+                formData={formData}
+                handleInputChange={handleInputChange}
+                hasPreviousRental={hasPreviousRental}
+                setHasPreviousRental={setHasPreviousRental}
+              />
+            )}
 
-          {currentStep === 3 && (
-            <DocumentsStep formData={formData} handleInputChange={handleInputChange} />
-          )}
+            {currentStep === 3 && (
+              <DocumentsStep formData={formData} handleInputChange={handleInputChange} />
+            )}
 
-          {currentStep === 4 && (
-            <LifestyleStep
-              formData={formData}
-              handleInputChange={handleInputChange}
-              otherLifestyleInput={otherLifestyleInput}
-              setOtherLifestyleInput={setOtherLifestyleInput}
-              handleAddLifestyleTag={handleAddLifestyleTag}
-              handleRemoveLifestyleTag={handleRemoveLifestyleTag}
-              handleKeyPress={handleKeyPress}
-            />
-          )}
+            {currentStep === 4 && (
+              <LifestyleStep
+                formData={formData}
+                handleInputChange={handleInputChange}
+                otherLifestyleInput={otherLifestyleInput}
+                setOtherLifestyleInput={setOtherLifestyleInput}
+                handleAddLifestyleTag={handleAddLifestyleTag}
+                handleRemoveLifestyleTag={handleRemoveLifestyleTag}
+                handleKeyPress={handleKeyPress}
+              />
+            )}
 
-          <div className="flex justify-between mt-8">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={prevStep}
-              disabled={currentStep === 1}
-            >
-              Previous
-            </Button>
-
-            {currentStep < 4 ? (
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <Button
                 type="button"
-                onClick={nextStep}
-                disabled={!isStepValid(currentStep)}
+                variant="outline"
+                onClick={prevStep}
+                disabled={currentStep === 1}
+                className="sm:w-auto w-full"
               >
-                Next Step
+                Previous
               </Button>
-            ) : (
-              <Button
-                type="submit"
-                className="bg-green-600 hover:bg-green-700"
-                disabled={!isStepValid(4) || isSubmitting}
+
+              {currentStep < 4 ? (
+                <Button
+                  type="button"
+                  onClick={nextStep}
+                  disabled={!isStepValid(currentStep)}
+                  className="bg-orange-600 hover:bg-orange-700 sm:w-auto w-full"
+                >
+                  Next Step
+                </Button>
+              ) : (
+                <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      className="bg-emerald-600 hover:bg-emerald-700 sm:w-auto w-full"
+                      disabled={!isStepValid(4) || isSubmitting}
+                    >
+                      {isSubmitting ? 'Submitting...' : 'Submit Application'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirm submission</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Please review your details carefully. Once submitted, your landlord will immediately see your screening information.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isSubmitting}>Go Back</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={submitForm}
+                        disabled={isSubmitting}
+                        className="bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-600"
+                      >
+                        {isSubmitting ? 'Submitting...' : 'Confirm & Submit'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Exit Confirmation Dialog */}
+        <AlertDialog open={exitDialogOpen} onOpenChange={setExitDialogOpen}>
+          <AlertDialogContent className="sm:max-w-md">
+            <AlertDialogHeader>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-100 to-red-100">
+                  <AlertTriangle className="h-6 w-6 text-orange-600" />
+                </div>
+                <AlertDialogTitle className="text-xl">Exit Screening Form?</AlertDialogTitle>
+              </div>
+              <AlertDialogDescription className="text-base text-slate-600 pt-2">
+                Are you sure you want to exit? All the information you've filled in will be lost and you'll need to start over if you return to this screening.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="bg-orange-50/50 border border-orange-200/60 rounded-lg p-4 mt-4">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-orange-900">What will be lost:</p>
+                  <ul className="text-sm text-orange-800 space-y-1 list-disc list-inside">
+                    <li>All form data you've entered</li>
+                    <li>Your current progress (Step {currentStep} of 4)</li>
+                    <li>Any unsaved information</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <AlertDialogFooter className="gap-2 sm:gap-0 mt-6">
+              <AlertDialogCancel 
+                onClick={() => setExitDialogOpen(false)}
+                className="sm:w-auto w-full"
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Application'}
-              </Button>
-            )}
-          </div>
-        </form>
+                Continue Filling
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmExit}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600 sm:w-auto w-full"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Exit Anyway
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

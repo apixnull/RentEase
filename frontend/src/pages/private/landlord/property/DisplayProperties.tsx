@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { getLandlordPropertiesRequest } from "@/api/landlord/propertyApi";
 import { toast } from "sonner";
-import PageHeader from "@/components/PageHeader";
+import { motion } from "framer-motion";
 
 type Property = {
   id: string;
@@ -239,11 +239,11 @@ const DisplayProperties = () => {
 
     return (
       <Card 
-        className="group w-full overflow-hidden border border-gray-200/80 hover:border-emerald-200 transition-all duration-300 hover:shadow-xl rounded-2xl bg-white/90 backdrop-blur-sm cursor-pointer"
+        className="group w-full overflow-hidden border border-gray-200/80 hover:border-emerald-200 transition-all duration-300 hover:shadow-xl rounded-xl bg-white/90 backdrop-blur-sm cursor-pointer"
         onClick={() => navigate(`/landlord/properties/${property.id}`)}
       >
-        {/* Image Section - Larger */}
-        <div className="relative aspect-[5/3] overflow-hidden bg-gradient-to-br from-emerald-50/50 to-blue-50/50">
+        {/* Image Section - Reduced */}
+        <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-emerald-50/50 to-blue-50/50">
           {property.mainImageUrl ? (
             <img
               src={property.mainImageUrl}
@@ -253,27 +253,27 @@ const DisplayProperties = () => {
             />
           ) : (
             <div className="h-full w-full bg-gradient-to-br from-emerald-50 to-blue-100 flex items-center justify-center">
-              <Home className="h-10 w-10 text-emerald-400" />
+              <Home className="h-8 w-8 text-emerald-400" />
             </div>
           )}
           
           {/* Top Badges */}
-          <div className="absolute top-3 left-3 right-3 flex justify-between items-start">
-            <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-semibold text-emerald-700 border border-emerald-200/50">
+          <div className="absolute top-2 left-2 right-2 flex justify-between items-start">
+            <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2 py-1 rounded-full text-xs font-semibold text-emerald-700 border border-emerald-200/50">
               {getPropertyTypeIcon(property.type)}
               <span className="capitalize">{formatPropertyType(property.type)}</span>
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               {showNewBadge && (
-                <div className="flex items-center gap-1 bg-gradient-to-r from-emerald-500 to-blue-500 text-white px-3 py-1.5 rounded-full text-sm font-semibold">
-                  <Sparkles className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-1 bg-gradient-to-r from-emerald-500 to-blue-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                  <Sparkles className="h-3 w-3" />
                   <span>NEW</span>
                 </div>
               )}
               {hasMaintenance && (
-                <div className="flex items-center gap-1 bg-amber-500 text-white px-3 py-1.5 rounded-full text-sm font-semibold">
-                  <Wrench className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-1 bg-amber-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                  <Wrench className="h-3 w-3" />
                   <span>{property.unitsSummary.maintenance}</span>
                 </div>
               )}
@@ -281,51 +281,51 @@ const DisplayProperties = () => {
           </div>
 
           {/* Bottom Gradient Overlay */}
-          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/30 to-transparent" />
         </div>
 
-        {/* Content Section - Enhanced */}
-        <div className="p-4 space-y-3">
+        {/* Content Section - Reduced */}
+        <div className="p-3 space-y-2">
           {/* Title */}
           <div className="flex items-start justify-between">
-            <h3 className="font-bold text-gray-900 text-lg leading-tight line-clamp-2 flex-1 pr-2">
+            <h3 className="font-bold text-gray-900 text-base leading-tight line-clamp-2 flex-1 pr-2">
               {property.title}
             </h3>
           </div>
 
           {/* Location */}
-          <div className="flex items-start gap-2 text-sm text-gray-600">
-            <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div className="flex items-start gap-1.5 text-xs text-gray-600">
+            <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
             <span className="leading-tight line-clamp-2 flex-1">
               {formatAddress(property)}
             </span>
           </div>
 
           {/* Date Information */}
-          <div className={`flex items-center gap-2 text-sm ${
+          <div className={`flex items-center gap-1.5 text-xs ${
             dateInfo.isNew ? "text-emerald-600 font-semibold" : "text-gray-500"
           }`}>
-            <Calendar className="h-4 w-4" />
+            <Calendar className="h-3.5 w-3.5" />
             <span>{dateInfo.text}</span>
           </div>
 
           {/* Units Summary */}
-          <div className="grid grid-cols-4 gap-2 p-3 bg-gradient-to-r from-emerald-50/80 to-blue-50/80 rounded-xl border border-emerald-100/50">
+          <div className="grid grid-cols-4 gap-1.5 p-2 bg-gradient-to-r from-emerald-50/80 to-blue-50/80 rounded-lg border border-emerald-100/50">
             <div className="text-center">
-              <div className="font-bold text-gray-900 text-base">{property.unitsSummary.total}</div>
-              <div className="text-xs text-gray-600 mt-0.5">Total</div>
+              <div className="font-bold text-gray-900 text-sm">{property.unitsSummary.total}</div>
+              <div className="text-[10px] text-gray-600 mt-0.5">Total</div>
             </div>
             <div className="text-center">
-              <div className="font-bold text-emerald-600 text-base">{property.unitsSummary.listed}</div>
-              <div className="text-xs text-gray-600 mt-0.5">Listed</div>
+              <div className="font-bold text-emerald-600 text-sm">{property.unitsSummary.listed}</div>
+              <div className="text-[10px] text-gray-600 mt-0.5">Listed</div>
             </div>
             <div className="text-center">
-              <div className="font-bold text-blue-600 text-base">{property.unitsSummary.occupied}</div>
-              <div className="text-xs text-gray-600 mt-0.5">Occupied</div>
+              <div className="font-bold text-blue-600 text-sm">{property.unitsSummary.occupied}</div>
+              <div className="text-[10px] text-gray-600 mt-0.5">Occupied</div>
             </div>
             <div className="text-center">
-              <div className="font-bold text-amber-600 text-base">{property.unitsSummary.maintenance}</div>
-              <div className="text-xs text-gray-600 mt-0.5">Maint</div>
+              <div className="font-bold text-amber-600 text-sm">{property.unitsSummary.maintenance}</div>
+              <div className="text-[10px] text-gray-600 mt-0.5">Maint</div>
             </div>
           </div>
 
@@ -336,7 +336,7 @@ const DisplayProperties = () => {
 
   if (loading) {
     return (
-      <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2 w-full">
             <div className="flex gap-3">
@@ -347,7 +347,7 @@ const DisplayProperties = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <Card key={i} className="overflow-hidden rounded-2xl">
               <Skeleton className="aspect-[5/3] w-full" />
@@ -370,13 +370,104 @@ const DisplayProperties = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Compact Header Section */}
-      <PageHeader
-        title="Your Properties"
-        description="Manage your rental portfolio"
-        icon={(props: { className?: string }) => <Home {...props} />}
-      />
+    <div className="space-y-6 p-4 sm:p-6">
+      {/* Custom Page Header - Matching Financials.tsx */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="relative overflow-hidden rounded-2xl"
+      >
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-emerald-200/70 opacity-95" />
+        <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-300/50 to-cyan-400/40 blur-3xl"
+            initial={{ opacity: 0.4, scale: 0.85 }}
+            animate={{ opacity: 0.7, scale: 1.05 }}
+            transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-emerald-200/40 to-cyan-200/35 blur-3xl"
+            initial={{ opacity: 0.3 }}
+            animate={{ opacity: 0.6 }}
+            transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+
+          <div className="px-4 sm:px-6 py-5 space-y-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4 min-w-0">
+                <motion.div
+                  whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                  className="relative flex-shrink-0"
+                >
+                  <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-600 via-cyan-600 to-emerald-600 text-white grid place-items-center shadow-xl shadow-cyan-500/30">
+                    <Home className="h-5 w-5 relative z-10" />
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                  </div>
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-sky-600 border border-sky-100 shadow-sm grid place-items-center"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                  </motion.div>
+                  <motion.div
+                    className="absolute inset-0 rounded-2xl border-2 border-cyan-400/30"
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                </motion.div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                      Your Properties
+                    </h1>
+                    <motion.div
+                      animate={{ rotate: [0, 8, -8, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <Sparkles className="h-4 w-4 text-cyan-500" />
+                    </motion.div>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                    <Building className="h-4 w-4 text-emerald-500" />
+                    Manage your rental portfolio
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Button
+                  onClick={() => navigate("/landlord/properties/create")}
+                  className="h-11 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-cyan-500/30 hover:brightness-110 gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Property
+                </Button>
+              </div>
+            </div>
+
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+              style={{ originX: 0 }}
+              className="relative h-1 w-full rounded-full overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/80 via-cyan-400/80 to-emerald-400/80" />
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                animate={{ x: ["-100%", "100%"] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+              />
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Enhanced Search and Filter Bar */}
       <Card className="p-4 bg-white/90 backdrop-blur-sm border border-gray-200/60 shadow-sm rounded-xl">
@@ -427,15 +518,6 @@ const DisplayProperties = () => {
                 ))}
               </SelectContent>
             </Select>
-
-            {/* Add Property (compact) */}
-            <Button
-              onClick={() => navigate("/landlord/properties/create")}
-              className="h-9 px-3 text-sm bg-emerald-600 hover:bg-emerald-700 gap-2 shadow-sm text-white rounded-md font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              Add Property
-            </Button>
           </div>
         </div>
 
@@ -458,7 +540,7 @@ const DisplayProperties = () => {
 
       {/* Enhanced Properties Grid */}
       {currentPageProperties.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {currentPageProperties.map((property) => (
             <PropertyCard key={property.id} property={property} />
           ))}

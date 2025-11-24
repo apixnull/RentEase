@@ -25,18 +25,25 @@ import {
   Phone,
   MessageSquare,
   Facebook,
-  MessageCircle,
   Calendar,
   Venus,
   Edit3,
   Key,
   X,
   Save,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  UserCircle,
+  BadgeCheck,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { supabase } from "@/lib/supabaseClient";
 import { v4 as uuidv4 } from "uuid";
 import { forgotPasswordRequest, updateProfileRequest } from "@/api/authApi";
+import PageHeader from "@/components/PageHeader";
+import AdminPageHeader from "@/components/AdminPageHeader";
+import { motion } from "framer-motion";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -48,6 +55,22 @@ const formatDate = (iso?: string | null) => {
       year: "numeric",
       month: "long",
       day: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+};
+
+const formatDateTime = (iso?: string | null) => {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   } catch {
     return "—";
@@ -81,7 +104,6 @@ const AccountProfile = () => {
     phoneNumber: "",
     messengerUrl: "",
     facebookUrl: "",
-    whatsappUrl: "",
   });
 
   useEffect(() => {
@@ -96,7 +118,6 @@ const AccountProfile = () => {
         phoneNumber: user.phoneNumber || "",
         messengerUrl: user.messengerUrl || "",
         facebookUrl: user.facebookUrl || "",
-        whatsappUrl: user.whatsappUrl || "",
       });
     }
   }, [user]);
@@ -107,24 +128,31 @@ const AccountProfile = () => {
     );
   }
 
-  // Role-based theming to match Admin layout colors when role is ADMIN
+  // Role-based theming
   const isAdmin = (user.role || "").toUpperCase() === "ADMIN";
+  const isLandlord = (user.role || "").toUpperCase() === "LANDLORD";
+
   const theme = {
-    // gradients
-    gradientStrongFrom: isAdmin ? "from-purple-600" : "from-emerald-600",
-    gradientStrongTo: isAdmin ? "to-blue-600" : "to-sky-600",
-    gradientMidFrom: isAdmin ? "from-purple-500" : "from-emerald-500",
-    gradientMidTo: isAdmin ? "to-blue-500" : "to-sky-500",
-    gradientSoftFrom: isAdmin ? "from-purple-100" : "from-emerald-100",
-    gradientSoftTo: isAdmin ? "to-blue-100" : "to-sky-100",
-    // accents
+    // Header gradients
+    headerGradientFrom: isAdmin ? "from-purple-200/70" : "from-emerald-200/70",
+    headerGradientVia: isAdmin ? "via-blue-200/50" : "via-emerald-100/50",
+    headerGradientTo: isAdmin ? "to-purple-200/70" : "to-sky-200/70",
+    // Card accents
     accentBg50: isAdmin ? "bg-purple-50" : "bg-emerald-50",
+    accentBg100: isAdmin ? "bg-purple-100" : "bg-emerald-100",
     accentText600: isAdmin ? "text-purple-600" : "text-emerald-600",
     accentText700: isAdmin ? "text-purple-700" : "text-emerald-700",
-    accentText800: isAdmin ? "text-purple-800" : "text-emerald-800",
     accentBorder200: isAdmin ? "border-purple-200" : "border-emerald-200",
     accentHoverBg50: isAdmin ? "hover:bg-purple-50" : "hover:bg-emerald-50",
+    // Button gradients
+    buttonGradientFrom: isAdmin ? "from-purple-600" : "from-emerald-600",
+    buttonGradientTo: isAdmin ? "to-blue-600" : "to-sky-600",
+    // Icon gradients
+    iconGradientFrom: isAdmin ? "from-purple-600" : "from-emerald-600",
+    iconGradientTo: isAdmin ? "to-blue-600" : "to-sky-600",
   } as const;
+
+  const HeaderComponent = isAdmin ? AdminPageHeader : PageHeader;
 
   const avatarPreviewUrl = avatarFile
     ? URL.createObjectURL(avatarFile)
@@ -182,7 +210,6 @@ const AccountProfile = () => {
     setIsLoading(true);
 
     try {
-      // ✅ Validate birthdate first
       const birthdateError = isValidBirthdate(formData.birthdate);
       if (birthdateError) {
         toast.error(birthdateError);
@@ -191,34 +218,29 @@ const AccountProfile = () => {
       }
       let avatarUrl = user?.avatarUrl;
 
-      // ✅ Upload avatar if a new file was chosen
       if (avatarFile) {
         const uploadedUrl = await uploadAvatarToSupabase();
         if (uploadedUrl) avatarUrl = uploadedUrl;
       }
 
-      // ✅ Build payload (only fields the backend expects)
       const payload = {
         ...formData,
         avatarUrl,
       };
 
-      // ✅ Call API
       await updateProfileRequest(payload);
 
-      // ✅ Update Zustand user state (merge, don’t overwrite)
       useAuthStore.setState((state) => ({
         user: state.user
           ? {
               ...state.user,
-              ...payload, // only patch updated fields
+              ...payload,
             }
-          : state.user, // fallback if somehow null
+          : state.user,
       }));
 
       toast.success("Profile updated successfully");
 
-      // ✅ Reset states
       setIsEditProfileModalOpen(false);
       setAvatarFile(null);
       setAvatarError("");
@@ -236,12 +258,10 @@ const AccountProfile = () => {
     const date = new Date(birthdate);
     const today = new Date();
 
-    // Future check
     if (date > today) {
       return "Birthdate cannot be in the future";
     }
 
-    // Age check
     const ageDiff = today.getFullYear() - date.getFullYear();
     const hasBirthdayPassed =
       today.getMonth() > date.getMonth() ||
@@ -268,7 +288,6 @@ const AccountProfile = () => {
       phoneNumber: user.phoneNumber || "",
       messengerUrl: user.messengerUrl || "",
       facebookUrl: user.facebookUrl || "",
-      whatsappUrl: user.whatsappUrl || "",
     });
     setAvatarFile(null);
     setAvatarError("");
@@ -302,7 +321,6 @@ const AccountProfile = () => {
 
   const openEditModal = () => {
     setIsEditProfileModalOpen(true);
-    // Reset form to current user data when opening modal
     setFormData({
       firstName: user.firstName || "",
       middleName: user.middleName || "",
@@ -313,93 +331,130 @@ const AccountProfile = () => {
       phoneNumber: user.phoneNumber || "",
       messengerUrl: user.messengerUrl || "",
       facebookUrl: user.facebookUrl || "",
-      whatsappUrl: user.whatsappUrl || "",
     });
     setAvatarFile(null);
     setAvatarError("");
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 md:space-y-8 max-w-6xl mx-auto">
-      {/* Header Section */}
-      <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 shadow-lg">
+    <div className="min-h-screen p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <HeaderComponent
+        title="Account Profile"
+        description="Manage your personal information, account settings, and security preferences"
+        icon={UserCircle}
+        actions={
+          <Button
+            onClick={openEditModal}
+            className={`gap-2 bg-gradient-to-r ${theme.buttonGradientFrom} ${theme.buttonGradientTo} hover:brightness-110 shadow-md text-white`}
+          >
+            <Edit3 size={16} />
+            Edit Profile
+          </Button>
+        }
+      />
+
+      {/* Profile Overview Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg"
+      >
         <div className="absolute inset-0 pointer-events-none">
           <div
-            className={`absolute -top-20 -right-20 w-64 h-64 rounded-full bg-gradient-to-r ${theme.gradientSoftFrom} ${theme.gradientSoftTo} blur-2xl opacity-70`}
+            className={`absolute -top-20 -right-20 w-64 h-64 rounded-full bg-gradient-to-r ${theme.headerGradientFrom} ${theme.headerGradientTo} blur-2xl opacity-20`}
           />
           <div
-            className={`absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-gradient-to-r ${theme.gradientSoftFrom} ${theme.gradientSoftTo} blur-3xl opacity-70`}
+            className={`absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-gradient-to-r ${theme.headerGradientFrom} ${theme.headerGradientTo} blur-3xl opacity-20`}
           />
         </div>
 
-        <div className="relative p-6 flex flex-col sm:flex-row items-center gap-6">
-          <div className="relative">
-            <Avatar className="h-24 w-24 ring-4 ring-white shadow-lg">
-              <AvatarImage src={user.avatarUrl || undefined} alt="avatar" />
-              <AvatarFallback
-                className={`bg-gradient-to-br ${theme.gradientMidFrom} ${theme.gradientMidTo} text-white text-xl font-semibold`}
-              >
-                {initialsOf(user.firstName, user.lastName)}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-
-          <div className="flex-1 text-center sm:text-left">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-              {user.firstName} {user.lastName}
-            </h1>
-            <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
-              <div className="flex items-center gap-1 text-sm text-gray-600">
-                <Mail size={14} />
-                <span>{user.email}</span>
-              </div>
-              <div className="w-1 h-1 rounded-full bg-gray-400"></div>
-              <div className="text-sm text-gray-600 capitalize">
-                {user.role.toLowerCase()}
-              </div>
+        <div className="relative p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+            <div className="relative flex-shrink-0">
+              <Avatar className="h-32 w-32 ring-4 ring-white shadow-xl">
+                <AvatarImage src={user.avatarUrl || undefined} alt="avatar" />
+                <AvatarFallback
+                  className={`bg-gradient-to-br ${theme.iconGradientFrom} ${theme.iconGradientTo} text-white text-3xl font-bold`}
+                >
+                  {initialsOf(user.firstName, user.lastName)}
+                </AvatarFallback>
+              </Avatar>
+              {user.isVerified && (
+                <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-2 shadow-lg border-2 border-white">
+                  <BadgeCheck className="h-5 w-5 text-white" />
+                </div>
+              )}
             </div>
-            <p className="mt-2 text-gray-600 max-w-xl">
-              Manage your personal information and account security.
-            </p>
-          </div>
 
-          <div className="flex gap-2 flex-wrap justify-center">
-            <Button
-              onClick={openEditModal}
-              className={`gap-2 bg-gradient-to-r ${theme.gradientStrongFrom} ${theme.gradientStrongTo} hover:brightness-110 shadow-md text-white`}
-            >
-              <Edit3 size={16} />
-              Edit Profile
-            </Button>
+            <div className="flex-1 text-center sm:text-left space-y-4">
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                  {user.firstName} {user.lastName}
+                </h1>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Mail size={16} />
+                    <span className="font-medium">{user.email}</span>
+                  </div>
+                  <div className="w-1 h-1 rounded-full bg-gray-400"></div>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-bold capitalize ${
+                        isAdmin
+                          ? "bg-purple-100 text-purple-700"
+                          : isLandlord
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {user.role.toLowerCase()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {user.bio && (
+                <div className="pt-2">
+                  <p className="text-gray-700 max-w-2xl text-sm leading-relaxed">
+                    {user.bio}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Profile Details Card */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${theme.accentBg50}`}>
-                <User className={`h-5 w-5 ${theme.accentText600}`} />
-              </div>
-              <h2 className="font-semibold text-gray-900 text-lg">
-                Profile Details
-              </h2>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-lg ${theme.accentBg50}`}>
+              <User className={`h-5 w-5 ${theme.accentText600}`} />
             </div>
+            <h2 className="font-semibold text-gray-900 text-lg">
+              Profile Details
+            </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 First Name
               </label>
-              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 font-medium">
                 {user.firstName || "—"}
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 Middle Name
               </label>
               <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
@@ -407,16 +462,16 @@ const AccountProfile = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 Last Name
               </label>
-              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 font-medium">
                 {user.lastName || "—"}
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <Calendar size={14} />
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <Calendar size={12} />
                 Birthdate
               </label>
               <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
@@ -424,8 +479,8 @@ const AccountProfile = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <Venus size={14} />
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <Venus size={12} />
                 Gender
               </label>
               <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
@@ -433,57 +488,62 @@ const AccountProfile = () => {
               </div>
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <label className="text-sm font-medium text-gray-500">Bio</label>
-              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 min-h-[48px]">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                Bio
+              </label>
+              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 min-h-[60px]">
                 {user.bio || "—"}
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Contact Info Card */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className={`p-2 rounded-lg ${
-                  isAdmin ? "bg-blue-50" : "bg-sky-50"
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.15 }}
+          className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-2.5 rounded-lg ${
+                isAdmin ? "bg-blue-50" : "bg-sky-50"
+              }`}
+            >
+              <Phone
+                className={`h-5 w-5 ${
+                  isAdmin ? "text-blue-600" : "text-sky-600"
                 }`}
-              >
-                <Phone
-                  className={`h-5 w-5 ${
-                    isAdmin ? "text-blue-600" : "text-sky-600"
-                  }`}
-                />
-              </div>
-              <h2 className="font-semibold text-gray-900 text-lg">
-                Contact Info
-              </h2>
+              />
             </div>
+            <h2 className="font-semibold text-gray-900 text-lg">
+              Contact Information
+            </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <Phone size={14} />
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <Phone size={12} />
                 Phone
               </label>
               {user.phoneNumber ? (
                 <a
                   href={`tel:${user.phoneNumber}`}
-                  className="block px-4 py-3 rounded-xl bg-gray-50 text-blue-700 hover:text-blue-800 hover:bg-blue-50 transition truncate"
+                  className="block px-4 py-3 rounded-xl bg-gray-50 text-blue-700 hover:text-blue-800 hover:bg-blue-50 transition truncate font-medium"
                 >
                   {user.phoneNumber}
                 </a>
               ) : (
-                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 truncate">
+                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-500">
                   —
                 </div>
               )}
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <MessageSquare size={14} />
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <MessageSquare size={12} />
                 Messenger
               </label>
               {user.messengerUrl ? (
@@ -493,17 +553,17 @@ const AccountProfile = () => {
                   rel="noopener noreferrer"
                   className="block px-4 py-3 rounded-xl bg-gray-50 text-blue-700 hover:text-blue-800 hover:bg-blue-50 transition truncate"
                 >
-                  {user.messengerUrl}
+                  Open Messenger
                 </a>
               ) : (
-                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 truncate">
+                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-500">
                   —
                 </div>
               )}
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <Facebook size={14} />
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <Facebook size={12} />
                 Facebook
               </label>
               {user.facebookUrl ? (
@@ -513,99 +573,117 @@ const AccountProfile = () => {
                   rel="noopener noreferrer"
                   className="block px-4 py-3 rounded-xl bg-gray-50 text-blue-700 hover:text-blue-800 hover:bg-blue-50 transition truncate"
                 >
-                  {user.facebookUrl}
+                  Open Facebook
                 </a>
               ) : (
-                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 truncate">
+                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-500">
                   —
                 </div>
               )}
             </div>
+          </div>
+        </motion.div>
+
+        {/* Account & Security Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow lg:col-span-2"
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-lg ${theme.accentBg50}`}>
+              <Shield className={`h-5 w-5 ${theme.accentText600}`} />
+            </div>
+            <h2 className="font-semibold text-gray-900 text-lg">
+              Account & Security
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <MessageCircle size={14} />
-                WhatsApp
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                <Mail size={12} />
+                Email Address
               </label>
-              {user.whatsappUrl ? (
-                <a
-                  href={user.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block px-4 py-3 rounded-xl bg-gray-50 text-green-700 hover:text-green-800 hover:bg-green-50 transition truncate"
-                >
-                  {user.whatsappUrl}
-                </a>
-              ) : (
-                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 truncate">
-                  —
-                </div>
-              )}
+              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 flex items-center justify-between gap-2">
+                <span className="truncate text-sm font-medium">{user.email}</span>
+                {user.isVerified ? (
+                  <span className="flex items-center gap-1 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0">
+                    <CheckCircle2 size={10} />
+                    Verified
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0">
+                    <XCircle size={10} />
+                    Unverified
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                <Shield size={12} />
+                Account Role
+              </label>
+              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 capitalize font-semibold">
+                {user.role.toLowerCase()}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                <User size={12} />
+                Onboarding
+              </label>
+              <div className="px-4 py-3 rounded-xl bg-gray-50 flex items-center justify-between">
+                <span className="text-gray-900 font-semibold">
+                  {user.hasSeenOnboarding ? "Completed" : "Pending"}
+                </span>
+                {user.hasSeenOnboarding ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                ) : (
+                  <Clock className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Account & Security Card - Always Read Only */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 space-y-5 shadow-sm hover:shadow-md transition-shadow lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${theme.accentBg50}`}>
-                <Shield className={`h-5 w-5 ${theme.accentText600}`} />
-              </div>
-              <h2 className="font-semibold text-gray-900 text-lg">
-                Account & Security
-              </h2>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-500">
-                  Email
-                </label>
-                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 flex items-center justify-between">
-                  {user.email}
-                  {user.isVerified ? (
-                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                      Verified
-                    </span>
-                  ) : (
-                    <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-medium">
-                      Unverified
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-500">
-                  Role
-                </label>
-                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 capitalize">
-                  {user.role.toLowerCase()}
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 pt-4 border-t border-gray-200">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                <Calendar size={14} />
+                Account Created
+              </label>
+              <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 font-medium">
+                {user.createdAt ? formatDateTime(user.createdAt) : "—"}
               </div>
             </div>
 
-            <div className="space-y-4">
+            {user.lastLogin && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-500">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Clock size={14} />
                   Last Login
                 </label>
-                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
-                  {formatDate(user.lastLogin)}
+                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 font-medium">
+                  {formatDateTime(user.lastLogin)}
                 </div>
               </div>
+            )}
 
+            {user.lastPasswordChange && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-500">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Key size={14} />
                   Last Password Change
                 </label>
-                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
-                  {formatDate(user.lastPasswordChange)}
+                <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 font-medium">
+                  {formatDateTime(user.lastPasswordChange)}
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="pt-5 border-t border-gray-200">
@@ -615,10 +693,10 @@ const AccountProfile = () => {
               className={`gap-2 border ${theme.accentBorder200} ${theme.accentText700} ${theme.accentHoverBg50}`}
             >
               <Key size={16} />
-              Send Password Reset
+              Send Password Reset Link
             </Button>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Edit Profile Modal */}
@@ -626,7 +704,7 @@ const AccountProfile = () => {
         open={isEditProfileModalOpen}
         onOpenChange={setIsEditProfileModalOpen}
       >
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit3 className="h-5 w-5" />
@@ -647,7 +725,7 @@ const AccountProfile = () => {
                     alt="avatar"
                   />
                   <AvatarFallback
-                    className={`bg-gradient-to-br ${theme.gradientMidFrom} ${theme.gradientMidTo} text-white text-lg font-semibold`}
+                    className={`bg-gradient-to-br ${theme.iconGradientFrom} ${theme.iconGradientTo} text-white text-lg font-semibold`}
                   >
                     {initialsOf(user.firstName, user.lastName)}
                   </AvatarFallback>
@@ -726,25 +804,187 @@ const AccountProfile = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1.5">
                     <Calendar size={14} />
                     Birthdate *
                   </label>
-                  <Input
-                    type="date"
-                    value={
-                      formData.birthdate
-                        ? new Date(formData.birthdate)
-                            .toISOString()
-                            .split("T")[0]
-                        : ""
-                    }
-                    onChange={(e) =>
-                      handleInputChange("birthdate", e.target.value)
-                    }
-                    max={new Date().toISOString().split("T")[0]} // ⛔ Prevent selecting future dates
-                    required
-                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Year Dropdown */}
+                    <Select
+                      value={
+                        formData.birthdate
+                          ? (() => {
+                              try {
+                                const date = new Date(formData.birthdate);
+                                if (!isNaN(date.getTime())) {
+                                  return String(date.getFullYear());
+                                }
+                              } catch {}
+                              return "";
+                            })()
+                          : ""
+                      }
+                      onValueChange={(year) => {
+                        const currentDate = formData.birthdate
+                          ? (() => {
+                              try {
+                                const d = new Date(formData.birthdate);
+                                return !isNaN(d.getTime()) ? d : new Date();
+                              } catch {
+                                return new Date();
+                              }
+                            })()
+                          : new Date();
+                        const month = currentDate.getMonth() + 1;
+                        const day = currentDate.getDate();
+                        // Validate date (e.g., Feb 30 becomes Mar 2)
+                        const validDate = new Date(parseInt(year), month - 1, Math.min(day, new Date(parseInt(year), month, 0).getDate()));
+                        const formatted = `${year}-${String(validDate.getMonth() + 1).padStart(2, '0')}-${String(validDate.getDate()).padStart(2, '0')}`;
+                        handleInputChange("birthdate", formatted);
+                      }}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px] z-[100]">
+                        {Array.from({ length: new Date().getFullYear() - 1899 }, (_, i) => {
+                          const year = new Date().getFullYear() - i;
+                          return (
+                            <SelectItem key={year} value={String(year)}>
+                              {year}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Month Dropdown */}
+                    <Select
+                      value={
+                        formData.birthdate
+                          ? (() => {
+                              try {
+                                const date = new Date(formData.birthdate);
+                                if (!isNaN(date.getTime())) {
+                                  return String(date.getMonth() + 1);
+                                }
+                              } catch {}
+                              return "";
+                            })()
+                          : ""
+                      }
+                      onValueChange={(month) => {
+                        const currentDate = formData.birthdate
+                          ? (() => {
+                              try {
+                                const d = new Date(formData.birthdate);
+                                return !isNaN(d.getTime()) ? d : new Date();
+                              } catch {
+                                return new Date();
+                              }
+                            })()
+                          : new Date();
+                        const year = currentDate.getFullYear() || new Date().getFullYear();
+                        const day = currentDate.getDate();
+                        const daysInMonth = new Date(year, parseInt(month), 0).getDate();
+                        const validDay = Math.min(day, daysInMonth);
+                        const formatted = `${year}-${String(month).padStart(2, '0')}-${String(validDay).padStart(2, '0')}`;
+                        handleInputChange("birthdate", formatted);
+                      }}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Month" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100]">
+                        {[
+                          "January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"
+                        ].map((month, index) => (
+                          <SelectItem key={index + 1} value={String(index + 1)}>
+                            {month}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Day Dropdown */}
+                    <Select
+                      value={
+                        formData.birthdate
+                          ? (() => {
+                              try {
+                                const date = new Date(formData.birthdate);
+                                if (!isNaN(date.getTime())) {
+                                  return String(date.getDate());
+                                }
+                              } catch {}
+                              return "";
+                            })()
+                          : ""
+                      }
+                      onValueChange={(day) => {
+                        const currentDate = formData.birthdate
+                          ? (() => {
+                              try {
+                                const d = new Date(formData.birthdate);
+                                return !isNaN(d.getTime()) ? d : new Date();
+                              } catch {
+                                return new Date();
+                              }
+                            })()
+                          : new Date();
+                        const year = currentDate.getFullYear() || new Date().getFullYear();
+                        const month = currentDate.getMonth() + 1 || 1;
+                        const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        handleInputChange("birthdate", formatted);
+                      }}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Day" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px] z-[100]">
+                        {(() => {
+                          const currentDate = formData.birthdate
+                            ? (() => {
+                                try {
+                                  const d = new Date(formData.birthdate);
+                                  return !isNaN(d.getTime()) ? d : new Date();
+                                } catch {
+                                  return new Date();
+                                }
+                              })()
+                            : new Date();
+                          const year = currentDate.getFullYear() || new Date().getFullYear();
+                          const month = currentDate.getMonth() + 1 || 1;
+                          const daysInMonth = new Date(year, month, 0).getDate();
+                          return Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
+                            <SelectItem key={day} value={String(day)}>
+                              {day}
+                            </SelectItem>
+                          ));
+                        })()}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {formData.birthdate && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {(() => {
+                        try {
+                          const date = new Date(formData.birthdate);
+                          if (!isNaN(date.getTime())) {
+                            const today = new Date();
+                            const age = today.getFullYear() - date.getFullYear();
+                            const monthDiff = today.getMonth() - date.getMonth();
+                            const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < date.getDate()) 
+                              ? age - 1 
+                              : age;
+                            return `Age: ${actualAge} years old`;
+                          }
+                        } catch {}
+                        return "";
+                      })()}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
@@ -760,7 +1000,7 @@ const AccountProfile = () => {
                     <SelectTrigger>
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[100]">
                       <SelectItem value="Male">Male</SelectItem>
                       <SelectItem value="Female">Female</SelectItem>
                       <SelectItem value="Other">Other</SelectItem>
@@ -770,7 +1010,7 @@ const AccountProfile = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="md:col-span-2 space-y-2">
+                <div className="sm:col-span-2 space-y-2">
                   <label className="text-sm font-medium text-gray-500">
                     Bio *
                   </label>
@@ -779,6 +1019,7 @@ const AccountProfile = () => {
                     onChange={(e) => handleInputChange("bio", e.target.value)}
                     placeholder="Tell us about yourself..."
                     rows={3}
+                    className="resize-none"
                     required
                   />
                 </div>
@@ -791,9 +1032,9 @@ const AccountProfile = () => {
                 <Phone className="h-5 w-5" />
                 Contact Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1.5">
                     <Phone size={14} />
                     Phone
                   </label>
@@ -803,10 +1044,12 @@ const AccountProfile = () => {
                       handleInputChange("phoneNumber", e.target.value)
                     }
                     placeholder="+1234567890"
+                    type="tel"
+                    className="w-full"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1.5">
                     <MessageSquare size={14} />
                     Messenger URL
                   </label>
@@ -816,10 +1059,12 @@ const AccountProfile = () => {
                       handleInputChange("messengerUrl", e.target.value)
                     }
                     placeholder="https://m.me/username"
+                    type="url"
+                    className="w-full"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                <div className="space-y-2 sm:col-span-2">
+                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1.5">
                     <Facebook size={14} />
                     Facebook URL
                   </label>
@@ -829,19 +1074,8 @@ const AccountProfile = () => {
                       handleInputChange("facebookUrl", e.target.value)
                     }
                     placeholder="https://facebook.com/username"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                    <MessageCircle size={14} />
-                    WhatsApp URL
-                  </label>
-                  <Input
-                    value={formData.whatsappUrl}
-                    onChange={(e) =>
-                      handleInputChange("whatsappUrl", e.target.value)
-                    }
-                    placeholder="https://wa.me/1234567890"
+                    type="url"
+                    className="w-full"
                   />
                 </div>
               </div>
@@ -860,7 +1094,7 @@ const AccountProfile = () => {
               <Button
                 onClick={handleSave}
                 disabled={isLoading}
-                className={`gap-2 bg-gradient-to-r ${theme.gradientStrongFrom} ${theme.gradientStrongTo} text-white`}
+                className={`gap-2 bg-gradient-to-r ${theme.buttonGradientFrom} ${theme.buttonGradientTo} text-white`}
               >
                 <Save size={16} />
                 {isLoading ? "Saving..." : "Save Changes"}
@@ -902,7 +1136,7 @@ const AccountProfile = () => {
               </Button>
               <Button
                 onClick={handlePasswordReset}
-                className={`gap-2 bg-gradient-to-r ${theme.gradientStrongFrom} ${theme.gradientStrongTo} text-white`}
+                className={`gap-2 bg-gradient-to-r ${theme.buttonGradientFrom} ${theme.buttonGradientTo} text-white`}
               >
                 <Key size={16} />
                 Send Reset Link

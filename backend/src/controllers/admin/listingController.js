@@ -1,5 +1,50 @@
 import prisma from "../../libs/prismaClient.js";
 
+const getDateRangeWindow = (range = "this_month", yearParam) => {
+  const now = new Date();
+  let start = new Date(now);
+  let end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  let label = "This Month";
+
+  switch (range) {
+    case "last_3_months": {
+      const startMonth = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      start = startMonth;
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      label = "Last 3 Months";
+      break;
+    }
+    case "this_year": {
+      start = new Date(now.getFullYear(), 0, 1);
+      end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+      label = "This Year";
+      break;
+    }
+    case "year": {
+      const parsedYear = Number(yearParam);
+      const targetYear = Number.isFinite(parsedYear) ? parsedYear : now.getFullYear();
+      start = new Date(targetYear, 0, 1);
+      end = new Date(targetYear, 11, 31, 23, 59, 59, 999);
+      label = `Year ${targetYear}`;
+      break;
+    }
+    case "this_month":
+    default: {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      label = "This Month";
+      break;
+    }
+  }
+
+  return { start, end, label };
+};
+
+const formatMonthKey = (date) => {
+  const formatter = new Intl.DateTimeFormat("en", { month: "short", year: "numeric" });
+  return formatter.format(date);
+};
+
 // ============================================================================
 // ADMIN — GET ALL LISTINGS (Simplified for new schema)
 // ----------------------------------------------------------------------------
@@ -50,11 +95,6 @@ export const getAllListingsForAdmin = async (req, res) => {
                 id: true,
                 title: true,
                 type: true,
-                street: true,
-                barangay: true,
-                zipCode: true,
-                city: { select: { name: true } },
-                municipality: { select: { name: true } },
               },
             },
           },
@@ -378,6 +418,99 @@ export const updateListingStatus = async (req, res) => {
     console.error("❌ Error in updateListingStatus:", error);
     return res.status(500).json({
       error: "Failed to update listing status.",
+    });
+  }
+};
+
+// ============================================================================
+// ADMIN — GET EARNINGS SUMMARY
+// ----------------------------------------------------------------------------
+// Calculates platform earnings based on paid listings with filters.
+// ============================================================================
+export const getEarningsSummary = async (req, res) => {
+  try {
+    const { range = "this_month", year } = req.query || {};
+    const { start, end, label } = getDateRangeWindow(range, year);
+
+    const listings = await prisma.listing.findMany({
+      where: {
+        paymentAmount: { not: null },
+        paymentDate: {
+          gte: start,
+          lte: end,
+        },
+      },
+      orderBy: { paymentDate: "desc" },
+      select: {
+        id: true,
+        paymentAmount: true,
+        paymentDate: true,
+        providerName: true,
+        unit: {
+          select: {
+            label: true,
+            property: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const totalEarnings = listings.reduce(
+      (sum, listing) => sum + Number(listing.paymentAmount || 0),
+      0
+    );
+
+    const timelineMap = new Map();
+
+    listings.forEach((listing) => {
+      if (!listing.paymentDate) return;
+      const paymentDate = new Date(listing.paymentDate);
+      const monthKey = `${paymentDate.getFullYear()}-${paymentDate.getMonth() + 1}`;
+      const monthLabel = formatMonthKey(paymentDate);
+      const current = timelineMap.get(monthKey) ?? { label: monthLabel, total: 0 };
+      current.total += Number(listing.paymentAmount || 0);
+      timelineMap.set(monthKey, current);
+    });
+
+    const timeline = Array.from(timelineMap.entries())
+      .sort(([a], [b]) => {
+        const [aYear, aMonth] = a.split("-").map(Number);
+        const [bYear, bMonth] = b.split("-").map(Number);
+        return new Date(aYear, aMonth - 1).getTime() - new Date(bYear, bMonth - 1).getTime();
+      })
+      .map(([, value]) => value);
+
+    const records = listings.map((listing) => ({
+      id: listing.id,
+      propertyTitle: listing.unit?.property?.title || "Untitled property",
+      unitLabel: listing.unit?.label || "Unit",
+      amount: Number(listing.paymentAmount || 0),
+      paymentDate: listing.paymentDate ? new Date(listing.paymentDate).toISOString() : null,
+      providerName: listing.providerName,
+    }));
+
+    return res.status(200).json({
+      summary: {
+        range: {
+          label,
+          start: start.toISOString(),
+          end: end.toISOString(),
+        },
+        totalEarnings,
+        averagePerListing: listings.length ? totalEarnings / listings.length : 0,
+        listingCount: listings.length,
+      },
+      timeline,
+      records,
+    });
+  } catch (error) {
+    console.error("❌ Error in getEarningsSummary:", error);
+    return res.status(500).json({
+      error: "Failed to compute earnings summary.",
     });
   }
 };

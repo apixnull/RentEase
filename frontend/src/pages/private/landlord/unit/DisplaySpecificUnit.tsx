@@ -25,8 +25,14 @@ import {
   AlertTriangle,
   AlertCircle,
   CreditCard,
+  CheckCircle,
+  XCircle,
+  Wrench,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  MapPin,
+  RotateCcw,
+  Loader2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getUnitDetailsRequest } from "@/api/landlord/unitApi";
@@ -113,6 +119,7 @@ interface Unit {
   requiresScreening: boolean;
   unitCondition: string;
   occupiedAt: string | null;
+  leaseId: string | null;
   listedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -134,10 +141,10 @@ const ImageGallery = ({ images, unitLabel, mainImageUrl }: { images: string[], u
   const [selectedImage, setSelectedImage] = useState(0);
   if (gallery.length === 0) {
     return (
-      <Card className="h-64 flex items-center justify-center bg-gray-100 rounded-xl">
+      <Card className="h-48 flex items-center justify-center bg-gray-100 rounded-xl">
         <div className="text-center text-gray-500">
-          <Camera className="h-12 w-12 mx-auto mb-2" />
-          <p>No images available</p>
+          <Camera className="h-8 w-8 mx-auto mb-2" />
+          <p className="text-sm">No images available</p>
         </div>
       </Card>
     );
@@ -145,23 +152,25 @@ const ImageGallery = ({ images, unitLabel, mainImageUrl }: { images: string[], u
   return (
     <Card className="overflow-hidden shadow-lg border-0">
       {/* Main Image */}
-      <div className="aspect-[21/10] bg-gray-100 relative overflow-hidden rounded-t-xl">
-        <img
-          src={gallery[selectedImage]}
-          alt={`${unitLabel} - Image ${selectedImage + 1}`}
-          className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-        />
+      <div className="bg-gray-100 relative overflow-hidden rounded-t-xl w-[60%] mx-auto">
+        <div className="aspect-[6/5] w-full">
+          <img
+            src={gallery[selectedImage]}
+            alt={`${unitLabel} - Image ${selectedImage + 1}`}
+            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+          />
+        </div>
       </div>
       {/* Thumbnail Strip */}
       {gallery.length > 1 && (
-        <div className="p-4 bg-white">
-          <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="p-2 bg-white">
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
             {gallery.map((image, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedImage(index)}
-                className={`relative flex-shrink-0 w-20 h-16 rounded-lg overflow-hidden border-2 transition-all ${
-                  selectedImage === index ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-gray-200 hover:border-gray-300'
+                className={`relative flex-shrink-0 w-14 h-10 rounded-md overflow-hidden border-2 transition-all ${
+                  selectedImage === index ? 'border-emerald-500 ring-1 ring-emerald-200' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <img
@@ -170,7 +179,7 @@ const ImageGallery = ({ images, unitLabel, mainImageUrl }: { images: string[], u
                   className="w-full h-full object-cover"
                 />
                 {mainImageUrl && image === mainImageUrl && (
-                  <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-emerald-600 text-white text-[10px] font-semibold rounded shadow">Main Image</span>
+                  <span className="absolute bottom-0 left-0 px-1 py-0.5 bg-emerald-600 text-white text-[8px] font-semibold rounded shadow">Main</span>
                 )}
               </button>
             ))}
@@ -181,252 +190,248 @@ const ImageGallery = ({ images, unitLabel, mainImageUrl }: { images: string[], u
   );
 };
 
+// Helper functions
+const formatPropertyAddress = (property: Property) => [
+  property.street, property.barangay, property.city?.name, property.municipality?.name, property.zipCode
+].filter(Boolean).join(", ");
+
+const getConditionColor = (condition: string) => {
+  const colors = {
+    'GOOD': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'NEED_MAINTENANCE': 'bg-amber-100 text-amber-700 border-amber-200',
+    'UNDER_MAINTENANCE': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    'UNUSABLE': 'bg-rose-100 text-rose-700 border-rose-200',
+  };
+  return colors[condition as keyof typeof colors] || 'bg-gray-100 text-gray-700 border-gray-200';
+};
+
+const getConditionIcon = (condition: string) => {
+  switch (condition) {
+    case 'GOOD':
+      return <CheckCircle className="h-4 w-4" />;
+    case 'NEED_MAINTENANCE':
+      return <AlertTriangle className="h-4 w-4" />;
+    case 'UNDER_MAINTENANCE':
+      return <Wrench className="h-4 w-4" />;
+    case 'UNUSABLE':
+      return <XCircle className="h-4 w-4" />;
+    default:
+      return <AlertCircle className="h-4 w-4" />;
+  }
+};
+
+const formatLongDate = (dateString: string) => new Date(dateString).toLocaleDateString("en-US", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+
 // Unit Header Component
-const UnitHeader = ({ unit, onEdit, onDelete, onShare, onAdvertise }: { 
+const UnitHeader = ({ 
+  unit, 
+  onEdit, 
+  onDelete, 
+  onShare, 
+  onRefresh,
+  refreshing
+}: { 
   unit: Unit; 
   onEdit: () => void;
   onDelete: () => void;
   onShare: () => void;
-  onAdvertise: () => void;
+  onRefresh: () => void;
+  refreshing: boolean;
 }) => {
-  const formatPropertyAddress = (property: Property) => [
-    property.street, property.barangay, property.city?.name, property.municipality?.name, property.zipCode
-  ].filter(Boolean).join(", ");
-
-  const getConditionColor = (condition: string) => {
-    const colors = {
-      'GOOD': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      'NEED_MAINTENANCE': 'bg-amber-100 text-amber-700 border-amber-200',
-      'UNDER_MAINTENANCE': 'bg-blue-100 text-blue-700 border-blue-200',
-      'UNUSABLE': 'bg-rose-100 text-rose-700 border-rose-200',
-    };
-    return colors[condition as keyof typeof colors] || 'bg-gray-100 text-gray-700 border-gray-200';
-  };
-
-  const UnitIcon = () => (
-    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-500 text-white grid place-items-center shadow-md">
-      <Key className="h-5 w-5" />
-    </div>
-  );
-
-  const formatLongDate = (dateString: string) => new Date(dateString).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 
   return (
-    <div className="relative overflow-hidden rounded-2xl mb-8">
-      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-emerald-200/70 via-emerald-100/50 to-sky-200/70 opacity-90" />
-      <div className="relative m-[1px] rounded-[15px] bg-white/70 backdrop-blur-md border border-white/50 p-5">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-sky-300/60 to-transparent" />
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <UnitIcon />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900 truncate">
-                  {unit.label}
-                </h1>
-                <Sparkles className="h-4 w-4 text-emerald-500" />
-              </div>
-              <p className="text-sm text-gray-600 leading-5 truncate">
-                {unit.unitCondition.replace(/_/g, ' ')}
-                {unit.occupiedAt ? ' • Occupied' : ' • Available'}
-                {unit.listedAt ? ' • Listed' : ' • Unlisted'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onShare} className="gap-2">
-              <Share2 className="h-4 w-4" />
-              Share
-            </Button>
-            <Button variant="outline" size="sm" onClick={onEdit} className="gap-2">
-              <Edit className="h-4 w-4" />
-              Edit
-            </Button>
-            <Button variant="outline" size="sm" onClick={onDelete} className="gap-2 text-red-600 hover:text-red-700">
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </Button>
-          </div>
-        </div>
-        <div className="mt-3 flex items-start gap-2 text-sm text-gray-700">
-          <Building className="h-4 w-4 text-gray-500 mt-0.5" />
-          <div>
-            <p className="font-medium text-gray-900">{unit.property.title}</p>
-            <p className="truncate max-w-full">{formatPropertyAddress(unit.property)}</p>
-          </div>
-        </div>
-        {/* Dates row (created, updated) */}
-        <div className="flex flex-wrap gap-4 mt-2 text-xs text-gray-500">
-          <span>Created: {formatLongDate(unit.createdAt)}</span>
-          <span>Updated: {formatLongDate(unit.updatedAt)}</span>
-        </div>
-        {/* Animated gradient underline */}
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="relative overflow-hidden rounded-2xl"
+    >
+      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-emerald-200/70 opacity-95" />
+      <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
         <motion.div
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-          style={{ originX: 0 }}
-          className="mt-3 h-0.5 w-full bg-gradient-to-r from-emerald-400/70 via-emerald-300/70 to-sky-400/70 rounded-full"
+          aria-hidden
+          className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-300/50 to-cyan-400/40 blur-3xl"
+          initial={{ opacity: 0.4, scale: 0.85 }}
+          animate={{ opacity: 0.7, scale: 1.05 }}
+          transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
         />
-        {/* Badges Row */}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Badge className={getConditionColor(unit.unitCondition)}>
-            {unit.unitCondition.replace(/_/g, ' ')}
-          </Badge>
-          <Badge className={unit.occupiedAt ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"}>
-            {unit.occupiedAt ? "Occupied" : "Available"}
-          </Badge>
-          <Badge className={unit.listedAt ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-600 border-gray-200"}>
-            {unit.listedAt ? "Listed" : "Unlisted"}
-          </Badge>
-          {unit.requiresScreening && (
-            <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-              <Shield className="h-3 w-3 mr-1" />
-              Screening Required
-            </Badge>
-          )}
-        </div>
-        {/* Occupant Info */}
-        {unit.occupiedAt && unit.occupant && (
-          <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 mt-4">
-            <div className="flex items-center gap-3 flex-1">
-              {unit.occupant.avatarUrl ? (
-                <img 
-                  src={unit.occupant.avatarUrl} 
-                  alt={`${unit.occupant.firstName} ${unit.occupant.lastName}`}
-                  className="w-10 h-10 rounded-full border-2 border-white"
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-emerald-200/40 to-cyan-200/35 blur-3xl"
+          initial={{ opacity: 0.3 }}
+          animate={{ opacity: 0.6 }}
+          transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+        />
+
+        <div className="px-4 sm:px-6 py-5 space-y-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4 min-w-0 flex-1">
+              <motion.div
+                whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                className="relative flex-shrink-0"
+              >
+                <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-600 via-cyan-600 to-emerald-600 text-white grid place-items-center shadow-xl shadow-cyan-500/30">
+                  <Key className="h-5 w-5 relative z-10" />
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                </div>
+                <motion.div
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-sky-600 border border-sky-100 shadow-sm grid place-items-center"
+                >
+                  <Sparkles className="h-3 w-3" />
+                </motion.div>
+                <motion.div
+                  className="absolute inset-0 rounded-2xl border-2 border-cyan-400/30"
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                  transition={{ duration: 2, repeat: Infinity }}
                 />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center">
-                  <User className="h-5 w-5 text-blue-600" />
+              </motion.div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                    {unit.label}
+                  </h1>
+                  <motion.div
+                    animate={{ rotate: [0, 8, -8, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <Sparkles className="h-4 w-4 text-cyan-500" />
+                  </motion.div>
                 </div>
-              )}
-              <div>
-                <p className="font-semibold text-blue-900">
-                  {unit.occupant.firstName} {unit.occupant.lastName}
-                </p>
-                <p className="text-sm text-blue-700">{unit.occupant.email}</p>
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-slate-600">
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border text-xs sm:text-sm ${unit.occupiedAt ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"}`}>
+                    {unit.occupiedAt ? "Occupied" : "Available"}
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border text-xs sm:text-sm ${unit.listedAt ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                    {unit.listedAt ? "Listed" : "Unlisted"}
+                  </div>
+                  {unit.requiresScreening && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-purple-200 bg-purple-100 text-purple-700 text-xs sm:text-sm">
+                      <Shield className="h-3 w-3" />
+                      Screening Required
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200 text-xs sm:text-sm text-slate-600">
+                  <Building className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="font-medium text-slate-900">{unit.property.title}</span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200 text-xs sm:text-sm text-slate-600">
+                  <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500" />
+                  <span className="truncate max-w-[220px] sm:max-w-[360px]">
+                    {formatPropertyAddress(unit.property) || 'Address not provided'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-slate-500">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                    <CircleDollarSign className="h-3.5 w-3.5 text-emerald-500" />
+                    <span className="font-semibold text-slate-900">₱{unit.targetPrice.toLocaleString()}/month</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                    <Home className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Floor {unit.floorNumber}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                    <Users className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Max {unit.maxOccupancy}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                    <Shield className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>{unit.requiresScreening ? "Screening Required" : "Screening Not Required"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                    <Calendar className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Created {formatLongDate(unit.createdAt)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                    <Calendar className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Updated {formatLongDate(unit.updatedAt)}</span>
+                  </div>
+                </div>
               </div>
             </div>
-            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-              Current Occupant
-            </Badge>
-          </div>
-        )}
-        {/* Advertise Button for Unlisted Units (NOT shown if FLAGGED) */}
-        {!unit.listedAt && 
-         onAdvertise && 
-         unit.latestListing?.lifecycleStatus !== 'FLAGGED' && (
-          <div className="mt-4">
-            <Button onClick={onAdvertise} className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 gap-2">
-              <Sparkles className="h-4 w-4" />
-              Advertise Unit
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
 
-// Key Metrics Component
-const KeyMetrics = ({ unit }: { unit: Unit }) => {
-  return (
-    <Card className="p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Unit Details</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="flex items-center gap-3">
-          <CircleDollarSign className="h-8 w-8 text-emerald-600" />
-          <div>
-            <span className="block text-xs text-gray-500">Monthly Rate</span>
-            <span className="block text-lg font-bold text-gray-900">₱{unit.targetPrice.toLocaleString()}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Home className="h-8 w-8 text-blue-600" />
-          <div>
-            <span className="block text-xs text-gray-500">Floor Number</span>
-            <span className="block text-lg font-bold text-gray-900">{unit.floorNumber}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Users className="h-8 w-8 text-purple-600" />
-          <div>
-            <span className="block text-xs text-gray-500">Max Occupancy</span>
-            <span className="block text-lg font-bold text-gray-900">{unit.maxOccupancy}</span>
-          </div>
-        </div>
-        {unit.requiresScreening && (
-          <div className="flex items-center gap-3">
-            <Shield className="h-8 w-8 text-purple-700" />
-            <div>
-              <span className="block text-xs text-gray-500">Screening</span>
-              <span className="block text-sm bg-purple-100 text-purple-700 border border-purple-200 rounded px-2 py-0.5">Required</span>
+            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+              <Button
+                onClick={onRefresh}
+                variant="outline"
+                size="sm"
+                disabled={refreshing}
+                className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
+              >
+                {refreshing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Refresh
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" onClick={onShare} className="gap-2 bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm">
+                <Share2 className="h-4 w-4" />
+                Share
+              </Button>
+              <Button variant="outline" size="sm" onClick={onEdit} className="gap-2 bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm">
+                <Edit className="h-4 w-4" />
+                Edit
+              </Button>
+              <Button variant="outline" size="sm" onClick={onDelete} className="gap-2 text-red-600 hover:text-red-700 bg-white/90 hover:bg-white border-red-300 shadow-sm">
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
             </div>
           </div>
-        )}
+
+          <motion.div
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+            style={{ originX: 0 }}
+            className="relative h-1 w-full rounded-full overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-sky-400/80 via-cyan-400/80 to-emerald-400/80" />
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+              animate={{ x: ["-100%", "100%"] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+            />
+          </motion.div>
+        </div>
       </div>
-    </Card>
+    </motion.div>
   );
 };
 
-// Combined status section: availability + condition
-const UnitStatusSection = ({ unit }: { unit: Unit }) => {
-  const getConditionColor = (condition: string) => {
-    const colors = {
-      'GOOD': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      'NEED_MAINTENANCE': 'bg-amber-100 text-amber-700 border-amber-200',
-      'UNDER_MAINTENANCE': 'bg-blue-100 text-blue-700 border-blue-200',
-      'UNUSABLE': 'bg-rose-100 text-rose-700 border-rose-200',
-    };
-    return colors[condition as keyof typeof colors] || 'bg-gray-100 text-gray-700 border-gray-200';
-  };
-
-  const isAvailable = !unit.occupiedAt || !unit.occupant;
-
-  return (
-    <Card className="p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Availability & Condition</h3>
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Availability</span>
-          {isAvailable ? (
-            <span className="px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 text-sm font-medium">Available</span>
-          ) : (
-            <div className="flex items-center gap-3">
-              {unit.occupant?.avatarUrl ? (
-                <img src={unit.occupant.avatarUrl} alt={`${unit.occupant.firstName} ${unit.occupant.lastName}`} className="w-7 h-7 rounded-full border" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-blue-100 border flex items-center justify-center">
-                  <User className="h-4 w-4 text-blue-600" />
-                </div>
-              )}
-              <div className="text-sm">
-                <p className="font-medium text-gray-900">Resident: {unit.occupant?.firstName} {unit.occupant?.lastName}</p>
-                <p className="text-gray-600">{unit.occupant?.email}</p>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Unit Condition</span>
-          <span className={`px-2 py-0.5 rounded border font-medium text-xs ${getConditionColor(unit.unitCondition)}`}>{unit.unitCondition.replace(/_/g, ' ')}</span>
-        </div>
-      </div>
-    </Card>
-  );
-};
 
 // Combined stats section: engagement
 const UnitStatsSection = ({ unit }: { unit: Unit }) => {
+  const navigate = useNavigate();
+  
   return (
     <Card className="p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Engagement</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">Engagement</h3>
+        <Button
+          onClick={() => navigate('/landlord/reports/engagement')}
+          variant="outline"
+          size="sm"
+          className="gap-2 text-xs h-8"
+        >
+          <ArrowRight className="h-3.5 w-3.5" />
+          Engagement
+        </Button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
         <div>
           <span className="block text-gray-500">Total Reviews</span>
@@ -462,39 +467,39 @@ const AmenitiesSection = ({ amenities }: { amenities: Amenity[] | null }) => {
 
   if (safeAmenities.length === 0) {
     return (
-      <Card className="p-6">
+      <Card className="p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Amenities</h3>
-          <button onClick={() => setOpen((v) => !v)} className="text-sm text-gray-600 flex items-center gap-1">
-            <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <h3 className="text-base font-semibold text-gray-900">Amenities</h3>
+          <button onClick={() => setOpen((v) => !v)} className="text-xs text-gray-600 flex items-center gap-1">
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
           </button>
         </div>
         {open && (
-          <p className="text-gray-500 text-center py-4">No amenities added yet</p>
+          <p className="text-xs text-gray-500 text-center py-3">No amenities added yet</p>
         )}
       </Card>
     );
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Amenities</h3>
-        <button onClick={() => setOpen((v) => !v)} className="text-sm text-gray-600 flex items-center gap-1">
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <h3 className="text-base font-semibold text-gray-900">Amenities</h3>
+        <button onClick={() => setOpen((v) => !v)} className="text-xs text-gray-600 flex items-center gap-1">
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
       </div>
       {open && (
-        <div className="space-y-4 mt-4">
+        <div className="space-y-3 mt-3">
           {Object.entries(groupedAmenities).map(([category, categoryAmenities]) => (
             <div key={category}>
-              <h4 className="font-medium text-gray-700 mb-2">{category}</h4>
-              <div className="flex flex-wrap gap-2">
+              <h4 className="font-medium text-sm text-gray-700 mb-2">{category}</h4>
+              <div className="flex flex-wrap gap-1.5">
                 {categoryAmenities.map((amenity) => (
                   <Badge 
                     key={amenity.id} 
                     variant="secondary"
-                    className="bg-emerald-50 text-emerald-700 border-emerald-200 px-3 py-1"
+                    className="bg-emerald-50 text-emerald-700 border-emerald-200 px-2 py-0.5 text-xs"
                   >
                     {amenity.name}
                   </Badge>
@@ -522,39 +527,39 @@ const LeaseRulesSection = ({ rules }: { rules: UnitLeaseRule[] | null }) => {
 
   if (safeRules.length === 0) {
     return (
-      <Card className="p-6">
+      <Card className="p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Lease Rules</h3>
-          <button onClick={() => setOpen((v) => !v)} className="text-sm text-gray-600 flex items-center gap-1">
-            <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <h3 className="text-base font-semibold text-gray-900">Lease Rules</h3>
+          <button onClick={() => setOpen((v) => !v)} className="text-xs text-gray-600 flex items-center gap-1">
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
           </button>
         </div>
         {open && (
-          <p className="text-gray-500 text-center py-4">No lease rules specified</p>
+          <p className="text-xs text-gray-500 text-center py-3">No lease rules specified</p>
         )}
       </Card>
     );
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Lease Rules</h3>
-        <button onClick={() => setOpen((v) => !v)} className="text-sm text-gray-600 flex items-center gap-1">
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <h3 className="text-base font-semibold text-gray-900">Lease Rules</h3>
+        <button onClick={() => setOpen((v) => !v)} className="text-xs text-gray-600 flex items-center gap-1">
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
       </div>
       {open && (
-        <div className="space-y-4 mt-4">
+        <div className="space-y-3 mt-3">
           {Object.entries(groupedRules).map(([category, categoryRules]) => (
             <div key={category}>
-              <h4 className="font-medium text-gray-700 mb-2 capitalize">{category} Rules</h4>
-              <div className="flex flex-wrap gap-2">
+              <h4 className="font-medium text-sm text-gray-700 mb-2 capitalize">{category} Rules</h4>
+              <div className="flex flex-wrap gap-1.5">
                 {categoryRules.map((rule, index) => (
                   <Badge 
                     key={index} 
                     variant="secondary"
-                    className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1"
+                    className="bg-blue-50 text-blue-700 border-blue-200 px-2 py-0.5 text-xs"
                   >
                     {rule.text}
                   </Badge>
@@ -568,88 +573,235 @@ const LeaseRulesSection = ({ rules }: { rules: UnitLeaseRule[] | null }) => {
   );
 };
 
-// Reviews Component (collapsible)
+// Avatar component with placeholder
+const Avatar = ({ 
+  src, 
+  alt, 
+  className = "", 
+  size = "md",
+  name 
+}: { 
+  src?: string | null; 
+  alt?: string; 
+  className?: string;
+  size?: "sm" | "md" | "lg";
+  name?: string;
+}) => {
+  const [imageError, setImageError] = useState(false);
+  
+  const sizeClasses = {
+    sm: "w-8 h-8",
+    md: "w-10 h-10",
+    lg: "w-16 h-16",
+  };
+
+  const iconSizes = {
+    sm: "h-4 w-4",
+    md: "h-5 w-5",
+    lg: "h-8 w-8",
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return "?";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Reset error state when src changes
+  useEffect(() => {
+    if (src) {
+      setImageError(false);
+    }
+  }, [src]);
+
+  if (src && !imageError) {
+    return (
+      <img
+        src={src}
+        alt={alt || "Avatar"}
+        className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
+        onError={() => setImageError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={`${sizeClasses[size]} rounded-full bg-gray-200 flex items-center justify-center border border-gray-300 ${className}`}>
+      {name ? (
+        <span className={`text-gray-600 font-medium ${size === "sm" ? "text-xs" : size === "md" ? "text-sm" : "text-base"}`}>
+          {getInitials(name)}
+        </span>
+      ) : (
+        <User className={`${iconSizes[size]} text-gray-400`} />
+      )}
+    </div>
+  );
+};
+
+// Reviews Component with filters (collapsible)
 const ReviewsSection = ({ reviews, reviewStats }: { reviews: Review[], reviewStats: ReviewStats }) => {
   const [open, setOpen] = useState(false);
-  if (reviews.length === 0) {
+  const [selectedRatingFilter, setSelectedRatingFilter] = useState<number | null>(null);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  const totalReviews = reviews.length;
+
+  if (totalReviews === 0) {
     return (
-      <Card className="p-6">
+      <Card className="p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Reviews</h3>
-          <button onClick={() => setOpen((v) => !v)} className="text-sm text-gray-600 flex items-center gap-1">
-            <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <h3 className="text-base font-semibold text-gray-900">Reviews</h3>
+          <button onClick={() => setOpen((v) => !v)} className="text-xs text-gray-600 flex items-center gap-1">
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
           </button>
         </div>
         {open && (
           <div className="text-center py-8">
             <Star className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No reviews yet</p>
-            <p className="text-sm text-gray-400 mt-1">Be the first to review this unit</p>
+            <p className="text-sm text-gray-600 mb-1">No reviews yet</p>
+            <p className="text-xs text-gray-500">This unit hasn't received any reviews yet</p>
           </div>
         )}
       </Card>
     );
   }
 
+  // Filter reviews by rating
+  const filteredReviews = selectedRatingFilter !== null
+    ? reviews.filter((r) => r.rating === selectedRatingFilter)
+    : reviews;
+
+  // Pagination: show first 6, then all if showAllReviews is true
+  const displayedReviews = showAllReviews || filteredReviews.length <= 6
+    ? filteredReviews
+    : filteredReviews.slice(0, 6);
+
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-semibold text-gray-900">Reviews</h3>
-        <button onClick={() => setOpen((v) => !v)} className="text-sm text-gray-600 flex items-center gap-1">
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <div className="flex items-center gap-3">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900">Reviews</h3>
+          {reviewStats.averageRating > 0 && (
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+              <span>{reviewStats.averageRating.toFixed(1)}</span>
+            </div>
+          )}
+        </div>
+        <button onClick={() => setOpen((v) => !v)} className="text-xs text-gray-600 flex items-center gap-1">
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
       </div>
+      
       {open && (
         <>
-          <div className="flex items-center justify-between mb-6">
-            <div className="text-right">
-              <div className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-amber-500 fill-current" />
-                <span className="text-2xl font-bold text-gray-900">
-                  {reviewStats.averageRating.toFixed(1)}
-                </span>
-              </div>
-              <p className="text-sm text-gray-600">
-                {reviewStats.totalReviews} review{reviewStats.totalReviews !== 1 ? 's' : ''}
-              </p>
+          {/* Star Rating Filter */}
+          <div className="mb-4 pb-4 border-b">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Filter by rating:</span>
+              <button
+                onClick={() => setSelectedRatingFilter(null)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  selectedRatingFilter === null
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                All
+              </button>
+              {[5, 4, 3, 2, 1].map((rating) => {
+                const count = reviews.filter((r) => r.rating === rating).length;
+                return (
+                  <button
+                    key={rating}
+                    onClick={() => setSelectedRatingFilter(rating)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                      selectedRatingFilter === rating
+                        ? "bg-yellow-100 text-yellow-700 border-2 border-yellow-400"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    <Star className={`h-4 w-4 ${selectedRatingFilter === rating ? "fill-yellow-500" : ""}`} />
+                    <span>{rating}</span>
+                    <span className="text-xs text-gray-500">({count})</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="space-y-4">
-            {reviews.map((review) => (
-              <div key={review.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-                <div className="flex items-center gap-3 mb-2">
-                  {review.tenant.avatarUrl ? (
-                    <img 
-                      src={review.tenant.avatarUrl} 
-                      alt={`${review.tenant.firstName} ${review.tenant.lastName}`}
-                      className="w-8 h-8 rounded-full"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                      <User className="h-4 w-4 text-gray-500" />
+          {/* Reviews List */}
+          {displayedReviews.length > 0 ? (
+            <>
+              <div className="space-y-4">
+                {displayedReviews.map((review) => {
+                  const tenantFullName = `${review.tenant.firstName} ${review.tenant.lastName}`.trim() || "Anonymous";
+                  
+                  return (
+                    <div key={review.id} className="p-3 sm:p-4 border rounded-lg bg-gray-50">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                          <Avatar
+                            src={review.tenant.avatarUrl}
+                            alt={tenantFullName}
+                            className="flex-shrink-0"
+                            size="sm"
+                            name={tenantFullName !== "Anonymous" ? tenantFullName : undefined}
+                          />
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">{tenantFullName}</div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(review.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="inline-flex items-center gap-1 text-yellow-500">
+                            <Star className="h-4 w-4 fill-yellow-400" />
+                            <span className="text-sm font-medium text-gray-800">{review.rating}</span>
+                          </div>
+                        </div>
+                      </div>
+                      {review.comment && (
+                        <p className="mt-3 text-sm text-gray-700 break-words">{review.comment}</p>
+                      )}
                     </div>
-                  )}
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {review.tenant.firstName} {review.tenant.lastName}
-                    </p>
-                    <div className="flex items-center gap-1">
-                      <Star className="h-3 w-3 text-amber-500 fill-current" />
-                      <span className="text-sm text-gray-600">{review.rating}.0</span>
-                      <span className="text-gray-400">•</span>
-                      <span className="text-sm text-gray-500">
-                        {new Date(review.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                {review.comment && (
-                  <p className="text-gray-700 mt-2">{review.comment}</p>
-                )}
+                  );
+                })}
               </div>
-            ))}
-          </div>
+              {!showAllReviews && filteredReviews.length > 6 && (
+                <div className="mt-4 text-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAllReviews(true)}
+                    className="text-sm"
+                  >
+                    Show All Reviews ({filteredReviews.length})
+                  </Button>
+                </div>
+              )}
+              {showAllReviews && filteredReviews.length > 6 && (
+                <div className="mt-4 text-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAllReviews(false)}
+                    className="text-sm"
+                  >
+                    Show Less
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-sm text-gray-600">
+                No reviews found with the selected rating filter.
+              </p>
+            </div>
+          )}
         </>
       )}
     </Card>
@@ -683,9 +835,9 @@ const ListingStatusSection = ({
   // WAITING_PAYMENT
   if (lifecycleStatus === 'WAITING_PAYMENT') {
     return (
-      <Card className={`p-6 bg-blue-50 border-blue-300`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Listing Status</h3>
+      <Card className={`p-4 bg-blue-50 border-blue-300`}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-gray-900">Listing Status</h3>
           <div className="flex items-center gap-2">
             <Badge className="bg-blue-100 text-blue-700 border-blue-200">
               <CreditCard className="h-3 w-3 mr-1" />
@@ -697,18 +849,18 @@ const ListingStatusSection = ({
             </Badge>
           </div>
         </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Calendar className="h-4 w-4 text-blue-500" />
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs">
+            <Calendar className="h-3.5 w-3.5 text-blue-500" />
             <span className="text-gray-600">Created:</span>
             <span className="font-medium text-gray-900">{formatDate(latestListing.createdAt)}</span>
           </div>
           <Button 
             onClick={() => navigate(`/landlord/listing/${latestListing.id}/details`)} 
-            className="w-full gap-2 mt-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+            className="w-full gap-2 mt-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-sm h-9"
           >
             View Listing Details
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </Card>
@@ -718,9 +870,9 @@ const ListingStatusSection = ({
   // WAITING_REVIEW
   if (lifecycleStatus === 'WAITING_REVIEW') {
     return (
-      <Card className={`p-6 bg-purple-50 border-purple-300`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Listing Status</h3>
+      <Card className={`p-4 bg-purple-50 border-purple-300`}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-gray-900">Listing Status</h3>
           <div className="flex items-center gap-2">
             <Badge className="bg-purple-100 text-purple-700 border-purple-200">
               <Clock className="h-3 w-3 mr-1" />
@@ -753,9 +905,9 @@ const ListingStatusSection = ({
   // VISIBLE
   if (lifecycleStatus === 'VISIBLE') {
     return (
-      <Card className={`p-6 bg-emerald-50 border-emerald-300`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Listing Status</h3>
+      <Card className={`p-4 bg-emerald-50 border-emerald-300`}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-gray-900">Listing Status</h3>
           <div className="flex items-center gap-2">
             <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
               <Eye className="h-3 w-3 mr-1" />
@@ -805,9 +957,9 @@ const ListingStatusSection = ({
   // HIDDEN
   if (lifecycleStatus === 'HIDDEN') {
     return (
-      <Card className={`p-6 bg-teal-50 border-teal-300`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Listing Status</h3>
+      <Card className={`p-4 bg-teal-50 border-teal-300`}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-gray-900">Listing Status</h3>
           <div className="flex items-center gap-2">
             <Badge className="bg-teal-100 text-teal-700 border-teal-200">
               <EyeOff className="h-3 w-3 mr-1" />
@@ -857,9 +1009,9 @@ const ListingStatusSection = ({
   // FLAGGED
   if (lifecycleStatus === 'FLAGGED') {
     return (
-      <Card className="p-6 bg-amber-50 border-amber-300">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Listing Status</h3>
+      <Card className="p-4 bg-amber-50 border-amber-300">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-gray-900">Listing Status</h3>
           <div className="flex items-center gap-2">
             <Badge className="bg-amber-100 text-amber-700 border-amber-200">
               <AlertTriangle className="h-3 w-3 mr-1" />
@@ -915,9 +1067,9 @@ const ListingStatusSection = ({
   // BLOCKED
   if (lifecycleStatus === 'BLOCKED') {
     return (
-      <Card className="p-6 bg-red-50 border-red-300">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Listing Status</h3>
+      <Card className="p-4 bg-red-50 border-red-300">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-gray-900">Listing Status</h3>
           <div className="flex items-center gap-2">
             <Badge className="bg-red-100 text-red-700 border-red-200">
               <AlertCircle className="h-3 w-3 mr-1" />
@@ -973,9 +1125,9 @@ const ListingStatusSection = ({
   // EXPIRED
   if (lifecycleStatus === 'EXPIRED') {
     return (
-      <Card className={`p-6 bg-gray-50 border-gray-300`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Listing Status</h3>
+      <Card className={`p-4 bg-gray-50 border-gray-300`}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-gray-900">Listing Status</h3>
           <div className="flex items-center gap-2">
             <Badge className="bg-gray-100 text-gray-700 border-gray-200">
               <Clock className="h-3 w-3 mr-1" />
@@ -1033,42 +1185,52 @@ const DisplaySpecificUnit = () => {
   const [unit, setUnit] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchUnitDetails = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!unitId) {
+      setError("Unit ID is missing");
+      setLoading(false);
+      return;
+    }
+
+    if (!silent) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+    setError(null);
+    
+    try {
+      const response = await getUnitDetailsRequest(unitId);
+      setUnit(response.data);
+    } catch (err) {
+      setError("Failed to load unit details. Please try again.");
+      console.error('Error fetching unit details:', err);
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    const fetchUnitDetails = async () => {
-      if (!unitId) {
-        setError("Unit ID is missing");
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const response = await getUnitDetailsRequest(unitId);
-        setUnit(response.data);
-      } catch (err) {
-        setError("Failed to load unit details. Please try again.");
-        console.error('Error fetching unit details:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchUnitDetails();
   }, [unitId, propertyId]);
 
   // Handler functions
-  const handleEdit = () => navigate(`/landlord/units/${unitId}/edit`);
+  const handleEdit = () => navigate(`/landlord/units/${propertyId}/${unitId}/edit`);
   const handleDelete = () => { /* TODO: Implement delete */ };
   const handleShare = () => { /* TODO: Implement share */ };
-  const handleAdvertise = () => navigate(`/landlord/units/${unitId}/list`);
+  const handleAdvertise = () => navigate(`/landlord/listing/${unitId}/review`);
+  const handleRefresh = () => fetchUnitDetails({ silent: true });
 
   if (loading) {
     return (
       <div className="min-h-screen py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="space-y-6 p-4 sm:p-6">
           {/* Header Skeleton */}
           <Card className="p-6 mb-8">
             <div className="flex items-start justify-between gap-4">
@@ -1163,15 +1325,16 @@ const DisplaySpecificUnit = () => {
   const allImages = [unit.mainImageUrl, ...(unit.otherImages || [])].filter(Boolean);
 
   return (
-    <div className="min-h-screen py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen py-2">
+      <div className="space-y-6 p-2 sm:p-6">
         {/* Header */}
         <UnitHeader 
           unit={unit}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onShare={handleShare}
-          onAdvertise={handleAdvertise}
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
         />
 
         {/* Main Content Grid */}
@@ -1181,11 +1344,11 @@ const DisplaySpecificUnit = () => {
             {/* Image Gallery (pass mainImageUrl explicitly) */}
             <ImageGallery images={allImages} unitLabel={unit.label} mainImageUrl={unit.mainImageUrl} />
             {/* Description */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Description</h3>
-              <p className="text-gray-700 leading-relaxed">
+            <Card className="p-4">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Description</h3>
+              <p className="text-sm text-gray-700 leading-relaxed">
                 {unit.description || (
-                  <span className="text-gray-500 italic">
+                  <span className="text-gray-500 italic text-sm">
                     No description provided for this unit.
                   </span>
                 )}
@@ -1207,27 +1370,116 @@ const DisplaySpecificUnit = () => {
                 latestListing={unit.latestListing}
               />
             )}
-            {/* Key Metrics */}
-            <KeyMetrics unit={unit} />
+
+            {/* Occupant Information Section - Below Listing Status */}
+            {unit.occupiedAt && unit.occupant && (
+              <Card className="p-4">
+                <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <User className="h-4 w-4 text-blue-600" />
+                  Current Occupant
+                </h3>
+                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-3 flex-1">
+                    {unit.occupant.avatarUrl ? (
+                      <img 
+                        src={unit.occupant.avatarUrl} 
+                        alt={`${unit.occupant.firstName} ${unit.occupant.lastName}`}
+                        className="w-10 h-10 rounded-full border-2 border-white"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center">
+                        <User className="h-5 w-5 text-blue-600" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold text-blue-900 text-sm">
+                        {unit.occupant.firstName} {unit.occupant.lastName}
+                      </p>
+                      <p className="text-xs text-blue-700">{unit.occupant.email}</p>
+                    </div>
+                  </div>
+                  {unit.leaseId && (
+                    <Button
+                      onClick={() => navigate(`/landlord/leases/${unit.leaseId}/details`)}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-3 gap-1.5"
+                    >
+                      <ArrowRight className="h-3 w-3" />
+                      View Lease
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Advertise CTA - Show if no listing or listing is expired/blocked (NOT for FLAGGED) */}
             {(!unit.latestListing || 
               unit.latestListing.lifecycleStatus === 'EXPIRED' || 
               unit.latestListing.lifecycleStatus === 'BLOCKED') && (
-              <Card className="p-6 bg-gradient-to-br from-emerald-50 to-sky-50 border-emerald-100">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Advertise Your Unit</h3>
-                <p className="text-sm text-gray-700 mb-4">
-                  Looking for more tenants? Make your unit visible on our platform to reach more qualified renters. Boost your exposure and fill vacancies faster.
+              <Card className="p-4 bg-gradient-to-br from-emerald-50 to-sky-50 border-emerald-100">
+                <h3 className="text-base font-semibold text-gray-900 mb-2">Advertise Your Unit</h3>
+                <p className="text-xs text-gray-700 mb-3">
+                  Looking for more tenants? Make your unit visible on our platform to reach more qualified renters.
                 </p>
-                <Button onClick={handleAdvertise} className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700">
-                  <Sparkles className="h-4 w-4" />
+                <Button onClick={handleAdvertise} className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-sm h-9">
+                  <Sparkles className="h-3.5 w-3.5" />
                   Advertise Unit
                 </Button>
               </Card>
             )}
-            {/* Availability & Condition */}
-            <UnitStatusSection unit={unit} />
             {/* Engagement (views, rating, reviews count) */}
             <UnitStatsSection unit={unit} />
+
+            {/* Unit Condition Section */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-gray-600" />
+                  Unit Condition
+                </h3>
+              </div>
+              <div className={`p-4 rounded-xl border-2 ${getConditionColor(unit.unitCondition)}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${getConditionColor(unit.unitCondition)}`}>
+                    {getConditionIcon(unit.unitCondition)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-600 mb-1">Current Status</p>
+                    <p className="text-lg font-bold capitalize">
+                      {unit.unitCondition.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                </div>
+                {unit.unitCondition === 'UNDER_MAINTENANCE' && (
+                  <div className="mt-3 pt-3 border-t border-yellow-300">
+                    <p className="text-xs text-yellow-800">
+                      This unit is currently under maintenance. Maintenance requests are being addressed.
+                    </p>
+                  </div>
+                )}
+                {unit.unitCondition === 'NEED_MAINTENANCE' && (
+                  <div className="mt-3 pt-3 border-t border-amber-300">
+                    <p className="text-xs text-amber-800">
+                      This unit requires maintenance attention. Consider creating a maintenance request.
+                    </p>
+                  </div>
+                )}
+                {unit.unitCondition === 'UNUSABLE' && (
+                  <div className="mt-3 pt-3 border-t border-rose-300">
+                    <p className="text-xs text-rose-800">
+                      This unit is currently unusable and should not be listed or occupied.
+                    </p>
+                  </div>
+                )}
+                {unit.unitCondition === 'GOOD' && (
+                  <div className="mt-3 pt-3 border-t border-emerald-300">
+                    <p className="text-xs text-emerald-800">
+                      This unit is in good condition and ready for listing or occupancy.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
           </div>
         </div>
       </div>

@@ -15,7 +15,7 @@ export const getUnitDetails = async (req, res) => {
       return res.status(400).json({ message: "Unit ID is required" });
     }
 
-    // 🔹 Fetch unit data with property, occupant, amenities, reviews, and latest listing
+    // 🔹 Fetch unit data with property, amenities, reviews, and latest listing
     const unit = await prisma.unit.findFirst({
       where: {
         id: unitId,
@@ -23,15 +23,6 @@ export const getUnitDetails = async (req, res) => {
       },
       include: {
         amenities: { select: { id: true, name: true, category: true } },
-        occupant: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            avatarUrl: true, // nullable
-          },
-        },
         reviews: {
           take: 10,
           orderBy: { createdAt: "desc" },
@@ -85,6 +76,26 @@ export const getUnitDetails = async (req, res) => {
         .json({ message: "Unit not found or not accessible" });
     }
 
+    // 🔹 Check for active lease and get tenant information
+    const activeLease = await prisma.lease.findFirst({
+      where: {
+        unitId: unit.id,
+        status: 'ACTIVE',
+      },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' }, // Get the most recent active lease
+    });
+
     // 🧮 Compute review stats
     const totalReviews = await prisma.unitReview.count({
       where: { unitId: unit.id },
@@ -96,6 +107,11 @@ export const getUnitDetails = async (req, res) => {
     });
 
     const averageRating = avgRatingResult._avg.rating ?? 0;
+
+    // 🔹 Count views from UnitView table
+    const viewCount = await prisma.unitView.count({
+      where: { unitId: unit.id },
+    });
 
     // 🧩 Extract latest listing safely
     const latestListing = unit.listings[0] || null;
@@ -111,10 +127,11 @@ export const getUnitDetails = async (req, res) => {
       mainImageUrl: unit.mainImageUrl,
       otherImages: unit.otherImages,
       unitLeaseRules: unit.unitLeaseRules,
-      viewCount: unit.viewCount,
+      viewCount: viewCount, // ✅ count from UnitView table
       requiresScreening: unit.requiresScreening,
       unitCondition: unit.unitCondition,
-      occupiedAt: unit.occupiedAt,
+      occupiedAt: activeLease ? activeLease.startDate.toISOString() : null, // Use lease start date if active
+      leaseId: activeLease ? activeLease.id : null, // Include lease ID for navigation
       listedAt:
         !!latestListing &&
         ["VISIBLE", "FLAGGED", "HIDDEN"].includes(
@@ -123,7 +140,7 @@ export const getUnitDetails = async (req, res) => {
       createdAt: unit.createdAt,
       updatedAt: unit.updatedAt,
       amenities: unit.amenities,
-      occupant: unit.occupant,
+      occupant: activeLease ? activeLease.tenant : null, // Get tenant from active lease
       property: unit.property,
       reviews: unit.reviews,
       reviewStats: {
@@ -132,7 +149,6 @@ export const getUnitDetails = async (req, res) => {
       },
       latestListing: latestListing
         ? {
-
             id: latestListing.id, // ✅ include listing ID
             lifecycleStatus: latestListing.lifecycleStatus,
             isFeatured: latestListing.isFeatured,

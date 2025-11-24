@@ -153,21 +153,23 @@ const PropertyMap = ({ latitude, longitude, title }: { latitude?: number | null;
 // Sub-components for PropertyOverview
 const PropertyImage = ({ property }: { property: Property }) => (
   <Card className="overflow-hidden border-0 shadow-sm">
-    <div className="h-56 bg-gray-100">
-      {property.media?.mainImageUrl ? (
-        <img 
-          src={property.media.mainImageUrl} 
-          alt={property.title} 
-          className="h-full w-full object-cover"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-            target.nextElementSibling?.classList.remove('hidden');
-          }}
-        />
-      ) : null}
-      <div className={`h-full w-full bg-gradient-to-br from-emerald-100 to-sky-100 flex items-center justify-center ${property.media?.mainImageUrl ? 'hidden' : ''}`}>
-        <Home className="h-12 w-12 text-emerald-400" />
+    <div className="bg-gray-100 w-[60%] mx-auto">
+      <div className="aspect-square w-full">
+        {property.media?.mainImageUrl ? (
+          <img 
+            src={property.media.mainImageUrl} 
+            alt={property.title} 
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              target.nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+        ) : null}
+        <div className={`h-full w-full bg-gradient-to-br from-emerald-100 to-sky-100 flex items-center justify-center ${property.media?.mainImageUrl ? 'hidden' : ''}`}>
+          <Home className="h-8 w-8 text-emerald-400" />
+        </div>
       </div>
     </div>
   </Card>
@@ -175,27 +177,31 @@ const PropertyImage = ({ property }: { property: Property }) => (
 
 const PropertyMapSection = ({ property }: { property: Property }) => (
   <Card className="border-0 shadow-sm overflow-hidden">
-    <div className="h-56">
-      <PropertyMap 
-        latitude={property.location?.latitude} 
-        longitude={property.location?.longitude} 
-        title={property.title}
-      />
+    <div className="w-[60%] mx-auto">
+      <div className="aspect-square w-full">
+        <PropertyMap 
+          latitude={property.location?.latitude} 
+          longitude={property.location?.longitude} 
+          title={property.title}
+        />
+      </div>
     </div>
   </Card>
 );
 
 const NoMapSection = ({ property }: { property: Property }) => (
-  <Card className="border-0 shadow-sm p-6 bg-gradient-to-br from-gray-50 to-white">
-    <div className="h-56 flex flex-col justify-center items-center text-center">
-      <MapPin className="h-12 w-12 text-gray-300 mb-4" />
-      <h3 className="text-lg font-medium text-gray-900 mb-2">Location Information</h3>
-      <p className="text-gray-600 mb-4">No map coordinates available for this property</p>
-      <div className="flex items-center gap-3 text-gray-700">
-        <MapPin className="h-5 w-5 text-gray-500" />
-        <div className="text-left">
-          <p className="font-medium text-gray-900">Address</p>
-          <p className="text-sm text-gray-600">{formatAddress(property)}</p>
+  <Card className="border-0 shadow-sm p-4 bg-gradient-to-br from-gray-50 to-white">
+    <div className="w-[60%] mx-auto">
+      <div className="aspect-square w-full flex flex-col justify-center items-center text-center">
+        <MapPin className="h-8 w-8 text-gray-300 mb-3" />
+        <h3 className="text-base font-medium text-gray-900 mb-1">Location Information</h3>
+        <p className="text-sm text-gray-600 mb-3">No map coordinates available for this property</p>
+        <div className="flex items-center gap-2 text-gray-700">
+          <MapPin className="h-4 w-4 text-gray-500" />
+          <div className="text-left">
+            <p className="text-sm font-medium text-gray-900">Address</p>
+            <p className="text-xs text-gray-600">{formatAddress(property)}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -203,19 +209,19 @@ const NoMapSection = ({ property }: { property: Property }) => (
 );
 
 const InfoRow = ({ label, value, isCode = false }: { label: string; value: string; isCode?: boolean }) => (
-  <div className="flex justify-between py-3 border-b border-gray-100">
-    <span className="text-gray-600 font-medium">{label}</span>
-    <span className={`font-medium ${isCode ? 'font-mono text-sm' : ''}`}>{value}</span>
+  <div className="flex justify-between py-2 border-b border-gray-100">
+    <span className="text-sm text-gray-600 font-medium">{label}</span>
+    <span className={`text-sm font-medium ${isCode ? 'font-mono text-xs' : ''}`}>{value}</span>
   </div>
 );
 
 const NearbyInstitutionsSection = ({ nearInstitutions }: { nearInstitutions: Array<{name: string; type: string}> }) => (
   <div>
-    <h3 className="text-xl font-semibold text-gray-900 mb-4">Nearby Institutions</h3>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <h3 className="text-lg font-semibold text-gray-900 mb-3">Nearby Institutions</h3>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {nearInstitutions.map((inst, index) => (
-        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-          <span className="font-medium text-gray-900">{inst.name}</span>
+        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
+          <span className="text-sm font-medium text-gray-900">{inst.name}</span>
           <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">
             {inst.type}
           </span>
@@ -226,13 +232,13 @@ const NearbyInstitutionsSection = ({ nearInstitutions }: { nearInstitutions: Arr
 );
 
 const OtherInformationSection = ({ info }: { info: Array<{ context: string; description: string }> }) => (
-  <Card className="p-6 bg-gradient-to-br from-gray-50 to-white border border-gray-100">
-    <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2"><Info className="h-5 w-5 text-emerald-600" /> Other Information</h3>
-    <div className="space-y-3">
+  <Card className="p-4 bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+    <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2"><Info className="h-4 w-4 text-emerald-600" /> Other Information</h3>
+    <div className="space-y-2">
       {info.map((it, idx) => (
-        <div key={idx} className="p-3 bg-white rounded-lg border border-gray-100">
-          <p className="font-medium text-gray-900">{it.context}</p>
-          <p className="text-sm text-gray-600">{it.description}</p>
+        <div key={idx} className="p-2 bg-white rounded-lg border border-gray-100">
+          <p className="text-sm font-medium text-gray-900">{it.context}</p>
+          <p className="text-xs text-gray-600">{it.description}</p>
         </div>
       ))}
     </div>
@@ -245,20 +251,19 @@ const LocationDetailItem = ({ icon, title, content, isCode = false }: {
   content: string;
   isCode?: boolean;
 }) => (
-  <div className="flex items-start gap-3">
+  <div className="flex items-start gap-2">
     {icon}
     <div>
-      <p className="font-medium text-gray-900 mb-1">{title}</p>
-      <p className={`text-gray-600 ${isCode ? 'font-mono text-sm' : ''}`}>{content}</p>
+      <p className="text-sm font-medium text-gray-900 mb-1">{title}</p>
+      <p className={`text-xs text-gray-600 ${isCode ? 'font-mono' : ''}`}>{content}</p>
     </div>
   </div>
 );
 
 const BasicInfoSection = ({ property }: { property: Property }) => (
   <div>
-    <h3 className="text-xl font-semibold text-gray-900 mb-4">Basic Information</h3>
-    <div className="space-y-4">
-      <InfoRow label="Property ID" value={property.id} isCode />
+    <h3 className="text-lg font-semibold text-gray-900 mb-3">Basic Information</h3>
+    <div className="space-y-2">
       <InfoRow label="Type" value={property.type.replaceAll("_", " ")} />
       <InfoRow label="Created" value={formatDate(property.createdAt)} />
       <InfoRow label="Last Updated" value={formatDate(property.updatedAt)} />
@@ -269,26 +274,26 @@ const BasicInfoSection = ({ property }: { property: Property }) => (
 const UnitsSummarySection = ({ property }: { property: Property }) => {
   const s = property.unitsSummary || {};
   const items = [
-    { label: "Total", value: s.total || 0, icon: <Users className="h-4 w-4 text-gray-500" />, color: "text-gray-800" },
-    { label: "Listed", value: s.listed || 0, icon: <Sparkles className="h-4 w-4 text-green-500" />, color: "text-green-600" },
-    { label: "Occupied", value: s.occupied || 0, icon: <Users className="h-4 w-4 text-blue-500" />, color: "text-blue-600" },
-    { label: "Good", value: s.good || 0, icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />, color: "text-emerald-600" },
-    { label: "Need Maint.", value: s.needMaintenance || 0, icon: <AlertTriangle className="h-4 w-4 text-amber-500" />, color: "text-amber-600" },
-    { label: "Under Maint.", value: s.underMaintenance || 0, icon: <Wrench className="h-4 w-4 text-amber-500" />, color: "text-amber-600" },
-    { label: "Unusable", value: s.unusable || 0, icon: <Ban className="h-4 w-4 text-rose-500" />, color: "text-rose-600" },
+    { label: "Total", value: s.total || 0, icon: <Users className="h-3.5 w-3.5 text-gray-500" />, color: "text-gray-800" },
+    { label: "Listed", value: s.listed || 0, icon: <Sparkles className="h-3.5 w-3.5 text-green-500" />, color: "text-green-600" },
+    { label: "Occupied", value: s.occupied || 0, icon: <Users className="h-3.5 w-3.5 text-blue-500" />, color: "text-blue-600" },
+    { label: "Good", value: s.good || 0, icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />, color: "text-emerald-600" },
+    { label: "Need Maint.", value: s.needMaintenance || 0, icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />, color: "text-amber-600" },
+    { label: "Under Maint.", value: s.underMaintenance || 0, icon: <Wrench className="h-3.5 w-3.5 text-amber-500" />, color: "text-amber-600" },
+    { label: "Unusable", value: s.unusable || 0, icon: <Ban className="h-3.5 w-3.5 text-rose-500" />, color: "text-rose-600" },
   ];
 
   return (
-    <Card className="p-6 bg-gradient-to-br from-gray-50 to-white border border-gray-100">
-      <h3 className="text-xl font-semibold text-gray-900 mb-4">Units Summary</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+    <Card className="p-4 bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+      <h3 className="text-lg font-semibold text-gray-900 mb-3">Units Summary</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {items.map((it) => (
-          <div key={it.label} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
-            <div className="flex items-center gap-2 text-gray-700">
+          <div key={it.label} className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100">
+            <div className="flex items-center gap-1.5 text-gray-700">
               {it.icon}
-              <span className="text-sm">{it.label}</span>
+              <span className="text-xs">{it.label}</span>
             </div>
-            <span className={`font-semibold ${it.color}`}>{it.value}</span>
+            <span className={`text-sm font-semibold ${it.color}`}>{it.value}</span>
           </div>
         ))}
       </div>
@@ -297,17 +302,17 @@ const UnitsSummarySection = ({ property }: { property: Property }) => {
 };
 
 const LocationDetailsSection = ({ property }: { property: Property }) => (
-  <Card className="p-6 bg-gradient-to-br from-gray-50 to-white border border-gray-100">
-    <h3 className="text-xl font-semibold text-gray-900 mb-4">Location Details</h3>
-    <div className="space-y-3">
+  <Card className="p-4 bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+    <h3 className="text-lg font-semibold text-gray-900 mb-3">Location Details</h3>
+    <div className="space-y-2">
       <LocationDetailItem 
-        icon={<MapPin className="h-5 w-5 text-gray-500" />}
+        icon={<MapPin className="h-4 w-4 text-gray-500" />}
         title="Full Address"
         content={formatAddress(property)}
       />
       {property.location?.latitude && property.location?.longitude && (
         <LocationDetailItem 
-          icon={<MapPin className="h-5 w-5 text-gray-500" />}
+          icon={<MapPin className="h-4 w-4 text-gray-500" />}
           title="Coordinates"
           content={`${property.location.latitude!.toFixed(6)}, ${property.location.longitude!.toFixed(6)}`}
           isCode
@@ -318,7 +323,7 @@ const LocationDetailsSection = ({ property }: { property: Property }) => (
 );
 
 const LeftColumn = ({ property, nearInstitutions }: { property: Property; nearInstitutions: Array<{name: string; type: string}> }) => (
-  <div className="space-y-8">
+  <div className="space-y-6">
     <BasicInfoSection property={property} />
     {nearInstitutions.length > 0 && <NearbyInstitutionsSection nearInstitutions={nearInstitutions} />}
     {property.media?.otherInformation && property.media.otherInformation.length > 0 && (
@@ -328,7 +333,7 @@ const LeftColumn = ({ property, nearInstitutions }: { property: Property; nearIn
 );
 
 const RightColumn = ({ property }: { property: Property }) => (
-  <div className="space-y-8">
+  <div className="space-y-6">
     <UnitsSummarySection property={property} />
     <LocationDetailsSection property={property} />
   </div>
@@ -374,7 +379,7 @@ const PropertyOverview = ({
           </div>
 
           {/* Image and Map Section */}
-          <div className={`grid gap-6 mb-8 ${hasMap ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
+          <div className={`grid gap-4 mb-6 ${hasMap ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
             <PropertyImage property={property} />
             {hasMap ? (
               <PropertyMapSection property={property} />
@@ -384,7 +389,7 @@ const PropertyOverview = ({
           </div>
 
           {/* Content Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <LeftColumn property={property} nearInstitutions={nearInstitutions} />
             <RightColumn property={property} />
           </div>

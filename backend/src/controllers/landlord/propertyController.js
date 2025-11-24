@@ -179,7 +179,6 @@ export const getLandlordProperties = async (req, res) => {
         municipality: { select: { id: true, name: true } },
         Unit: {
           select: {
-            occupiedAt: true,
             unitCondition: true,
             id: true,
           },
@@ -205,16 +204,32 @@ export const getLandlordProperties = async (req, res) => {
       listedMap[lc.propertyId] = lc._count.id;
     });
 
-    // 3️⃣ Format the response
+    // 3️⃣ Check if each unit has an active lease
+    const allUnitIds = properties.flatMap((p) => p.Unit.map((u) => u.id));
+    const activeLeases = await prisma.lease.groupBy({
+      by: ['unitId'],
+      where: {
+        unitId: { in: allUnitIds },
+        status: 'ACTIVE',
+      },
+      _count: { id: true },
+    });
+
+    const activeLeaseMap = {};
+    activeLeases.forEach((lease) => {
+      activeLeaseMap[lease.unitId] = true; // ✅ true if unit has an active lease
+    });
+
+    // 4️⃣ Format the response
     const formattedProperties = properties.map((prop) => {
       const units = prop.Unit || [];
 
       const totalUnits = units.length;
-      const occupiedUnits = units.filter(u => u.occupiedAt !== null).length;
+      const occupiedUnits = units.filter(u => activeLeaseMap[u.id]).length; // ✅ count units with active leases
       const maintenanceUnits = units.filter(u =>
         ["NEED_MAINTENANCE", "UNDER_MAINTENANCE"].includes(u.unitCondition)
       ).length;
-      const availableUnits = units.filter(u => u.unitCondition === "GOOD" && !u.occupiedAt).length;
+      const availableUnits = units.filter(u => u.unitCondition === "GOOD" && !activeLeaseMap[u.id]).length; // ✅ check active lease instead of occupiedAt
       const listedUnits = listedMap[prop.id] || 0; // active listings count
 
       return {
@@ -290,10 +305,8 @@ export const getPropertyDetailsAndUnits = async (req, res) => {
             mainImageUrl: true,
             createdAt: true,
             updatedAt: true,
-            viewCount: true,
             requiresScreening: true,
             unitCondition: true,
-            occupiedAt: true,
             amenities: { select: { id: true, name: true, category: true } },
             reviews: { select: { rating: true } },
           },
@@ -321,13 +334,42 @@ export const getPropertyDetailsAndUnits = async (req, res) => {
       listingMap[l.unitId] = true; // ✅ just return true if there is an active listing
     });
 
+    // 🔹 Check if each unit has an active lease
+    const activeLeases = await prisma.lease.groupBy({
+      by: ['unitId'],
+      where: {
+        unitId: { in: unitIds },
+        status: 'ACTIVE',
+      },
+      _count: { id: true },
+    });
+
+    const activeLeaseMap = {};
+    activeLeases.forEach((lease) => {
+      activeLeaseMap[lease.unitId] = true; // ✅ true if unit has an active lease
+    });
+
+    // 🔹 Count views from UnitView table for each unit
+    const viewCounts = await prisma.unitView.groupBy({
+      by: ['unitId'],
+      where: {
+        unitId: { in: unitIds },
+      },
+      _count: { id: true },
+    });
+
+    const viewCountMap = {};
+    viewCounts.forEach((vc) => {
+      viewCountMap[vc.unitId] = vc._count.id; // ✅ total view count from UnitView table
+    });
+
     // --- Compute condition-based summaries ---
     const totalUnits = property.Unit.length;
     const goodUnits = property.Unit.filter((u) => u.unitCondition === "GOOD").length;
     const needMaintenanceUnits = property.Unit.filter((u) => u.unitCondition === "NEED_MAINTENANCE").length;
     const underMaintenanceUnits = property.Unit.filter((u) => u.unitCondition === "UNDER_MAINTENANCE").length;
     const unusableUnits = property.Unit.filter((u) => u.unitCondition === "UNUSABLE").length;
-    const occupiedUnits = property.Unit.filter((u) => u.occupiedAt !== null).length;
+    const occupiedUnits = property.Unit.filter((u) => activeLeaseMap[u.id]).length; // ✅ count units with active leases
     const listedUnits = property.Unit.filter((u) => listingMap[u.id]).length; // ✅ total units with active listings
 
     // --- Format each unit ---
@@ -348,9 +390,9 @@ export const getPropertyDetailsAndUnits = async (req, res) => {
         mainImageUrl: u.mainImageUrl,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
-        occupiedAt: u.occupiedAt,
+        occupiedAt: activeLeaseMap[u.id] ? new Date().toISOString() : null, // ✅ set based on active lease
         isListed: listingMap[u.id] || false, // ✅ true/false if listed
-        viewCount: u.viewCount,
+        viewCount: viewCountMap[u.id] || 0, // ✅ count from UnitView table
         unitCondition: u.unitCondition,
         requiresScreening: u.requiresScreening,
         amenities: u.amenities,

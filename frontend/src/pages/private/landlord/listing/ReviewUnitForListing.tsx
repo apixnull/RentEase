@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Star, Home, MapPin, CreditCard, Edit2, Sparkles, Clock, Calendar, HelpCircle, ExternalLink } from 'lucide-react';
-import PageHeader from '@/components/PageHeader';
-import { getUnitForListingReviewRequest, createListingWithPaymentRequest, cancelListingPaymentRequest, getLandlordListingsRequest } from '@/api/landlord/listingApi';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Star, Home, MapPin, Edit2, Sparkles, HelpCircle, CheckCircle2, AlertCircle, DollarSign, Info } from 'lucide-react';
+import { getUnitForListingReviewRequest, createPaymentSessionRequest } from '@/api/landlord/listingApi';
 import { Card, CardContent,  CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,8 +20,6 @@ interface Property {
 interface Unit {
   id: string;
   label: string;
-  targetPrice: number;
-  unitCondition: 'GOOD' | 'FAIR' | 'POOR' | string;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,18 +29,10 @@ interface ReviewData {
   property: Property;
 }
 
-interface PaymentSuccessPayload {
-  providerName: string;
-  providerTxnId: string;
-  paymentAmount: number;
-  payerPhone: string;
-  listingId?: string;
-}
 
 const ReviewUnitForListing = () => {
   const { unitId } = useParams<{ unitId: string }>();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,25 +79,14 @@ const ReviewUnitForListing = () => {
         isFeatured: isFeatured
       };
 
-      const response = await createListingWithPaymentRequest(unitId, payload);
+      const response = await createPaymentSessionRequest(unitId, payload);
       
-      if (response.data.checkoutUrl && response.data.paymentDetails) {
-        const { checkoutUrl, paymentDetails, listingId } = response.data;
-        const paymentSuccessPayload: PaymentSuccessPayload = {
-          providerName: paymentDetails.providerName || 'paymongo',
-          providerTxnId: paymentDetails.providerTxnId,
-          paymentAmount: paymentDetails.paymentAmount,
-          payerPhone: paymentDetails.payerPhone,
-          listingId: listingId
-        };
-        localStorage.setItem('pendingPaymentSuccess', JSON.stringify(paymentSuccessPayload));
-        window.location.href = checkoutUrl;
-      } else if (response.data.checkoutUrl) {
+      if (response.data.checkoutUrl) {
         window.location.href = response.data.checkoutUrl;
       }
     } catch (err) {
-      setCreateError('Failed to create listing');
-      console.error('Error creating listing:', err);
+      setCreateError('Failed to create payment session');
+      console.error('Error creating payment session:', err);
     } finally {
       setCreatingListing(false);
       setShowConfirm(false);
@@ -115,43 +94,9 @@ const ReviewUnitForListing = () => {
   };
 
 
-
-  const handleBack = () => {
-    navigate(-1);
-  };
-
   const formatAddress = (property: Property) => {
     return `${property.street}, ${property.barangay}, ${property.zipCode}`;
   };
-
-  const formatDateLong = (isoDate: string) => {
-    try {
-      return new Date(isoDate).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    } catch {
-      return isoDate;
-    }
-  };
-
-  const handleCancelListing = useCallback(async (listingId: string) => {
-    try {
-      await cancelListingPaymentRequest(listingId);
-      
-      // Remove cancel param from URL without refresh
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('cancel');
-      setSearchParams(newSearchParams, { replace: true });
-    } catch (err) {
-      console.error('Error canceling listing:', err);
-      // Still remove param even on error
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('cancel');
-      setSearchParams(newSearchParams, { replace: true });
-    } 
-  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!unitId) return;
@@ -159,50 +104,10 @@ const ReviewUnitForListing = () => {
     fetchReviewData();
   }, [unitId]);
 
-  useEffect(() => {
-    if (!unitId) return;
-    
-    // Check for cancel parameter separately to avoid refresh
-    const cancelParam = searchParams.get('cancel');
-    if (cancelParam && cancelParam === unitId) {
-      // Find pending listing for this unit
-      const findAndCancelListing = async () => {
-        try {
-          const listingsResponse = await getLandlordListingsRequest();
-          const listings = listingsResponse.data.listings || [];
-          
-          // Find listing for this unit in WAITING_PAYMENT status
-          const pendingListing = listings.find(
-            (listing: any) => 
-              listing.unit?.id === unitId && 
-              listing.lifecycleStatus === 'WAITING_PAYMENT'
-          );
-          
-          if (pendingListing?.id) {
-            await handleCancelListing(pendingListing.id);
-          } else {
-            // Just remove param if no pending listing found
-            const newSearchParams = new URLSearchParams(searchParams);
-            newSearchParams.delete('cancel');
-            setSearchParams(newSearchParams, { replace: true });
-          }
-        } catch (err) {
-          console.error('Error finding listing:', err);
-          // Remove param on error
-          const newSearchParams = new URLSearchParams(searchParams);
-          newSearchParams.delete('cancel');
-          setSearchParams(newSearchParams, { replace: true });
-        }
-      };
-      
-      findAndCancelListing();
-    }
-  }, [unitId, searchParams, handleCancelListing, setSearchParams]);
-
   if (loading) {
     return (
       <div className="min-h-screen p-6">
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="space-y-6">
           {/* Page Header Skeleton */}
           <div className="space-y-2">
             <Skeleton className="h-7 w-56" />
@@ -326,14 +231,11 @@ const ReviewUnitForListing = () => {
   if (error || !reviewData) {
     return (
       <div className="min-h-screen p-6">
-        <div className="max-w-6xl mx-auto">
+        <div>
           <Card className="border-red-200 bg-white/80 backdrop-blur-sm">
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-red-800 mb-4">{error || 'Unit not found'}</p>
-                <Button onClick={handleBack} variant="outline" className="mr-2">
-                  Go Back
-                </Button>
                 <Button onClick={fetchReviewData}>
                   Try Again
                 </Button>
@@ -347,249 +249,363 @@ const ReviewUnitForListing = () => {
 
   const { unit, property } = reviewData;
 
-  return (<>
-    <div className="min-h-screen p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <PageHeader
-          title="Review Unit for Listing"
-          description="Preview details, choose visibility, and publish with confidence"
-          className="mb-2"
-        />
-        {/* Hero Header removed per request */}
+  return (
+    <>
+    <div className="min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="relative overflow-hidden rounded-2xl"
+        >
+          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-emerald-200/70 opacity-95" />
+          <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-300/50 to-cyan-400/40 blur-3xl"
+              initial={{ opacity: 0.4, scale: 0.85 }}
+              animate={{ opacity: 0.7, scale: 1.05 }}
+              transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+            />
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-emerald-200/40 to-cyan-200/35 blur-3xl"
+              initial={{ opacity: 0.3 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+            />
 
-        {/* Primary CTA banner removed; a single sticky action button is provided at the bottom */}
+            <div className="px-4 sm:px-6 py-5 space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                  <motion.div
+                    whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                    className="relative flex-shrink-0"
+                  >
+                    <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-600 via-cyan-600 to-emerald-600 text-white grid place-items-center shadow-xl shadow-cyan-500/30">
+                      <Sparkles className="h-5 w-5 relative z-10" />
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                    </div>
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-sky-600 border border-sky-100 shadow-sm grid place-items-center"
+                    >
+                      <Star className="h-3 w-3" />
+                    </motion.div>
+                  </motion.div>
 
-        {/* Key Information + Publish block */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-stretch">
-          {/* Key Information - High importance */}
-          <Card className={`lg:col-span-2 bg-white/90 backdrop-blur border-slate-200 shadow-sm`}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg text-slate-900">Key Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Unit */}
-                <div className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm`}>
-                  <div className="text-[11px] text-slate-600 mb-4 font-semibold uppercase tracking-wide">Unit</div>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-emerald-50 text-emerald-700 grid place-items-center shadow-sm">
-                        <Home className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Label</div>
-                        <div className="font-semibold text-lg text-slate-900">{unit.label}</div>
-                      </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                        Create New Listing
+                      </h1>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-700 grid place-items-center shadow-sm">
-                        <CreditCard className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Monthly rate</div>
-                        <div className="font-semibold text-xl text-slate-900">₱{unit.targetPrice.toLocaleString()}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-sky-50 text-sky-700 grid place-items-center shadow-sm">
-                        <Calendar className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Created</div>
-                        <div className="font-medium text-sm text-slate-900">{formatDateLong(unit.createdAt)}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-purple-50 text-purple-700 grid place-items-center shadow-sm">
-                        <Clock className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Last Updated</div>
-                        <div className="font-medium text-sm text-slate-900">{formatDateLong(unit.updatedAt)}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Property */}
-                <div className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm`}>
-                  <div className="text-[11px] text-slate-600 mb-4 font-semibold uppercase tracking-wide">Property</div>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-emerald-50 text-emerald-700 grid place-items-center shadow-sm">
-                        <Home className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Title</div>
-                        <div className="font-semibold text-lg text-slate-900">{property.title}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-700 grid place-items-center shadow-sm">
-                        <MapPin className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Address</div>
-                        <div className="font-medium text-sm text-slate-900 leading-relaxed">{formatAddress(property)}</div>
-                      </div>
-                    </div>
+                    <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                      Review unit details and select listing options
+                    </p>
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Publish CTA (separate card on the right, same block) */}
-          <Card className={`lg:col-span-2 h-full border-slate-200 bg-white shadow-sm`}>
-            <CardContent className="p-5 h-full flex flex-col justify-between gap-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-600">
-                      <Sparkles className="h-4 w-4 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-slate-900 text-base font-semibold">Publish Your Unit</h3>
-                      <p className="text-[11px] text-slate-600">Make your listing visible to renters</p>
-                    </div>
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+                style={{ originX: 0 }}
+                className="relative h-1 w-full rounded-full overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-sky-400/80 via-cyan-400/80 to-emerald-400/80" />
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+                />
+              </motion.div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Unit & Property Information */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Unit Information Card */}
+            <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 grid place-items-center">
+                    <Home className="h-4 w-4 text-white" />
                   </div>
+                  Unit Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                    <p className="text-xs font-medium text-slate-500 mb-1.5">Unit Label</p>
+                    <p className="text-base font-semibold text-slate-900">{unit.label}</p>
+                  </div>
+                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                    <p className="text-xs font-medium text-slate-500 mb-1.5">Property Type</p>
+                    <p className="text-sm font-medium text-slate-900 capitalize">{property.type.replace(/_/g, ' ')}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Property Information Card */}
+            <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 grid place-items-center">
+                    <MapPin className="h-4 w-4 text-white" />
+                  </div>
+                  Property Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                  <p className="text-xs font-medium text-slate-500 mb-1.5">Property Title</p>
+                  <p className="text-base font-semibold text-slate-900">{property.title}</p>
+                </div>
+                <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                  <p className="text-xs font-medium text-slate-500 mb-1.5">Full Address</p>
+                  <p className="text-sm font-medium text-slate-700 leading-relaxed">{formatAddress(property)}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Edit Unit Link */}
+            <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 text-amber-700 grid place-items-center flex-shrink-0">
+                    <Info className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 mb-2">Need to make changes?</p>
+                    <p className="text-xs text-slate-600 mb-3">Review all information carefully before publishing. This listing will be visible to all tenants.</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/landlord/units/${unit.id}/edit`)}
+                      className="gap-2 text-xs border-slate-300 text-slate-700 hover:bg-slate-50"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                      Edit Unit Information
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column - Listing Options */}
+          <div className="space-y-6">
+            {/* Pricing Options Card */}
+            <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm sticky top-6">
+              <CardHeader className="pb-3 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 grid place-items-center">
+                      <DollarSign className="h-4 w-4 text-white" />
+                    </div>
+                    Listing Options
+                  </CardTitle>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => navigate('/privacy-policy')}
-                    className="flex items-center gap-2 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                    className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    title="Learn More"
                   >
-                    <HelpCircle className="h-3 w-3" />
-                    Learn More
-                    <ExternalLink className="h-3 w-3" />
+                    <HelpCircle className="h-4 w-4" />
                   </Button>
                 </div>
-
-
-                {/* Pricing Options - Selectable */}
-                <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
-                  <div className="pb-2 border-b border-slate-100">
-                    <p className="text-[11px] font-medium text-slate-700 uppercase tracking-wide">Select Pricing Option</p>
-                  </div>
-                  
-                  {/* Normal Listing Option */}
-                  <button
-                    onClick={() => setIsFeatured(false)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all border focus:outline-none ${
-                      !isFeatured
-                        ? 'border-emerald-500 ring-2 ring-emerald-100'
-                        : 'border-slate-300 hover:border-slate-400'
-                    }`}
-                    aria-pressed={!isFeatured}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`h-4 w-4 rounded-full border ${!isFeatured ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300 bg-white'} transition-colors`} />
-                      <div>
-                        <span className={`text-xs font-medium block ${!isFeatured ? 'text-emerald-800' : 'text-slate-900'}`}>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                {/* Normal Listing Option */}
+                <button
+                  onClick={() => setIsFeatured(false)}
+                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                    !isFeatured
+                      ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-100 shadow-sm'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${
+                        !isFeatured 
+                          ? 'border-emerald-600 bg-emerald-600' 
+                          : 'border-slate-300 bg-white'
+                      }`}>
+                        {!isFeatured && <div className="h-2 w-2 rounded-full bg-white" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-semibold mb-1 ${!isFeatured ? 'text-emerald-900' : 'text-slate-900'}`}>
                           Normal Listing
-                        </span>
-                        <p className={`text-[11px] mt-0.5 ${!isFeatured ? 'text-emerald-700' : 'text-slate-600'}`}>Standard visibility</p>
+                        </p>
+                        <p className={`text-xs leading-relaxed ${!isFeatured ? 'text-emerald-700' : 'text-slate-600'}`}>
+                          Standard visibility in search results
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold ${!isFeatured ? 'text-emerald-800' : 'text-slate-900'}`}>₱100</span>
-                    </div>
-                  </button>
-
-                  {/* Featured Listing Option */}
-                  <button
-                    onClick={() => setIsFeatured(true)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all border focus:outline-none ${
-                      isFeatured
-                        ? 'border-emerald-500 ring-2 ring-emerald-100'
-                        : 'border-slate-300 hover:border-slate-400'
-                    }`}
-                    aria-pressed={isFeatured}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`h-4 w-4 rounded-full border ${isFeatured ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300 bg-white'} transition-colors`} />
-                      <div>
-                        <span className={`text-xs font-medium flex items-center gap-1 ${isFeatured ? 'text-emerald-800' : 'text-slate-900'}`}>
-                          <Star className={`h-3 w-3 ${isFeatured ? 'text-emerald-700' : 'text-slate-700'}`} />
-                          Featured Listing
-                        </span>
-                        <p className={`text-[11px] mt-0.5 ${isFeatured ? 'text-emerald-700' : 'text-slate-600'}`}>Premium placement</p>
+                    <div className="flex-shrink-0">
+                      <div className={`text-lg font-bold ${!isFeatured ? 'text-emerald-700' : 'text-slate-700'}`}>
+                        ₱100
+                      </div>
+                      <div className={`text-[10px] ${!isFeatured ? 'text-emerald-600' : 'text-slate-500'}`}>
+                        one-time
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${isFeatured ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>Recommended</span>
-                      <span className={`text-sm font-semibold ${isFeatured ? 'text-emerald-800' : 'text-slate-900'}`}>₱150</span>
-                    </div>
-                  </button>
+                  </div>
+                </button>
 
-                  <p className="text-[11px] text-slate-600 pt-2 border-t border-slate-100">Click to select your listing type. Featured listings appear in boosted sections and get priority in search results.</p>
+                {/* Featured Listing Option */}
+                <button
+                  onClick={() => setIsFeatured(true)}
+                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                    isFeatured
+                      ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-100 shadow-sm'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${
+                        isFeatured 
+                          ? 'border-emerald-600 bg-emerald-600' 
+                          : 'border-slate-300 bg-white'
+                      }`}>
+                        {isFeatured && <div className="h-2 w-2 rounded-full bg-white" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className={`text-sm font-semibold ${isFeatured ? 'text-emerald-900' : 'text-slate-900'}`}>
+                            Featured Listing
+                          </p>
+                          <Star className={`h-3.5 w-3.5 ${isFeatured ? 'text-emerald-600 fill-emerald-600' : 'text-slate-400'}`} />
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            isFeatured 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            Recommended
+                          </span>
+                        </div>
+                        <p className={`text-xs leading-relaxed ${isFeatured ? 'text-emerald-700' : 'text-slate-600'}`}>
+                          Premium placement with boosted visibility
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <div className={`text-lg font-bold ${isFeatured ? 'text-emerald-700' : 'text-slate-700'}`}>
+                        ₱150
+                      </div>
+                      <div className={`text-[10px] ${isFeatured ? 'text-emerald-600' : 'text-slate-500'}`}>
+                        one-time
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                <div className="pt-2 border-t border-slate-200">
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Featured listings appear in boosted sections and receive priority placement in search results for better visibility.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Terms & Agreement Card */}
+            <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 grid place-items-center">
+                    <CheckCircle2 className="h-4 w-4 text-white" />
+                  </div>
+                  Terms & Agreement
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <span>90-day publication period</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <span>Content will be reviewed and sanitized</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <span>Scamming patterns may lead to penalties</span>
+                  </div>
                 </div>
 
-                {/* Agreement */}
-                <div className="rounded-md border border-slate-200 bg-white p-3 space-y-2">
-                  <label className="flex items-start gap-2 cursor-pointer select-none">
+                <div className="pt-3 border-t border-slate-200">
+                  <label className="flex items-start gap-3 cursor-pointer select-none group">
                     <input
                       type="checkbox"
                       checked={agreed}
-                      onChange={(e) => setAgreed(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                      onChange={(e) => {
+                        setAgreed(e.target.checked);
+                        if (e.target.checked) {
+                          setCreateError(null);
+                        }
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 focus:ring-2"
                     />
-                    <span className="text-xs text-slate-700">
-                      I have read and agree to the pricing and listing terms, including a 90-day publication period and content guidelines. See our{' '}
+                    <span className="text-xs text-slate-700 leading-relaxed flex-1">
+                      I have read and agree to the{' '}
                       <a 
                         href="/privacy-policy"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-slate-900 underline underline-offset-2"
+                        className="text-emerald-600 hover:text-emerald-700 underline underline-offset-2 font-medium"
                       >
-                        privacy policy
-                      </a>.
+                        listing terms and privacy policy
+                      </a>
+                      .
                     </span>
                   </label>
                 </div>
 
-                {/* Edit Unit Link */}
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs text-slate-700 mb-2">Please review all information before publishing. This listing will be visible publicly.</p>
-                  <button
-                    onClick={() => navigate(`/landlord/units/${unit.id}/edit`)}
-                    className="group flex items-center gap-1.5 text-xs font-medium text-slate-900 hover:text-slate-700 transition-colors w-full"
-                  >
-                    <Edit2 className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
-                    <span className="underline decoration-slate-300 group-hover:decoration-slate-500">Edit unit information</span>
-                  </button>
-                </div>
-
                 {createError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <p className="text-sm text-red-800">{createError}</p>
+                  <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-red-800 flex-1">{createError}</p>
                   </div>
                 )}
-              </div>
+              </CardContent>
+            </Card>
 
-              <Button 
-                onClick={handleCreateListing}
-                disabled={creatingListing || !agreed}
-                className="w-full h-12 px-6 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-semibold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                size="lg"
-              >
-                {creatingListing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Proceed to Payment
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+            {/* Action Button */}
+            <Button 
+              onClick={handleCreateListing}
+              disabled={creatingListing || !agreed}
+              className="w-full h-12 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-semibold shadow-lg shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all"
+              size="lg"
+            >
+              {creatingListing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/50 border-t-white mr-2"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Proceed to Payment
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-
-
       </div>
     </div>
 
@@ -610,9 +626,8 @@ const ReviewUnitForListing = () => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
-    
-  </>);
+    </>
+  );
 };
 
 export default ReviewUnitForListing;

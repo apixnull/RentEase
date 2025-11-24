@@ -103,38 +103,71 @@ export const handleTenantLeaseAction = async (req, res) => {
 
       const paymentsToCreate = [];
 
+      // 🧮 Calculate the first due date (next occurrence of dueDay after or on startDate)
+      let firstDueDate = new Date(startDate);
+      firstDueDate.setDate(dueDay);
+
+      // If the first due date is before the start date, move to next month
+      if (firstDueDate < startDate) {
+        firstDueDate.setMonth(firstDueDate.getMonth() + 1);
+        firstDueDate.setDate(dueDay);
+      }
+
+      // 🔍 Check if there's a gap between start date and first due date
+      // If lease starts mid-month (e.g., Nov 14) but due date is 1st, 
+      // there's a gap period (Nov 14 - Dec 1) that needs a prepayment
+      const hasGap = firstDueDate > startDate;
+
+      // 💰 If there's a gap, create a prepayment without amount (landlord decides)
+      // This prepayment is for the period between lease start and first due date
+      // It's due on the lease start date + 3 days allowance (usually already paid, landlord marks it)
+      if (hasGap) {
+        const prepaymentDueDate = new Date(startDate);
+        prepaymentDueDate.setDate(prepaymentDueDate.getDate() + 3); // Add 3 days allowance
+        
+        paymentsToCreate.push({
+          leaseId,
+          amount: 0, // Placeholder - landlord will set the actual prorated amount when marking as paid
+          dueDate: prepaymentDueDate, // Due on start date + 3 days
+          status: "PENDING",
+          timingStatus: null,
+          type: "PREPAYMENT", // Indicates this is a prepayment for the gap period
+          reminderStage: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      // 📅 Create all regular monthly payments from firstDueDate onwards
       if (endDate) {
-        // 🧮 Calculate full months between start and end
-        const durationMonths = (endDate.getFullYear() - startDate.getFullYear()) * 12 +
-                               (endDate.getMonth() - startDate.getMonth()) + 1;
-
-        for (let i = 0; i < durationMonths; i++) {
-          const dueDate = new Date(startDate);
-          dueDate.setMonth(startDate.getMonth() + i);
-          dueDate.setDate(dueDay);
-
+        // Calculate all due dates from firstDueDate until endDate
+        let currentDueDate = new Date(firstDueDate);
+        while (currentDueDate <= endDate) {
           paymentsToCreate.push({
             leaseId,
             amount: rent,
-            dueDate,
+            dueDate: new Date(currentDueDate),
             status: "PENDING",
             timingStatus: null,
+            type: "RENT",
             reminderStage: 0,
             createdAt: now,
             updatedAt: now,
           });
+          
+          // Move to next month
+          currentDueDate.setMonth(currentDueDate.getMonth() + 1);
+          currentDueDate.setDate(dueDay);
         }
       } else {
-        // For open-ended leases, create the first month's payment only
-        const dueDate = new Date(startDate);
-        dueDate.setDate(dueDay);
-
+        // For open-ended leases, create the first month's payment
         paymentsToCreate.push({
           leaseId,
           amount: rent,
-          dueDate,
+          dueDate: new Date(firstDueDate),
           status: "PENDING",
           timingStatus: null,
+          type: "RENT",
           reminderStage: 0,
           createdAt: now,
           updatedAt: now,
@@ -147,19 +180,33 @@ export const handleTenantLeaseAction = async (req, res) => {
         updatedAt: now,
       };
 
-      // 🏘️ Update unit
-      const unitUpdateData = {
-        occupiedById: tenantId,
-        occupiedAt: now,
-        listedAt: null,
-      };
+      // 💬 Update chat channel status to ACTIVE if it exists
+      const existingChatChannel = await prisma.chatChannel.findUnique({
+        where: {
+          tenantId_landlordId: {
+            tenantId: tenantId,
+            landlordId: lease.landlordId,
+          },
+        },
+      });
 
       // 💾 Transaction
-      await prisma.$transaction([
+      const transactionPromises = [
         prisma.lease.update({ where: { id: leaseId }, data: leaseUpdateData }),
-        prisma.unit.update({ where: { id: lease.unitId }, data: unitUpdateData }),
         prisma.payment.createMany({ data: paymentsToCreate }),
-      ]);
+      ];
+
+      // Add chat channel update if it exists
+      if (existingChatChannel) {
+        transactionPromises.push(
+          prisma.chatChannel.update({
+            where: { id: existingChatChannel.id },
+            data: { status: "ACTIVE" },
+          })
+        );
+      }
+
+      await prisma.$transaction(transactionPromises);
 
       return res.status(200).json({
         message: `Lease accepted and activated. ${paymentsToCreate.length} payments created.`,
@@ -279,6 +326,7 @@ export const getLeaseDetails = async (req, res) => {
             timingStatus: true,
             type: true,
             reminderStage: true,
+            note: true,
           },
         },
       },
