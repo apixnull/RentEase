@@ -8,18 +8,34 @@ const DEFAULT_FRONTEND_URLS = {
   development: "http://localhost:5173",
 };
 
-export const API_PREFIX = "/api";
+const DEFAULT_API_PREFIX = "/api";
+export const API_PREFIX = process.env.API_PREFIX ?? DEFAULT_API_PREFIX;
+export const ENABLE_LEGACY_ROUTES =
+  process.env.ENABLE_LEGACY_ROUTES !== "false";
 
 const createPrefix = (segment) => `${API_PREFIX}${segment}`;
 
-export const ROUTE_PREFIXES = {
-  auth: createPrefix("/auth"),
-  landlord: createPrefix("/landlord"),
-  tenant: createPrefix("/tenant"),
-  admin: createPrefix("/admin"),
-  chat: createPrefix("/chat"),
-  webhook: createPrefix("/webhook"),
+const ROUTE_SEGMENTS = {
+  auth: "/auth",
+  landlord: "/landlord",
+  tenant: "/tenant",
+  admin: "/admin",
+  chat: "/chat",
+  webhook: "/webhook",
 };
+
+export const ROUTE_PREFIXES = Object.entries(ROUTE_SEGMENTS).reduce(
+  (acc, [key, segment]) => {
+    acc[key] = createPrefix(segment);
+    return acc;
+  },
+  {}
+);
+
+export const LEGACY_ROUTE_PREFIXES =
+  ENABLE_LEGACY_ROUTES && API_PREFIX !== ""
+    ? ROUTE_SEGMENTS
+    : Object.fromEntries(Object.keys(ROUTE_SEGMENTS).map((key) => [key, null]));
 
 export const getFrontendUrl = () => {
   if (process.env.FRONTEND_URL) {
@@ -31,5 +47,4 @@ export const getFrontendUrl = () => {
 };
 
 export const getAllowedOrigins = () => [getFrontendUrl()];
-
 

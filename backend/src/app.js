@@ -15,7 +15,11 @@ import chatRoutes from "./routes/chatRoutes.js";
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
 import sessionMiddleware from "./middlewares/session.js";
-import { ROUTE_PREFIXES, getAllowedOrigins } from "./config/constants.js";
+import {
+  ROUTE_PREFIXES,
+  LEGACY_ROUTE_PREFIXES,
+  getAllowedOrigins,
+} from "./config/constants.js";
 
 const app = express();
 
@@ -52,12 +56,23 @@ app.use(sessionMiddleware);
 // Routes
 // ------------------------------
 
-app.use(ROUTE_PREFIXES.auth, authRoutes);
-app.use(ROUTE_PREFIXES.landlord, landlordRoutes);
-app.use(ROUTE_PREFIXES.admin, adminRoutes);
-app.use(ROUTE_PREFIXES.tenant, tenantRoutes);
-app.use(ROUTE_PREFIXES.chat, chatRoutes);
-app.use(ROUTE_PREFIXES.webhook, webhookRoutes);
+const routeEntries = [
+  { key: "auth", router: authRoutes },
+  { key: "landlord", router: landlordRoutes },
+  { key: "admin", router: adminRoutes },
+  { key: "tenant", router: tenantRoutes },
+  { key: "chat", router: chatRoutes },
+  { key: "webhook", router: webhookRoutes },
+];
+
+routeEntries.forEach(({ key, router }) => {
+  app.use(ROUTE_PREFIXES[key], router);
+
+  const legacyPrefix = LEGACY_ROUTE_PREFIXES[key];
+  if (legacyPrefix) {
+    app.use(legacyPrefix, router);
+  }
+});
 
 // Default route (health check / welcome route)
 app.get("/", (req, res) => {
