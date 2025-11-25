@@ -22,8 +22,6 @@ import {
   MessageCircle, 
   Check,
   CheckCheck,
-  MessageSquare,
-  Send,
   HelpCircle
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";

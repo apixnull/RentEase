@@ -674,7 +674,7 @@ const ChatChannelsList = ({
   currentUser,
   onSearchChange,
   onStatusFilterChange,
-  onRefreshChannels,
+  onRefreshChannels: _onRefreshChannels,
 }: {
   channels: Channel[];
   searchQuery: string;

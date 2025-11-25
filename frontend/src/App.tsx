@@ -44,7 +44,7 @@ import MyLeaseDetails from "./pages/private/tenant/lease/MyLeaseDetails.tsx";
 import AdminListing from "./pages/private/admin/listing/AdminListing.tsx";
 import AdminListingDetails from "./pages/private/admin/listing/specific-listing-details/AdminListingDetailsLayout.tsx";
 import AllUsers from "./pages/private/admin/users/AllUsers.tsx";
-import UserDetails from "./pages/private/admin/users/UserDetails.tsx";
+import UserDetailsPage from "./pages/private/admin/users/UserDetails.tsx";
 import AdminEarnings from "./pages/private/admin/earnings/AdminEarnings.tsx";
 import AdminFraudReports from "./pages/private/admin/reports/AdminFraudReports.tsx";
 import AdminAnalytics from "./pages/private/admin/analytics/AdminAnalytics.tsx";
@@ -258,7 +258,7 @@ const router = createBrowserRouter([
 
       // users
       { path: "users", element: <Suspense fallback={<Loader />}><AllUsers /></Suspense> },
-      { path: "users/:userId", element: <Suspense fallback={<Loader />}><UserDetails /></Suspense> },
+      { path: "users/:userId", element: <Suspense fallback={<Loader />}><UserDetailsPage /></Suspense> },
       { path: "earnings", element: <Suspense fallback={<Loader />}><AdminEarnings /></Suspense> },
       { path: "analytics", element: <Suspense fallback={<Loader />}><AdminAnalytics /></Suspense> },
       // listing

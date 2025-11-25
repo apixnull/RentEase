@@ -12,11 +12,23 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-   server: {
+  server: {
     proxy: {
       "/socket.io": {
         target: "http://localhost:5000", // your backend port
         ws: true, // 👈 enables WebSocket proxying
+      },
+    },
+  },
+  build: {
+    outDir: "dist",
+    sourcemap: false, // Disable sourcemaps in production for smaller builds
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
+        },
       },
     },
   },

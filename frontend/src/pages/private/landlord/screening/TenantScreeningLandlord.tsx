@@ -503,7 +503,6 @@ const TenantScreeningLandlord = () => {
   }: StatusActionsProps) => {
     switch (report.status) {
       case "PENDING":
-        const pendingTheme = getStatusTheme("PENDING");
         return (
           <Button
             size="sm"

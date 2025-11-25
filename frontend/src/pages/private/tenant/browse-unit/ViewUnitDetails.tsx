@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1074,7 +1074,6 @@ const Avatar = ({
 
 const ViewUnitDetails = () => {
   const { listingId } = useParams<{ listingId: string }>();
-  const navigate = useNavigate();
   const { user: currentUser } = useAuthStore();
   const [listing, setListing] = useState<ListingDetails | null>(null);
   const [loading, setLoading] = useState(true);

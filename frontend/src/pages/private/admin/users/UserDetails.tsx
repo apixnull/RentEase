@@ -66,7 +66,7 @@ const formatDate = (value: string | null, pattern = 'MMM d, yyyy p') => {
 
 const displayValue = (value: string | null | undefined) => value?.trim() || '—';
 
-const UserDetails = () => {
+const UserDetailsPage = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const [user, setUser] = useState<UserDetails | null>(null);
@@ -599,5 +599,5 @@ const renderInfoGrid = (
   );
 };
 
-export default UserDetails;
+export default UserDetailsPage;
 

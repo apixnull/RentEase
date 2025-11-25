@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { ShieldCheck, FileCheck, Sparkles, TrendingUp, UserCheck } from "lucide-react";
+import { ShieldCheck, FileCheck, Sparkles, UserCheck } from "lucide-react";
 
 interface ScreeningHeaderProps {
 	title: string | React.ReactNode;

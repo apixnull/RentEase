@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Home, Building2, Sparkles, TrendingUp, MapPin } from "lucide-react";
+import { Home, Building2, Sparkles, MapPin } from "lucide-react";
 
 interface PropertiesHeaderProps {
 	title: string | React.ReactNode;
