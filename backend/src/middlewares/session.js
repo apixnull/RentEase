@@ -43,16 +43,25 @@ class UpstashSessionStore extends session.Store {
 	}
 }
 
+const isProduction = process.env.NODE_ENV === "production";
+const cookieSameSite = process.env.SESSION_SAMESITE
+	? process.env.SESSION_SAMESITE.toLowerCase()
+	: isProduction ? "none" : "lax";
+
 const sessionMiddleware = session({
-	store: new UpstashSessionStore({ client: redis, prefix: "sess:", ttlMs: 7 * 24 * 60 * 60 * 1000 }),
+	store: new UpstashSessionStore({
+		client: redis,
+		prefix: "sess:",
+		ttlMs: 7 * 24 * 60 * 60 * 1000,
+	}),
 	secret: process.env.SESSION_SECRET,
 	resave: false,
 	saveUninitialized: false,
 	rolling: true,
 	cookie: {
 		httpOnly: true,
-		sameSite: "lax",
-		secure: process.env.NODE_ENV === "production",
+		sameSite: cookieSameSite,
+		secure: isProduction,
 		maxAge: 7 * 24 * 60 * 60 * 1000,
 	},
 });
