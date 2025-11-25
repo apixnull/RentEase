@@ -1,6 +1,6 @@
 // file: authRoutes.js
 import { Router } from "express";
-import {  forgotPassword, getUserInfo, login, logout, onboarding, register, resendVerification, resetPassword, updateProfile, verifyEmail } from "../controllers/AuthController.js";
+import {  forgotPassword, getUserInfo, login, logout, onboarding, register, resendVerification, resetPassword, updateProfile, verifyEmail } from "../controllers/authController.js";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 
 const router = Router();
