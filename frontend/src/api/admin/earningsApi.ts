@@ -1,10 +1,11 @@
 import { privateApi } from "../axios";
 
-export type EarningsRange = "this_month" | "last_3_months" | "this_year" | "year";
+export type EarningsRange = "this_month" | "this_year" | "year";
 
 export interface EarningsTimelinePoint {
   label: string;
   total: number;
+  date?: string; // ISO date string for daily data
 }
 
 export interface EarningsRecord {

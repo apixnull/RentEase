@@ -46,6 +46,8 @@ import AdminListingDetails from "./pages/private/admin/listing/specific-listing-
 import AllUsers from "./pages/private/admin/users/AllUsers.tsx";
 import UserDetails from "./pages/private/admin/users/UserDetails.tsx";
 import AdminEarnings from "./pages/private/admin/earnings/AdminEarnings.tsx";
+import AdminFraudReports from "./pages/private/admin/reports/AdminFraudReports.tsx";
+import AdminAnalytics from "./pages/private/admin/analytics/AdminAnalytics.tsx";
 import RentPayments from "./pages/private/landlord/payments/RentPayments.tsx";
 
 
@@ -258,9 +260,12 @@ const router = createBrowserRouter([
       { path: "users", element: <Suspense fallback={<Loader />}><AllUsers /></Suspense> },
       { path: "users/:userId", element: <Suspense fallback={<Loader />}><UserDetails /></Suspense> },
       { path: "earnings", element: <Suspense fallback={<Loader />}><AdminEarnings /></Suspense> },
+      { path: "analytics", element: <Suspense fallback={<Loader />}><AdminAnalytics /></Suspense> },
       // listing
       { path: "listing", element: <Suspense fallback={<Loader />}><AdminListing /></Suspense> },
       { path: "listing/:listingId/details", element: <Suspense fallback={<Loader />}><AdminListingDetails/></Suspense> },
+      // fraud reports
+      { path: "fraud-reports", element: <Suspense fallback={<Loader />}><AdminFraudReports /></Suspense> },
     ],
   },
   { path: "*", element: <Suspense fallback={<Loader />}><NotFound /></Suspense> },

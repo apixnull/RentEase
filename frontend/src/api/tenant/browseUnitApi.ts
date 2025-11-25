@@ -74,3 +74,9 @@ export const updateUnitReviewRequest = (reviewId: string, rating: number, commen
 
 export const deleteUnitReviewRequest = (reviewId: string) =>
   privateApi.delete(`/tenant/browse-unit/review/${reviewId}`);
+
+export const reportFraudulentListingRequest = (payload: {
+  listingId: string;
+  reason: string;
+  details?: string;
+}) => privateApi.post("/tenant/fraud-reports", payload);

@@ -53,7 +53,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
-import { getSpecificListingRequest, recordUnitViewRequest, createUnitReviewRequest, updateUnitReviewRequest, deleteUnitReviewRequest } from "@/api/tenant/browseUnitApi";
+import { getSpecificListingRequest, recordUnitViewRequest, createUnitReviewRequest, updateUnitReviewRequest, deleteUnitReviewRequest, reportFraudulentListingRequest } from "@/api/tenant/browseUnitApi";
 import { getUserChatChannelsRequest, getChannelMessagesRequest, sendMessageRequest, sendAndCreateChannelRequest, markMessagesAsReadRequest } from "@/api/chatApi";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
@@ -165,6 +165,12 @@ type InquiryFormData = {
 type ReviewFormData = {
   rating: number;
   comment: string;
+};
+
+// Fraud Report Form Types
+type FraudReportFormData = {
+  reason: string;
+  details: string;
 };
 
 // Message type
@@ -546,6 +552,191 @@ const InquiryForm = ({
   );
 };
 
+// Fraud Report Form Component
+const FraudReportForm = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  propertyTitle,
+  unitLabel,
+  submitting,
+  submitted
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: FraudReportFormData) => void;
+  propertyTitle: string;
+  unitLabel: string;
+  submitting?: boolean;
+  submitted?: boolean;
+}) => {
+  const [formData, setFormData] = useState<FraudReportFormData>({
+    reason: "",
+    details: "",
+  });
+  const [errors, setErrors] = useState<{ reason?: string; details?: string }>({});
+
+  useEffect(() => {
+    if (isOpen && !submitted) {
+      setFormData({ reason: "", details: "" });
+      setErrors({});
+    }
+  }, [isOpen, submitted]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: { reason?: string; details?: string } = {};
+
+    if (!formData.reason.trim()) {
+      newErrors.reason = "Please select a reason";
+    }
+
+    if (!formData.details.trim()) {
+      newErrors.details = "Please provide details about the fraud";
+    } else if (formData.details.trim().length < 10) {
+      newErrors.details = "Please provide at least 10 characters";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    onSubmit(formData);
+  };
+
+  if (!isOpen) return null;
+
+  // Show success message after submission
+  if (submitted) {
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <div className="p-6">
+            <div className="text-center">
+              <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Report Submitted Successfully</h3>
+              <p className="text-sm text-gray-600 mb-6">
+                Thank you for reporting this listing. We will email you once we have confirmed your report and taken appropriate action.
+              </p>
+              <Button
+                onClick={onClose}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold">Report Fraudulent Listing</h3>
+              <p className="text-sm text-gray-600">{propertyTitle} - {unitLabel}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <XCircle className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Reason <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.reason}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, reason: e.target.value }));
+                  if (errors.reason) {
+                    setErrors(prev => ({ ...prev, reason: undefined }));
+                  }
+                }}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm ${
+                  errors.reason ? "border-red-300" : "border-gray-300"
+                }`}
+                required
+              >
+                <option value="">Select a reason</option>
+                <option value="scam">Scam / Fraud</option>
+                <option value="fake_info">Fake Information</option>
+                <option value="discriminatory">Discriminatory Practices</option>
+                <option value="illegal">Illegal Activity</option>
+                <option value="inappropriate">Inappropriate Content</option>
+                <option value="other">Other</option>
+              </select>
+              {errors.reason && (
+                <p className="text-xs text-red-500 mt-1">{errors.reason}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Details <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={formData.details}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, details: e.target.value }));
+                  if (errors.details) {
+                    setErrors(prev => ({ ...prev, details: undefined }));
+                  }
+                }}
+                placeholder="Please provide details about the fraudulent activity..."
+                rows={6}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm resize-none ${
+                  errors.details ? "border-red-300" : "border-gray-300"
+                }`}
+                required
+              />
+              {errors.details && (
+                <p className="text-xs text-red-500 mt-1">{errors.details}</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-white/50 border-t-white rounded-full animate-spin mr-2" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Flag className="h-4 w-4 mr-2" />
+                    Submit Report
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 // Review Form Component
 const ReviewForm = ({
   isOpen,
@@ -899,6 +1090,9 @@ const ViewUnitDetails = () => {
   const [editingReview, setEditingReview] = useState<any | null>(null);
   const [selectedRatingFilter, setSelectedRatingFilter] = useState<number | null>(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [fraudReportFormOpen, setFraudReportFormOpen] = useState(false);
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
 
   useEffect(() => {
     const fetchListingDetails = async () => {
@@ -1062,6 +1256,25 @@ I'd like to schedule a viewing. Please let me know about availability!`;
     } catch (error: any) {
       console.error("Error deleting review:", error);
       toast.error(error?.response?.data?.message || "Failed to delete review. Please try again.");
+    }
+  };
+
+  const handleFraudReportSubmit = async (reportData: FraudReportFormData) => {
+    if (!listing?.id) return;
+
+    try {
+      setSubmittingReport(true);
+      await reportFraudulentListingRequest({
+        listingId: listing.id,
+        reason: reportData.reason,
+        details: reportData.details,
+      });
+      setReportSubmitted(true);
+    } catch (error: any) {
+      console.error("Error submitting fraud report:", error);
+      toast.error(error?.response?.data?.error || "Failed to submit report. Please try again.");
+    } finally {
+      setSubmittingReport(false);
     }
   };
 
@@ -1320,10 +1533,7 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                       </Button>
                     </Link>
                     <Button 
-                      onClick={() => {
-                        // Navigate to report page with listing ID
-                        navigate(`/tenant/report-property?listingId=${listing.id}`);
-                      }}
+                      onClick={() => setFraudReportFormOpen(true)}
                       variant="outline"
                       size="sm"
                       className="whitespace-nowrap text-xs h-7 px-2 sm:px-3 flex items-center gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 flex-shrink-0"
@@ -1855,6 +2065,20 @@ I'd like to schedule a viewing. Please let me know about availability!`;
         onSubmit={handleReviewSubmit}
         unitLabel={unit.label}
         existingReview={editingReview || userReview}
+      />
+
+      {/* Fraud Report Form */}
+      <FraudReportForm
+        isOpen={fraudReportFormOpen}
+        onClose={() => {
+          setFraudReportFormOpen(false);
+          setReportSubmitted(false);
+        }}
+        onSubmit={handleFraudReportSubmit}
+        propertyTitle={property.title}
+        unitLabel={unit.label}
+        submitting={submittingReport}
+        submitted={reportSubmitted}
       />
 
     </div>

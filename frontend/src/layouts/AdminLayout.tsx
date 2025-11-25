@@ -60,21 +60,12 @@ const sidebarItems = [
     badge: "2 Issues",
   },
   {
-    path: "/admin/reports",
-    name: "Reports",
+    path: "/admin/fraud-reports",
+    name: "Fraud Reports",
     icon: BarChart3,
-    description: "System reports",
+    description: "Tenant fraud reports",
     badge: null,
   },
-  {
-    path: "/admin/",
-    name: "User Report",
-    icon: BarChart3,
-    description: "User Concerns",
-    badge: null,
-  },
-
-
 ];
 
 // Breadcrumb configuration
@@ -86,6 +77,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin/verifications": { name: "Verifications" },
   "/admin/properties": { name: "All Properties" },
   "/admin/listing": { name: "Listing Management" },
+  "/admin/listing/:id/details": { name: "Details", parent: "/admin/listing" },
   "/admin/payments": { name: "All Payments" },
   "/admin/reports": { name: "Reports" },
   "/admin/logs": { name: "System Logs" },

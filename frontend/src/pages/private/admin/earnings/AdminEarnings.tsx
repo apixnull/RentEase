@@ -24,10 +24,20 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { format } from 'date-fns';
-import { Loader2, RefreshCcw, Sparkles, Wallet } from 'lucide-react';
+import { Loader2, RefreshCcw, Sparkles, Wallet, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { getAdminEarningsRequest } from '@/api/admin/earningsApi';
 import type {
   EarningsRange,
@@ -35,10 +45,21 @@ import type {
   EarningsSummaryResponse,
 } from '@/api/admin/earningsApi';
 
-const chartConfig = {
+const timelineChartConfig = {
   earnings: {
-    label: 'Earnings',
-    color: '#4f46e5',
+    label: 'Total earnings',
+    color: 'var(--chart-1)',
+  },
+  listings: {
+    label: 'Listings count',
+    color: 'var(--chart-2)',
+  },
+} satisfies ChartConfig;
+
+const paymentChartConfig = {
+  total: {
+    label: 'Revenue',
+    color: 'var(--chart-3)',
   },
 } satisfies ChartConfig;
 
@@ -58,6 +79,8 @@ const AdminEarnings = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [tablePage, setTablePage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(8);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const fetchData = async ({ silent = false } = {}) => {
     try {
@@ -93,6 +116,197 @@ const AdminEarnings = () => {
     fetchData({ silent: true });
   };
 
+  const formatCurrencyForPDF = (amount: number) => {
+    const formatted = amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `PHP ${formatted}`;
+  };
+
+  const generatePDF = async () => {
+    try {
+      setGeneratingPdf(true);
+
+      // Use current filtered data
+      const pdfRecords = filteredRecords;
+
+      // Calculate totals
+      const totalEarnings = pdfRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+      const featuredCount = pdfRecords.filter((r) => Math.round(r.amount) === 150).length;
+      const standardCount = pdfRecords.filter((r) => Math.round(r.amount) === 100).length;
+      const featuredTotal = pdfRecords
+        .filter((r) => Math.round(r.amount) === 150)
+        .reduce((sum, record) => sum + Number(record.amount || 0), 0);
+      const standardTotal = pdfRecords
+        .filter((r) => Math.round(r.amount) === 100)
+        .reduce((sum, record) => sum + Number(record.amount || 0), 0);
+
+      // Create PDF in landscape orientation
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPosition = 20;
+
+      // RentEase Branding Header
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(99, 102, 241); // indigo-600
+      doc.text('RentEase', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 6;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Property Management Platform', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 8;
+
+      // Divider line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, yPosition, pageWidth - 14, yPosition);
+      yPosition += 10;
+
+      // Report Title
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text('Platform Earnings Report', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 10;
+
+      // Report period
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      const periodText = summary?.range
+        ? `${summary.range.label} • ${format(new Date(summary.range.start), 'MMM d, yyyy')} - ${format(new Date(summary.range.end), 'MMM d, yyyy')}`
+        : 'Selected period';
+      doc.text(periodText, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 8;
+
+      // Generated date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Generated on: ${format(new Date(), 'MMMM dd, yyyy')}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 15;
+
+      // Summary section
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', 14, yPosition);
+      yPosition += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Total Earnings: ${formatCurrencyForPDF(totalEarnings)}`, 14, yPosition);
+      yPosition += 6;
+      doc.text(`Total Listings: ${pdfRecords.length}`, 14, yPosition);
+      yPosition += 6;
+      doc.text(`Featured Listings (₱150): ${featuredCount} - ${formatCurrencyForPDF(featuredTotal)}`, 14, yPosition);
+      yPosition += 6;
+      doc.text(`Standard Listings (₱100): ${standardCount} - ${formatCurrencyForPDF(standardTotal)}`, 14, yPosition);
+      yPosition += 6;
+      doc.text(`Average per Listing: ${formatCurrencyForPDF(pdfRecords.length ? totalEarnings / pdfRecords.length : 0)}`, 14, yPosition);
+      yPosition += 8;
+
+      // Currency note
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Note: All amounts are in Philippine Peso (PHP)', 14, yPosition);
+      doc.setTextColor(0, 0, 0);
+      yPosition += 10;
+
+      // Earnings table
+      if (pdfRecords.length > 0) {
+        const tableData = pdfRecords.map((record) => [
+          record.propertyTitle.length > 30
+            ? record.propertyTitle.substring(0, 27) + '...'
+            : record.propertyTitle,
+          record.unitLabel.length > 15 ? record.unitLabel.substring(0, 12) + '...' : record.unitLabel,
+          record.providerName || 'N/A',
+          record.paymentDate
+            ? format(new Date(record.paymentDate), 'MMM dd, yyyy')
+            : '—',
+          formatCurrencyForPDF(record.amount),
+        ]);
+
+        const availableWidth = pageWidth - 28;
+        autoTable(doc, {
+          startY: yPosition,
+          head: [['Property', 'Unit', 'Provider', 'Payment Date', 'Amount (PHP)']],
+          body: tableData,
+          theme: 'striped',
+          headStyles: {
+            fillColor: [99, 102, 241], // indigo-600
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 9,
+          },
+          bodyStyles: { fontSize: 8 },
+          alternateRowStyles: { fillColor: [249, 250, 251] },
+          columnStyles: {
+            0: { cellWidth: 60 },
+            1: { cellWidth: 30 },
+            2: { cellWidth: 35 },
+            3: { cellWidth: 40 },
+            4: { cellWidth: 50, halign: 'right', fontStyle: 'bold' },
+          },
+          margin: { left: 14, right: 14 },
+          styles: {
+            overflow: 'linebreak',
+            cellPadding: 2,
+            fontSize: 8,
+            lineWidth: 0.1,
+          },
+          tableWidth: availableWidth,
+          showHead: 'everyPage',
+        });
+      } else {
+        doc.setFontSize(11);
+        doc.text('No earnings recorded for this range.', 14, yPosition);
+      }
+
+      // Add footer with RentEase credit on all pages
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+
+        const pageHeight = doc.internal.pageSize.getHeight();
+        doc.setDrawColor(200, 200, 200);
+        doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(99, 102, 241);
+        doc.text('RentEase', pageWidth / 2, pageHeight - 12, { align: 'center' });
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100, 100, 100);
+        doc.text(
+          'Generated by RentEase - Property Management Platform',
+          pageWidth / 2,
+          pageHeight - 6,
+          { align: 'center' }
+        );
+        doc.setTextColor(0, 0, 0);
+      }
+
+      // Generate filename
+      const rangeLabel = summary?.range.label.replace(/\s+/g, '-') || 'Earnings';
+      const filename = `Earnings-Report-${rangeLabel}-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+
+      doc.save(filename);
+      toast.success('PDF generated successfully');
+      setShowDownloadModal(false);
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   const tableData: EarningsRecord[] = data?.records || [];
 
   const filteredRecords = useMemo(() => {
@@ -105,11 +319,6 @@ const AdminEarnings = () => {
     return tableData;
   }, [tableData, paymentFilter]);
 
-  const totalAllEarnings = useMemo(
-    () => tableData.reduce((sum, record) => sum + Number(record.amount || 0), 0),
-    [tableData]
-  );
-
   const filteredSummary = useMemo(() => {
     const total = filteredRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
     return {
@@ -118,30 +327,64 @@ const AdminEarnings = () => {
     };
   }, [filteredRecords]);
 
+  // Use backend timeline data directly, but transform it for chart display
   const timelineData = useMemo(() => {
-    if (!filteredRecords.length) {
-      return [{ label: 'No data', total: 0 }];
+    if (!data?.timeline) return [];
+
+    let processedTimeline = data.timeline;
+
+    // For this_month range, sample the timeline to show every few days (every 4-5 days)
+    if (range === 'this_month') {
+      // Sample every 4-5 days to reduce clutter (e.g., Apr 3, Apr 7, Apr 12, Apr 17, etc.)
+      const sampledTimeline: typeof data.timeline = [];
+      const sampleInterval = 4; // Sample every 4 days
+      for (let i = 0; i < processedTimeline.length; i += sampleInterval) {
+        sampledTimeline.push(processedTimeline[i]);
+      }
+      // Always include the last point
+      if (processedTimeline.length > 0 && sampledTimeline[sampledTimeline.length - 1] !== processedTimeline[processedTimeline.length - 1]) {
+        sampledTimeline.push(processedTimeline[processedTimeline.length - 1]);
+      }
+      processedTimeline = sampledTimeline;
     }
-    const map = new Map<string, { label: string; total: number }>();
-    filteredRecords.forEach((record) => {
-      if (!record.paymentDate) return;
-      const date = new Date(record.paymentDate);
-      const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
-      const label = format(date, 'MMM yyyy');
-      const existing = map.get(key) ?? { label, total: 0 };
-      existing.total += Number(record.amount || 0);
-      map.set(key, existing);
+
+    // For year range with current year, ensure we have all months (Jan-Dec)
+    if (range === 'year' && year === currentYear) {
+      // The backend should already provide all months, but we ensure proper formatting
+      // This is mainly handled by the XAxis formatter below
+    }
+
+    return processedTimeline.map((point) => {
+      // Count listings for this point
+      const listingsCount = filteredRecords.filter((record) => {
+        if (!record.paymentDate) return false;
+        const paymentDate = new Date(record.paymentDate);
+        if (range === 'this_month' && point.date) {
+          return paymentDate.toISOString().split('T')[0] === point.date;
+        } else if (range !== 'this_month') {
+          const monthKey = `${paymentDate.getFullYear()}-${paymentDate.getMonth() + 1}`;
+          const pointDate = point.date ? new Date(point.date) : null;
+          if (pointDate) {
+            const pointMonthKey = `${pointDate.getFullYear()}-${pointDate.getMonth() + 1}`;
+            return monthKey === pointMonthKey;
+          }
+        }
+        return false;
+      }).length;
+
+      return {
+        label: point.label,
+        earnings: point.total,
+        listings: listingsCount,
+        date: point.date || point.label,
+      };
     });
-    return Array.from(map.values()).sort(
-      (a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()
-    );
-  }, [filteredRecords]);
+  }, [data?.timeline, filteredRecords, range, year, currentYear]);
 
   const summary = data?.summary;
 
   const filterRanges: Array<{ label: string; value: EarningsRange }> = [
     { label: 'This Month', value: 'this_month' },
-    { label: 'Last 3 Months', value: 'last_3_months' },
     { label: 'This Year', value: 'this_year' },
     { label: 'Specific Year', value: 'year' },
   ];
@@ -160,11 +403,6 @@ const AdminEarnings = () => {
     return { count: standardRecords.length, total };
   }, [tableData]);
 
-  const sparklineData = useMemo(() => {
-    const source = timelineData.length ? timelineData : [{ label: 'No data', total: 0 }];
-    return source.slice(-6);
-  }, [timelineData]);
-
   const paymentTypeChartData = useMemo(
     () => [
       { label: 'Featured', total: featuredMetrics.total },
@@ -172,6 +410,18 @@ const AdminEarnings = () => {
     ],
     [featuredMetrics.total, standardMetrics.total]
   );
+
+  const timelineTotals = useMemo(() => {
+    const totals = {
+      earnings: timelineData.reduce((sum, point) => sum + point.earnings, 0),
+      listings: filteredRecords.length, // Use filtered records count
+    };
+    return totals as Record<keyof typeof timelineChartConfig, number>;
+  }, [timelineData, filteredRecords.length]);
+
+  const [activeTimelineMetric, setActiveTimelineMetric] = useState<
+    keyof typeof timelineChartConfig
+  >('earnings');
 
   useEffect(() => {
     setTablePage(1);
@@ -282,6 +532,14 @@ const AdminEarnings = () => {
                 )}
 
                 <Button
+                  variant="outline"
+                  onClick={() => setShowDownloadModal(true)}
+                  className="h-10"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
+                </Button>
+                <Button
                   onClick={handleRefresh}
                   disabled={refreshing}
                   className="h-10 rounded-xl bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500 px-4 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 hover:brightness-110 disabled:opacity-70"
@@ -311,155 +569,222 @@ const AdminEarnings = () => {
         />
       </motion.div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          {
-            key: 'ALL' as const,
-            title: 'All listings',
-            count: tableData.length,
-            total: totalAllEarnings,
-            accent: 'from-slate-50 to-slate-100 border-slate-200',
-          },
-          {
-            key: 'FEATURED' as const,
-            title: 'Featured (₱150)',
-            count: featuredMetrics.count,
-            total: featuredMetrics.total,
-            accent: 'from-amber-50 to-orange-50 border-amber-200',
-          },
-          {
-            key: 'STANDARD' as const,
-            title: 'Standard (₱100)',
-            count: standardMetrics.count,
-            total: standardMetrics.total,
-            accent: 'from-emerald-50 to-teal-50 border-emerald-200',
-          },
-        ].map((filterCard) => (
+      <Card className="border bg-white shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold text-slate-700">Overview</CardTitle>
+          <CardDescription>
+            {summary?.range ? summary.range.label : 'Filtered range'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-4">
           <button
-            key={filterCard.key}
             type="button"
             onClick={() => {
-              setPaymentFilter(filterCard.key);
+              setPaymentFilter('ALL');
               setTablePage(1);
             }}
-            className={`rounded-xl border px-4 py-3 text-left transition ${
-              filterCard.accent
-            } ${
-              paymentFilter === filterCard.key
-                ? 'ring-2 ring-indigo-300 shadow-md'
-                : 'hover:shadow-sm'
+            className={`rounded-lg border px-3 py-2 text-left text-xs ${
+              paymentFilter === 'ALL' ? 'border-indigo-200 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-slate-50'
             }`}
           >
-            <p className="text-xs font-medium text-slate-500">{filterCard.title}</p>
-            <p className="text-xl font-semibold text-slate-900 mt-1">{filterCard.count}</p>
-            <p className="text-xs text-slate-500">
-              {currencyFormatter.format(filterCard.total)}
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Total earnings</p>
+            <p className="text-lg font-semibold text-slate-900">
+              {currencyFormatter.format(filteredSummary.total)}
+            </p>
+            <p className="text-[11px] text-slate-500">Based on current filter</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPaymentFilter('ALL');
+              setTablePage(1);
+            }}
+            className={`rounded-lg border px-3 py-2 text-left text-xs ${
+              paymentFilter === 'ALL' ? 'border-indigo-200 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-slate-50'
+            }`}
+          >
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Total listings</p>
+            <p className="text-lg font-semibold text-slate-900">{filteredSummary.count}</p>
+            <p className="text-[11px] text-slate-500">
+              {summary?.range
+                ? `${format(new Date(summary.range.start), 'MMM d')} - ${format(new Date(summary.range.end), 'MMM d')}`
+                : ''}
             </p>
           </button>
-        ))}
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          {
-            label: 'Total earnings',
-            value: currencyFormatter.format(filteredSummary.total),
-            stroke: '#4f46e5',
-          },
-          {
-            label: 'Total listings',
-            value: filteredSummary.count,
-            stroke: '#0ea5e9',
-          },
-        ].map((card) => (
-          <Card key={card.label} className="border bg-white shadow-sm">
-            <CardHeader className="pb-2">
-              <CardDescription>{card.label}</CardDescription>
-              <CardTitle className="text-2xl">{card.value}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="h-16 w-full">
-                <LineChart data={sparklineData}>
-                  <XAxis dataKey="label" hide />
-                  <YAxis hide />
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    stroke={card.stroke}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="border border-amber-100 bg-white">
-          <CardHeader>
-            <CardDescription>Featured listing payments (₱150)</CardDescription>
-            <CardTitle className="text-2xl">{featuredMetrics.count}</CardTitle>
-            <p className="text-xs text-slate-500">
+          <button
+            type="button"
+            onClick={() => {
+              setPaymentFilter('FEATURED');
+              setTablePage(1);
+            }}
+            className={`rounded-lg border px-3 py-2 text-left text-xs ${
+              paymentFilter === 'FEATURED'
+                ? 'border-amber-300 bg-amber-50 shadow-sm'
+                : 'border-amber-100 bg-amber-50/60'
+            }`}
+          >
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Featured (₱150)</p>
+            <p className="text-lg font-semibold text-slate-900">{featuredMetrics.count}</p>
+            <p className="text-[11px] text-slate-500">
               {currencyFormatter.format(featuredMetrics.total)} earned
             </p>
-          </CardHeader>
-        </Card>
-        <Card className="border border-emerald-100 bg-white">
-          <CardHeader>
-            <CardDescription>Standard listing payments (₱100)</CardDescription>
-            <CardTitle className="text-2xl">{standardMetrics.count}</CardTitle>
-            <p className="text-xs text-slate-500">
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPaymentFilter('STANDARD');
+              setTablePage(1);
+            }}
+            className={`rounded-lg border px-3 py-2 text-left text-xs ${
+              paymentFilter === 'STANDARD'
+                ? 'border-emerald-300 bg-emerald-50 shadow-sm'
+                : 'border-emerald-100 bg-emerald-50/70'
+            }`}
+          >
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Standard (₱100)</p>
+            <p className="text-lg font-semibold text-slate-900">{standardMetrics.count}</p>
+            <p className="text-[11px] text-slate-500">
               {currencyFormatter.format(standardMetrics.total)} earned
             </p>
-          </CardHeader>
-        </Card>
-      </div>
+          </button>
+        </CardContent>
+      </Card>
 
-      <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Earnings trend</CardTitle>
+      <Card className="py-0 bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
+        <CardHeader className="flex flex-col items-stretch border-b !p-0 sm:flex-row">
+          <div className="flex flex-1 flex-col justify-center gap-1 px-6 pt-4 pb-3 sm:!py-0">
+            <CardTitle>Earnings timeline</CardTitle>
             <CardDescription>
               {summary?.range
                 ? `${summary.range.label} • ${format(new Date(summary.range.start), 'MMM d, yyyy')} - ${format(new Date(summary.range.end), 'MMM d, yyyy')}`
                 : 'Select a range to view timeline'}
             </CardDescription>
           </div>
-          <Badge variant="outline" className="text-indigo-600 border-indigo-200">
-            {timelineData.length} data point{timelineData.length === 1 ? '' : 's'}
-          </Badge>
+          <div className="flex">
+            {(Object.keys(timelineChartConfig) as Array<keyof typeof timelineChartConfig>).map(
+              (metric) => {
+                const total = timelineTotals[metric];
+                const formatted =
+                  metric === 'earnings'
+                    ? currencyFormatter.format(total)
+                    : total.toLocaleString();
+                return (
+                  <button
+                    key={metric}
+                    data-active={activeTimelineMetric === metric}
+                    className="data-[active=true]:bg-muted/50 relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 text-left text-xs even:border-l sm:border-t-0 sm:border-l sm:px-8 sm:py-6"
+                    onClick={() => setActiveTimelineMetric(metric)}
+                  >
+                    <span className="text-muted-foreground text-xs">
+                      {timelineChartConfig[metric].label}
+                    </span>
+                    <span className="text-lg leading-none font-bold sm:text-3xl">
+                      {formatted}
+                    </span>
+                  </button>
+                );
+              }
+            )}
+          </div>
         </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig} className="h-[320px] w-full">
-            <LineChart data={timelineData}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} />
-              <YAxis
-                tickFormatter={(value) => currencyFormatter.format(value).replace('PHP', '₱')}
+        <CardContent className="px-2 sm:p-6">
+          <ChartContainer
+            config={timelineChartConfig}
+            className="aspect-auto h-[300px] w-full"
+          >
+            <BarChart
+              data={timelineData}
+              margin={{
+                left: 12,
+                right: 12,
+              }}
+            >
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey={range === 'this_month' ? 'label' : 'date'}
                 tickLine={false}
                 axisLine={false}
-                width={80}
+                tickMargin={8}
+                minTickGap={range === 'this_month' ? 8 : 24}
+                tickFormatter={(value) => {
+                  if (range === 'this_month') {
+                    // For this_month, value is already formatted as "M/D" from backend
+                    // But we want to show it as "MMM D" format (e.g., "Apr 3")
+                    try {
+                      // Try to parse the label if it contains date info
+                      const point = timelineData.find(p => p.label === value || p.date === value);
+                      if (point?.date) {
+                        const date = new Date(point.date);
+                        return format(date, 'MMM d');
+                      }
+                      // If label is in "M/D" format, try to parse it
+                      const parts = value.split('/');
+                      if (parts.length === 2) {
+                        const month = parseInt(parts[0], 10);
+                        const day = parseInt(parts[1], 10);
+                        const date = new Date(new Date().getFullYear(), month - 1, day);
+                        return format(date, 'MMM d');
+                      }
+                      return value;
+                    } catch {
+                      return value;
+                    }
+                  }
+                  // For other ranges, parse the date
+                  try {
+                    const date = new Date(value);
+                    if (range === 'this_year' || range === 'year') {
+                      // For year range, show month abbreviation (Jan, Feb, etc.)
+                      return date.toLocaleDateString('en-US', {
+                        month: 'short',
+                      });
+                    }
+                    return date.toLocaleDateString('en-US', {
+                      month: 'short',
+                      year: 'numeric',
+                    });
+                  } catch {
+                    return value;
+                  }
+                }}
               />
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    labelFormatter={(label) => label}
-                    formatter={(value) => currencyFormatter.format(Number(value))}
+                    className="w-[160px]"
+                    nameKey={timelineChartConfig[activeTimelineMetric].label}
+                    labelFormatter={(value) => {
+                      if (range === 'this_month') {
+                        // For this_month, show full date
+                        const date = data?.timeline.find(p => p.label === value || p.date === value);
+                        if (date?.date) {
+                          return new Date(date.date).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric',
+                          });
+                        }
+                        return value;
+                      }
+                      return new Date(value).toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric',
+                      });
+                    }}
+                    formatter={(value) =>
+                      activeTimelineMetric === 'earnings'
+                        ? currencyFormatter.format(Number(value))
+                        : Number(value).toLocaleString()
+                    }
                   />
                 }
               />
-              <Line
-                type="monotone"
-                dataKey="total"
-                stroke="#4f46e5"
-                strokeWidth={3}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
-                name="Earnings"
+              <Bar
+                dataKey={activeTimelineMetric}
+                fill={`var(--color-${activeTimelineMetric})`}
+                radius={[6, 6, 0, 0]}
               />
-            </LineChart>
+            </BarChart>
           </ChartContainer>
         </CardContent>
       </Card>
@@ -470,7 +795,7 @@ const AdminEarnings = () => {
           <CardDescription>Total earnings grouped by payment tier</CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={chartConfig} className="h-[280px] w-full">
+          <ChartContainer config={paymentChartConfig} className="h-[280px] w-full">
             <BarChart data={paymentTypeChartData}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="label" tickLine={false} axisLine={false} />
@@ -506,13 +831,14 @@ const AdminEarnings = () => {
                   <TableHead>Listing</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead>Payment Date</TableHead>
+                  <TableHead>Featured</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {tableData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-slate-500">
+                    <TableCell colSpan={5} className="text-center text-slate-500">
                       No earnings recorded for this range.
                     </TableCell>
                   </TableRow>
@@ -536,6 +862,15 @@ const AdminEarnings = () => {
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">
                         {record.paymentDate ? format(new Date(record.paymentDate), 'MMM d, yyyy') : '—'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {Math.round(record.amount) === 150 ? (
+                          <Badge variant="default" className="bg-amber-500 text-white text-xs">
+                            150 featured
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-slate-500">not</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-semibold text-slate-900">
                         {currencyFormatter.format(record.amount)}
@@ -586,6 +921,58 @@ const AdminEarnings = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Download PDF Modal */}
+      <Dialog open={showDownloadModal} onOpenChange={setShowDownloadModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Download Earnings Report</DialogTitle>
+            <DialogDescription>
+              Generate a PDF report of platform earnings for the selected period.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-slate-50 p-3 rounded-lg space-y-1">
+              <p className="text-sm font-semibold text-slate-700">Report will include:</p>
+              <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
+                <li>
+                  Period: {summary?.range ? `${summary.range.label} (${format(new Date(summary.range.start), 'MMM d')} - ${format(new Date(summary.range.end), 'MMM d, yyyy')})` : 'Selected range'}
+                </li>
+                <li>Total earnings summary</li>
+                <li>Featured vs Standard breakdown</li>
+                <li>Detailed listing payment records</li>
+                <li>All amounts in Philippine Peso (₱)</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDownloadModal(false)}
+              disabled={generatingPdf}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={generatePDF}
+              disabled={generatingPdf}
+              className="bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500 text-white hover:brightness-110"
+            >
+              {generatingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Generate PDF
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -20,6 +20,8 @@ import {
   RotateCw,
   ChevronDown,
   ChevronUp,
+  Flag,
+  User,
 } from "lucide-react";
 
 interface ListingInformationProps {
@@ -867,6 +869,85 @@ const ListingInformation = ({ listing, loading = false }: ListingInformationProp
           </CardContent>
         </Card>
       </div>
+
+      {/* Fraud Reports Section */}
+      {listing.fraudReports && listing.fraudReports.length > 0 && (
+        <Card className="bg-white/90 backdrop-blur-sm border-red-200 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Flag className="h-5 w-5 text-red-600" />
+              <CardTitle className="text-xl text-slate-900">Fraud Reports</CardTitle>
+            </div>
+            <CardDescription>
+              Tenant fraud reports for this listing (showing {Math.min(listing.fraudReports.length, 5)} of {listing.fraudReports.length} {listing.fraudReports.length === 1 ? 'report' : 'reports'})
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {listing.fraudReports.slice(0, 5).map((report: any, index: number) => {
+                const getReasonBadgeVariant = (reason: string) => {
+                  const reasonMap: Record<string, "destructive" | "secondary" | "default"> = {
+                    scam: "destructive",
+                    fake_info: "destructive",
+                    discriminatory: "destructive",
+                    illegal: "destructive",
+                    inappropriate: "secondary",
+                    other: "default",
+                  };
+                  return reasonMap[reason] || "default";
+                };
+
+                const getReporterName = (reporter: any) => {
+                  if (reporter?.firstName && reporter?.lastName) {
+                    return `${reporter.firstName} ${reporter.lastName}`;
+                  }
+                  return reporter?.email || "Unknown";
+                };
+
+                return (
+                  <div
+                    key={report.id || index}
+                    className="p-4 rounded-lg border-2 bg-red-50 border-red-300"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                          <Flag className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant={getReasonBadgeVariant(report.reason)} className="text-xs capitalize">
+                              {report.reason.replace("_", " ")}
+                            </Badge>
+                            <span className="text-xs text-slate-500">Report #{index + 1}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <User className="h-3.5 w-3.5 text-slate-500" />
+                            <span className="font-medium">{getReporterName(report.reporter)}</span>
+                            {report.reporter?.email && (
+                              <span className="text-xs text-slate-500">({report.reporter.email})</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-slate-600">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{formatDateTime(report.createdAt)}</span>
+                      </div>
+                    </div>
+                    {report.details && (
+                      <div className="mt-3 pt-3 border-t border-red-200">
+                        <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-2">Details</p>
+                        <p className="text-sm text-red-900 leading-relaxed">{report.details}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
 
       {/* Reviewer Modal */}
