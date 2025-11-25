@@ -1,12 +1,13 @@
 // ---------------------- Tenant Screening ----------------------
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 // ✅ LANDLORD: Invite a tenant for screening
 export const inviteTenantForScreeningRequest = (
   payload: any,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post("/landlord/screening/invite", payload, {
+  privateApi.post(apiRoutes.landlord("/screening/invite"), payload, {
     signal: options?.signal,
   });
 
@@ -17,7 +18,7 @@ export const landlordReviewTenantScreeningRequest = (
   payload: any,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post(`/landlord/screening/${screeningId}/review`, payload, {
+  privateApi.post(apiRoutes.landlord(`/screening/${screeningId}/review`), payload, {
     signal: options?.signal,
   });
 
@@ -25,7 +26,7 @@ export const landlordReviewTenantScreeningRequest = (
 export const getLandlordScreeningsListRequest = (options?: {
   signal?: AbortSignal;
 }) =>
-  privateApi.get("/landlord/screening/list", {
+  privateApi.get(apiRoutes.landlord("/screening/list"), {
     signal: options?.signal,
   });
 
@@ -34,7 +35,7 @@ export const getSpecificScreeningLandlordRequest = (
   screeningId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get(`/landlord/screening/${screeningId}/details`, {
+  privateApi.get(apiRoutes.landlord(`/screening/${screeningId}/details`), {
     signal: options?.signal,
   });
 
@@ -43,6 +44,6 @@ export const deletePendingScreeningRequest = (
   screeningId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.delete(`/landlord/screening/${screeningId}`, {
+  privateApi.delete(apiRoutes.landlord(`/screening/${screeningId}`), {
     signal: options?.signal,
   });

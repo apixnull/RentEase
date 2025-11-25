@@ -1,9 +1,10 @@
 // ---------------------- Tenant Lease ----------------------
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 // 📋 Get all tenant leases (grouped: pending, active, etc.)
 export const getTenantLeasesRequest = (options?: { signal?: AbortSignal }) =>
-  privateApi.get("/tenant/lease/list", {
+  privateApi.get(apiRoutes.tenant("/lease/list"), {
     signal: options?.signal,
   });
 
@@ -12,7 +13,7 @@ export const getLeaseDetailsRequest = (
   leaseId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get(`/tenant/lease/${leaseId}/details`, {
+  privateApi.get(apiRoutes.tenant(`/lease/${leaseId}/details`), {
     signal: options?.signal,
   });
 
@@ -23,7 +24,7 @@ export const handleTenantLeaseActionRequest = (
   options?: { signal?: AbortSignal }
 ) =>
   privateApi.patch(
-    `/tenant/lease/${leaseId}/action`,
+    apiRoutes.tenant(`/lease/${leaseId}/action`),
     { action },
     { signal: options?.signal }
   );

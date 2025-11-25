@@ -1,4 +1,5 @@
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 export type EarningsRange = "this_month" | "this_year" | "year";
 
@@ -45,7 +46,7 @@ export const getAdminEarningsRequest = async ({
   if (range) params.range = range;
   if (year) params.year = String(year);
 
-  return privateApi.get<EarningsSummaryResponse>("/admin/earnings", {
+  return privateApi.get<EarningsSummaryResponse>(apiRoutes.admin("/earnings"), {
     params,
     signal,
   });

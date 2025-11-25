@@ -2,10 +2,11 @@
 // ---------------------- Unit ----------------------
 
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 // Get specific unit details
 export const getUnitDetailsRequest = (unitId: string, options?: { signal?: AbortSignal }) =>
-  privateApi.get(`/landlord/unit/${unitId}`, { signal: options?.signal });
+  privateApi.get(apiRoutes.landlord(`/unit/${unitId}`), { signal: options?.signal });
 
 // Create a new unit under a property
 export const createUnitRequest = (
@@ -13,4 +14,4 @@ export const createUnitRequest = (
   data: any,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post(`/landlord/unit/${propertyId}/create`, data, { signal: options?.signal });
+  privateApi.post(apiRoutes.landlord(`/unit/${propertyId}/create`), data, { signal: options?.signal });

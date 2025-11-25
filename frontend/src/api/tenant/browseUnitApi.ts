@@ -1,15 +1,16 @@
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 export const getVisibleListingsForTenantRequest = (options?: { signal?: AbortSignal }) =>
-  privateApi.get("/tenant/browse-unit", { signal: options?.signal });
+  privateApi.get(apiRoutes.tenant("/browse-unit"), { signal: options?.signal });
 
 export const getSpecificListingRequest = ( listingId: string, options?: { signal?: AbortSignal }) =>
-  privateApi.get(`/tenant/browse-unit/${listingId}/details`, {
+  privateApi.get(apiRoutes.tenant(`/browse-unit/${listingId}/details`), {
     signal: options?.signal,
   });
 
 export const getCitiesAndMunicipalitiesRequest = (options?: { signal?: AbortSignal }) =>
-  privateApi.get("/tenant/browse-unit/cities-municipalities", { signal: options?.signal });
+  privateApi.get(apiRoutes.tenant("/browse-unit/cities-municipalities"), { signal: options?.signal });
 
 export const searchListingsRequest = (
   searchParams: {
@@ -32,8 +33,8 @@ export const searchListingsRequest = (
 
   const queryString = params.toString();
   const url = queryString
-    ? `/tenant/browse-unit/search?${queryString}`
-    : "/tenant/browse-unit/search";
+    ? `${apiRoutes.tenant("/browse-unit/search")}?${queryString}`
+    : apiRoutes.tenant("/browse-unit/search");
 
   return privateApi.get(url, { signal: options?.signal });
 };
@@ -50,8 +51,8 @@ export const sendAIChatbotMessage = (
   }
   const queryString = params.toString();
   const url = queryString 
-    ? `/tenant/browse-unit/ai-chat?${queryString}`
-    : "/tenant/browse-unit/ai-chat";
+    ? `${apiRoutes.tenant("/browse-unit/ai-chat")}?${queryString}`
+    : apiRoutes.tenant("/browse-unit/ai-chat");
   
   return privateApi.post(
     url,
@@ -64,19 +65,19 @@ export const sendAIChatbotMessage = (
 };
 
 export const recordUnitViewRequest = (unitId: string) =>
-  privateApi.post(`/tenant/browse-unit/${unitId}/view`);
+  privateApi.post(apiRoutes.tenant(`/browse-unit/${unitId}/view`));
 
 export const createUnitReviewRequest = (unitId: string, rating: number, comment: string) =>
-  privateApi.post(`/tenant/browse-unit/${unitId}/review`, { rating, comment });
+  privateApi.post(apiRoutes.tenant(`/browse-unit/${unitId}/review`), { rating, comment });
 
 export const updateUnitReviewRequest = (reviewId: string, rating: number, comment: string) =>
-  privateApi.patch(`/tenant/browse-unit/review/${reviewId}`, { rating, comment });
+  privateApi.patch(apiRoutes.tenant(`/browse-unit/review/${reviewId}`), { rating, comment });
 
 export const deleteUnitReviewRequest = (reviewId: string) =>
-  privateApi.delete(`/tenant/browse-unit/review/${reviewId}`);
+  privateApi.delete(apiRoutes.tenant(`/browse-unit/review/${reviewId}`));
 
 export const reportFraudulentListingRequest = (payload: {
   listingId: string;
   reason: string;
   details?: string;
-}) => privateApi.post("/tenant/fraud-reports", payload);
+}) => privateApi.post(apiRoutes.tenant("/fraud-reports"), payload);

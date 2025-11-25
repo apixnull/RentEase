@@ -1,10 +1,11 @@
 // ---------------------- Admin Listing ----------------------
 
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 // 🧾 Get all listings (for admin dashboard)
 export const getAllListingsForAdminRequest = (options?: { signal?: AbortSignal }) =>
-  privateApi.get("/admin/listings", {
+  privateApi.get(apiRoutes.admin("/listings"), {
     signal: options?.signal,
   });
 
@@ -13,7 +14,7 @@ export const getSpecificListingAdminRequest = (
   listingId: string,
   options?: { signal?: AbortSignal }
 ) => {
-  return privateApi.get(`/admin/listings/${listingId}/details`, {
+  return privateApi.get(apiRoutes.admin(`/listings/${listingId}/details`), {
     signal: options?.signal,
   });
 };
@@ -21,7 +22,7 @@ export const getSpecificListingAdminRequest = (
 
 // 🧾 Get unit and property info by listing id
 export const getListingUnitAndPropertyRequest = (listingId: string, options?: { signal?: AbortSignal }) =>
-  privateApi.get(`/admin/listings/${listingId}/unit-property`, {
+  privateApi.get(apiRoutes.admin(`/listings/${listingId}/unit-property`), {
     signal: options?.signal,
   });
 
@@ -31,6 +32,6 @@ export const updateListingStatusRequest = (
   payload: { action: "approve" | "flag" | "block"; reason?: string },
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.patch(`/admin/listings/${listingId}/status`, payload, {
+  privateApi.patch(apiRoutes.admin(`/listings/${listingId}/status`), payload, {
     signal: options?.signal,
   });

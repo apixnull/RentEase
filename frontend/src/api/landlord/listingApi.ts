@@ -1,9 +1,10 @@
 // ---------------------- Listing ----------------------
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 // Get all landlord listings
 export const getLandlordListingsRequest = (options?: { signal?: AbortSignal }) =>
-  privateApi.get("/landlord/listings", {
+  privateApi.get(apiRoutes.landlord("/listings"), {
     signal: options?.signal,
   });
 
@@ -12,7 +13,7 @@ export const getUnitForListingReviewRequest = (
   unitId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get(`/landlord/listing/${unitId}/review`, {
+  privateApi.get(apiRoutes.landlord(`/listing/${unitId}/review`), {
     signal: options?.signal,
   });
 
@@ -22,7 +23,7 @@ export const createPaymentSessionRequest = (
   payload: { isFeatured: boolean },
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post(`/landlord/listing/${unitId}/payment-session`, payload, {
+  privateApi.post(apiRoutes.landlord(`/listing/${unitId}/payment-session`), payload, {
     signal: options?.signal,
   });
 
@@ -32,7 +33,7 @@ export const getLandlordSpecificListingRequest = (
   listingId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get(`/landlord/listing/${listingId}/details`, {
+  privateApi.get(apiRoutes.landlord(`/listing/${listingId}/details`), {
     signal: options?.signal,
   });
 
@@ -43,7 +44,7 @@ export const getListingByUnitIdForSuccessRequest = (
   unitId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get(`/landlord/listing/payment-success?unitId=${unitId}`, {
+  privateApi.get(`${apiRoutes.landlord("/listing/payment-success")}?unitId=${unitId}`, {
     signal: options?.signal,
   });
 
@@ -52,7 +53,7 @@ export const getLandlordListingInfoSuccessRequest = (
   listingId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get(`/landlord/listing/${listingId}/success`, {
+  privateApi.get(apiRoutes.landlord(`/listing/${listingId}/success`), {
     signal: options?.signal,
   });
 
@@ -61,7 +62,7 @@ export const toggleListingVisibilityRequest = (
   listingId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.patch(`/landlord/listing/${listingId}/toggle-visibility`, {}, {
+  privateApi.patch(apiRoutes.landlord(`/listing/${listingId}/toggle-visibility`), {}, {
     signal: options?.signal,
   });
 
@@ -69,7 +70,7 @@ export const toggleListingVisibilityRequest = (
   
 // ✅ Get eligible units for listing
 export const getEligibleUnitsForListingRequest = (options?: { signal?: AbortSignal }) =>
-  privateApi.get("/landlord/listing/eligible-units", {
+  privateApi.get(apiRoutes.landlord("/listing/eligible-units"), {
     signal: options?.signal,
   });
 

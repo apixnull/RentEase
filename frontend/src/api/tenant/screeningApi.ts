@@ -1,5 +1,6 @@
 // ---------------------- Tenant Screening ----------------------
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 // ✅ Tenant submits their screening information (AI excluded)
 export const tenantSubmitScreeningInfoRequest = (
@@ -7,7 +8,7 @@ export const tenantSubmitScreeningInfoRequest = (
   payload: any,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post(`/tenant/screening/${screeningId}/submit`, payload, {
+  privateApi.post(apiRoutes.tenant(`/screening/${screeningId}/submit`), payload, {
     signal: options?.signal,
   });
 
@@ -15,7 +16,7 @@ export const tenantSubmitScreeningInfoRequest = (
 export const getTenantScreeningInvitationsRequest = (
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get("/tenant/screening/list", {
+  privateApi.get(apiRoutes.tenant("/screening/list"), {
     signal: options?.signal,
   });
 
@@ -26,6 +27,6 @@ export const getSpecificTenantScreeningRequest = (
   screeningId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get(`/tenant/screening/${screeningId}/details`, {
+  privateApi.get(apiRoutes.tenant(`/screening/${screeningId}/details`), {
     signal: options?.signal,
   });

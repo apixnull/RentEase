@@ -1,4 +1,5 @@
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 
 export interface User {
@@ -52,12 +53,12 @@ export interface GetUserDetailsResponse {
 }
 
 export const getAllUsersRequest = async (): Promise<GetAllUsersResponse> => {
-  const response = await privateApi.get<GetAllUsersResponse>('/admin/users');
+  const response = await privateApi.get<GetAllUsersResponse>(apiRoutes.admin("/users"));
   return response.data;
 };
 
 export const getUserDetailsRequest = async (userId: string): Promise<GetUserDetailsResponse> => {
-  const response = await privateApi.get<GetUserDetailsResponse>(`/admin/users/${userId}`);
+  const response = await privateApi.get<GetUserDetailsResponse>(apiRoutes.admin(`/users/${userId}`));
   return response.data;
 };
 
@@ -65,6 +66,6 @@ export const updateUserStatusRequest = async (
   userId: string,
   action: 'block' | 'unblock'
 ) => {
-  return privateApi.patch(`/admin/users/${userId}/status`, { action });
+  return privateApi.patch(apiRoutes.admin(`/users/${userId}/status`), { action });
 };
 

@@ -1,4 +1,5 @@
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 export interface DailyDataPoint {
   date: string;
@@ -43,7 +44,7 @@ export const getAdminAnalyticsRequest = async (
   const params: Record<string, string> = {};
   if (period) params.period = period;
 
-  return privateApi.get<AnalyticsResponse>("/admin/analytics", {
+  return privateApi.get<AnalyticsResponse>(apiRoutes.admin("/analytics"), {
     params,
     signal,
   });

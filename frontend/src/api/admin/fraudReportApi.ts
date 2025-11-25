@@ -1,4 +1,5 @@
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 export interface FraudReport {
   id: string;
@@ -31,7 +32,7 @@ export interface FraudReportsResponse {
 }
 
 export const getFraudReportsRequest = (options?: { signal?: AbortSignal }) =>
-  privateApi.get<FraudReportsResponse>("/admin/fraud-reports", {
+  privateApi.get<FraudReportsResponse>(apiRoutes.admin("/fraud-reports"), {
     signal: options?.signal,
   });
 

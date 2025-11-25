@@ -4,6 +4,7 @@ import app from "./app.js";
 import { Server } from "socket.io";
 import http from "http";
 import { setIoInstance } from "./services/socketService.js";
+import { getAllowedOrigins, getFrontendUrl } from "./config/constants.js";
 
 // Load environment variables
 if (process.env.NODE_ENV === "production") {
@@ -18,27 +19,7 @@ const PORT = process.env.PORT || 5000;
 // 1️⃣ Create an HTTP server manually
 const server = http.createServer(app);
 
-// Environment-based Socket.io CORS configuration
-const getFrontendUrl = () => {
-  // If FRONTEND_URL is explicitly set, use it
-  if (process.env.FRONTEND_URL) {
-    return process.env.FRONTEND_URL;
-  }
-  
-  // Otherwise, use environment-based defaults
-  if (process.env.NODE_ENV === "production") {
-    // Production frontend URL
-    return "https://rent-ease-management.vercel.app";
-  }
-  
-  // Development frontend URL
-  return "http://localhost:5173";
-};
-
-const allowedOrigins = [
-  getFrontendUrl(),
-  // Add any additional allowed origins here
-];
+const allowedOrigins = getAllowedOrigins();
 
 // --- Attach Socket.io ---
 const io = new Server(server, {

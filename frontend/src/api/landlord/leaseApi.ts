@@ -1,18 +1,19 @@
 // ---------------------- Lease ----------------------
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 // 🏗️ Create a new lease
 export const createLeaseRequest = (
   payload: any,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post("/landlord/lease/create", payload, {
+  privateApi.post(apiRoutes.landlord("/lease/create"), payload, {
     signal: options?.signal,
   });
 
 // 📋 Get all leases (any status)
 export const getAllLeasesRequest = (options?: { signal?: AbortSignal }) =>
-  privateApi.get("/landlord/lease/list", {
+  privateApi.get(apiRoutes.landlord("/lease/list"), {
     signal: options?.signal,
   });
 
@@ -21,27 +22,27 @@ export const getLeaseByIdRequest = (
   leaseId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get(`/landlord/lease/${leaseId}/details`, {
+  privateApi.get(apiRoutes.landlord(`/lease/${leaseId}/details`), {
     signal: options?.signal,
   });
 
 // 🛑 Cancel pending lease
 export const cancelLeaseRequest = (leaseId: string) =>
-  privateApi.patch(`/landlord/lease/${leaseId}/cancel`);
+  privateApi.patch(apiRoutes.landlord(`/lease/${leaseId}/cancel`));
 
 // ❌ Terminate lease early
 export const terminateLeaseRequest = (leaseId: string) =>
-  privateApi.patch(`/landlord/lease/${leaseId}/terminate`);
+  privateApi.patch(apiRoutes.landlord(`/lease/${leaseId}/terminate`));
 
 // ✏️ Update pending lease
 export const updateLeaseRequest = (leaseId: string, payload: any) =>
-  privateApi.patch(`/landlord/lease/${leaseId}/update`, payload);
+  privateApi.patch(apiRoutes.landlord(`/lease/${leaseId}/update`), payload);
 
 // 🏘️ Get all properties with units (for editing - includes all units regardless of lease status)
 export const getPropertiesWithUnitsRequest = (
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get("/landlord/lease/properties-with-units", {
+  privateApi.get(apiRoutes.landlord("/lease/properties-with-units"), {
     signal: options?.signal,
   });
 
@@ -49,7 +50,7 @@ export const getPropertiesWithUnitsRequest = (
 export const getPropertiesWithUnitsAndTenantsRequest = (
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get("/landlord/lease/properties-with-units-and-tenants", {
+  privateApi.get(apiRoutes.landlord("/lease/properties-with-units-and-tenants"), {
     signal: options?.signal,
   });
 
@@ -58,7 +59,7 @@ export const findTenantForLeaseRequest = (
   query: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get("/landlord/lease/find-tenant", {
+  privateApi.get(apiRoutes.landlord("/lease/find-tenant"), {
     params: { query },
     signal: options?.signal,
   });
@@ -68,17 +69,17 @@ export const addLandlordNoteRequest = (
   leaseId: string,
   payload: { note: string; category: string }
 ) =>
-  privateApi.post(`/landlord/lease/${leaseId}/behavior/notes`, payload);
+  privateApi.post(apiRoutes.landlord(`/lease/${leaseId}/behavior/notes`), payload);
 
 export const updateLandlordNoteRequest = (
   leaseId: string,
   noteIndex: number,
   payload: { note: string; category: string }
 ) =>
-  privateApi.patch(`/landlord/lease/${leaseId}/behavior/notes/${noteIndex}`, payload);
+  privateApi.patch(apiRoutes.landlord(`/lease/${leaseId}/behavior/notes/${noteIndex}`), payload);
 
 export const deleteLandlordNoteRequest = (
   leaseId: string,
   noteIndex: number
 ) =>
-  privateApi.delete(`/landlord/lease/${leaseId}/behavior/notes/${noteIndex}`);
+  privateApi.delete(apiRoutes.landlord(`/lease/${leaseId}/behavior/notes/${noteIndex}`));

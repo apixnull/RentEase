@@ -1,5 +1,6 @@
 // ---------------------- Engagement ----------------------
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 export interface GetEngagementDataParams {
   propertyId?: string;
@@ -19,7 +20,7 @@ export const getEngagementDataRequest = (params?: GetEngagementDataParams) => {
   if (params?.endDate) queryParams.append("endDate", params.endDate);
   if (params?.range) queryParams.append("range", params.range);
 
-  return privateApi.get(`/landlord/engagement?${queryParams.toString()}`, {
+  return privateApi.get(`${apiRoutes.landlord("/engagement")}?${queryParams.toString()}`, {
     signal: params?.signal,
   });
 };

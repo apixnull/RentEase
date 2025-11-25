@@ -1,11 +1,12 @@
 // ---------------------- Tenant Maintenance Requests ----------------------
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 // 📋 Get all maintenance requests for a tenant
 export const getAllTenantMaintenanceRequestsRequest = (
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get("/tenant/maintenance/requests", {
+  privateApi.get(apiRoutes.tenant("/maintenance/requests"), {
     signal: options?.signal,
   });
 
@@ -19,7 +20,7 @@ export const createMaintenanceRequestRequest = (
   },
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post("/tenant/maintenance/request", data, {
+  privateApi.post(apiRoutes.tenant("/maintenance/request"), data, {
     signal: options?.signal,
   });
 
@@ -28,7 +29,7 @@ export const cancelMaintenanceRequestRequest = (
   maintenanceId: string,
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.patch(`/tenant/maintenance/${maintenanceId}/cancel`, {}, {
+  privateApi.patch(apiRoutes.tenant(`/maintenance/${maintenanceId}/cancel`), {}, {
     signal: options?.signal,
   });
 

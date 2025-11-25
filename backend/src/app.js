@@ -6,15 +6,16 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import authRoutes from './routes/authRoutes.js'
-import landlordRoutes from './routes/landlordRoutes.js'
-import tenantRoutes from './routes/tenantRoutes.js'
-import adminRoutes from './routes/adminRoutes.js'
-import webhookRoutes from './routes/webhookRoutes.js'
-import chatRoutes from './routes/chatRoutes.js'
+import authRoutes from "./routes/authRoutes.js";
+import landlordRoutes from "./routes/landlordRoutes.js";
+import tenantRoutes from "./routes/tenantRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import webhookRoutes from "./routes/webhookRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
 import sessionMiddleware from "./middlewares/session.js";
+import { ROUTE_PREFIXES, getAllowedOrigins } from "./config/constants.js";
 
 const app = express();
 
@@ -24,27 +25,7 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-// Environment-based CORS configuration
-const getFrontendUrl = () => {
-  // If FRONTEND_URL is explicitly set, use it
-  if (process.env.FRONTEND_URL) {
-    return process.env.FRONTEND_URL;
-  }
-  
-  // Otherwise, use environment-based defaults
-  if (process.env.NODE_ENV === "production") {
-    // Production frontend URL
-    return "https://rent-ease-management.vercel.app";
-  }
-  
-  // Development frontend URL
-  return "http://localhost:5173";
-};
-
-const allowedOrigins = [
-  getFrontendUrl(),
-  // Add any additional allowed origins here
-];
+const allowedOrigins = getAllowedOrigins();
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -71,12 +52,12 @@ app.use(sessionMiddleware);
 // Routes
 // ------------------------------
 
-app.use("/api/auth", authRoutes); // Auth routes
-app.use("/api/landlord/", landlordRoutes); // Landlord routes
-app.use("/api/admin/", adminRoutes); // Auth routes
-app.use("/api/tenant/", tenantRoutes); // Auth routes
-app.use("/api/chat/", chatRoutes); // Chat routes
-app.use("/api/webhook", webhookRoutes); // Auth routes
+app.use(ROUTE_PREFIXES.auth, authRoutes);
+app.use(ROUTE_PREFIXES.landlord, landlordRoutes);
+app.use(ROUTE_PREFIXES.admin, adminRoutes);
+app.use(ROUTE_PREFIXES.tenant, tenantRoutes);
+app.use(ROUTE_PREFIXES.chat, chatRoutes);
+app.use(ROUTE_PREFIXES.webhook, webhookRoutes);
 
 // Default route (health check / welcome route)
 app.get("/", (req, res) => {

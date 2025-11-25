@@ -1,5 +1,6 @@
 // ---------------------------- Payments
 import { privateApi } from "../axios";
+import { apiRoutes } from "../routes";
 
 export const createPaymentRequest = (
   leaseId: string,
@@ -15,7 +16,7 @@ export const createPaymentRequest = (
   },
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.post(`/landlord/lease/${leaseId}/payments`, data, {
+  privateApi.post(apiRoutes.landlord(`/lease/${leaseId}/payments`), data, {
     signal: options?.signal,
   });
 
@@ -30,7 +31,7 @@ export const markPaymentAsPaidRequest = (
   },
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.patch(`/landlord/payments/${paymentId}/mark-paid`, data, {
+  privateApi.patch(apiRoutes.landlord(`/payments/${paymentId}/mark-paid`), data, {
     signal: options?.signal,
   });
 
@@ -38,7 +39,7 @@ export const getLandlordPaymentsRequest = (
   params?: { month?: number; year?: number; scope?: 'month' | 'year' | 'all' },
   options?: { signal?: AbortSignal }
 ) =>
-  privateApi.get("/landlord/payments/list", {
+  privateApi.get(apiRoutes.landlord("/payments/list"), {
     params,
     signal: options?.signal,
   });
