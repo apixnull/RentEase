@@ -22,11 +22,25 @@ export const useSocket = () => {
       return;
     }
 
-    // Initialize socket connection
-    const socketUrl =
-      import.meta.env.MODE === "development"
-        ? "/" // will use proxy (to port 5000)
-        : import.meta.env.VITE_BACKEND_URL || window.location.origin;
+    // Initialize socket connection with environment-based URL
+    const getSocketUrl = () => {
+      // If VITE_BACKEND_URL is explicitly set, use it (remove /api if present)
+      if (import.meta.env.VITE_BACKEND_URL) {
+        const url = import.meta.env.VITE_BACKEND_URL.replace(/\/api$/, "");
+        return url;
+      }
+      
+      // Environment-based defaults
+      if (import.meta.env.MODE === "development") {
+        // Development: use proxy (to port 5000)
+        return "/";
+      }
+      
+      // Production: use production backend URL (without /api)
+      return "https://rentease-vnw8.onrender.com";
+    };
+
+    const socketUrl = getSocketUrl();
 
     const socket = io(socketUrl, {
       transports: ["websocket", "polling"],

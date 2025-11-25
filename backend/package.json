@@ -30,11 +30,11 @@
     "morgan": "^1.10.1",
     "pg": "^8.16.3",
     "prisma": "^7.0.0",
-    "puppeteer": "^24.27.0",
     "resend": "^6.0.3",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "depcheck": "^1.4.7",
     "nodemon": "^3.1.10"
   }
 }

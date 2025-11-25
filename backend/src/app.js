@@ -24,8 +24,39 @@ const app = express();
 
 app.set('trust proxy', 1);
 
+// Environment-based CORS configuration
+const getFrontendUrl = () => {
+  // If FRONTEND_URL is explicitly set, use it
+  if (process.env.FRONTEND_URL) {
+    return process.env.FRONTEND_URL;
+  }
+  
+  // Otherwise, use environment-based defaults
+  if (process.env.NODE_ENV === "production") {
+    // Production frontend URL
+    return "https://rent-ease-management.vercel.app";
+  }
+  
+  // Development frontend URL
+  return "http://localhost:5173";
+};
+
+const allowedOrigins = [
+  getFrontendUrl(),
+  // Add any additional allowed origins here
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === "development") {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
 }));
 
