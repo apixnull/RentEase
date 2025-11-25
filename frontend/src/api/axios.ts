@@ -11,7 +11,7 @@ const getBackendUrl = () => {
   // Otherwise, use environment-based defaults
   if (import.meta.env.MODE === "production") {
     // Production backend URL
-    return "https://rentease-tm0i.onrender.com/api";
+    return "https://rentease-tm0i.onrender.com/api/";
   }
   
   // Development backend URL
