@@ -90,6 +90,8 @@ model User {
   tenantScreening TenantScreening[] @relation("TenantScreeningsAsTenant")
   tenantScreeningLandlord TenantScreening[] @relation("TenantScreeningsAsLandlord")
   landlordOffenses LandlordOffense[]
+  fraudReports     FraudReport[]
+  logins           UserLogin[]
 }
 
 
@@ -332,6 +334,7 @@ model Listing {
   landlord  User  @relation(fields: [landlordId], references: [id], onDelete: Cascade)
   reviewer  User? @relation("ReviewedListings", fields: [reviewedBy], references: [id])
   LandlordOffense LandlordOffense[]
+  fraudReports    FraudReport[]
 
   // --- Indexes ---
   @@index([unitId])
@@ -340,6 +343,26 @@ model Listing {
   @@index([isFeatured])
   @@index([reviewedBy])
   @@map("listings")
+}
+
+// -----------------------------------------------------------------------------
+// Fraud Report
+// -----------------------------------------------------------------------------
+model FraudReport {
+  id          String   @id @default(uuid())
+  listingId   String
+  reporterId  String
+  reason      String
+  details     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  listing  Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reporter User    @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([reporterId])
+  @@map("fraud_reports")
 }
 
 // -----------------------------------------------------------------------------
@@ -672,6 +695,26 @@ model ChatMessage {
 
   @@index([channelId])
   @@map("chat_messages")
+}
+
+// -----------------------------------------------------------------------------
+// User Login Analytics
+// -----------------------------------------------------------------------------
+// Tracks all login events for authenticated users
+model UserLogin {
+  id         String   @id @default(uuid())
+  userId     String   // Required - only tracks authenticated user logins
+  ipAddress  String?  // Optional - IP address for security/analytics
+  userAgent  String?  // Optional - browser/user agent information
+  loggedInAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([loggedInAt])
+  @@index([userId, loggedInAt]) // For efficient monthly queries
+  @@map("user_logins")
 }
 
 

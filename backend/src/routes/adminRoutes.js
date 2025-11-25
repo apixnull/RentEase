@@ -2,6 +2,8 @@
 import { Router } from "express";
 import { getAllListingsForAdmin, getEarningsSummary, getListingUnitAndProperty, getSpecificListingAdmin, updateListingStatus } from "../controllers/admin/listingController.js";
 import { getAllUsers, getUserDetails, updateUserStatus } from "../controllers/admin/userController.js";
+import { getFraudReports } from "../controllers/fraudReportController.js";
+import { getAnalytics } from "../controllers/admin/analyticsController.js";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 
 const router = Router();
@@ -17,5 +19,7 @@ router.get("/listings/:listingId/details", requireAuthentication(["ADMIN"]), get
 router.get("/listings/:listingId/unit-property", requireAuthentication(["ADMIN"]), getListingUnitAndProperty);                              // 🧾 Get unit and property info using listing id 
 router.patch("/listings/:listingId/status",requireAuthentication(["ADMIN"]), updateListingStatus);                                          // ⚙️ Approve, Flag, or Block listing
 router.get("/earnings", requireAuthentication(["ADMIN"]), getEarningsSummary);                                                              // 💰 Aggregate platform earnings
+router.get("/fraud-reports", requireAuthentication(["ADMIN"]), getFraudReports);                                                           // 🚨 Tenant fraud reports
+router.get("/analytics", requireAuthentication(["ADMIN"]), getAnalytics);                                                                     // 📊 Platform analytics (visits & logins)
 
 export default router;

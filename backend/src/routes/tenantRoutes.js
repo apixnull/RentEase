@@ -5,6 +5,7 @@ import { getSpecificListing, getVisibleListingsForTenant, getCitiesAndMunicipali
 import { getSpecificTenantScreening, getTenantScreeningInvitations, tenantSubmitScreeningInfo } from "../controllers/tenant/tenantScreeningController.js";
 import { getLeaseDetails, getTenantLeases, handleTenantLeaseAction } from "../controllers/tenant/leaseController.js";
 import { createMaintenanceRequest, getAllTenantRequests, cancelMaintenanceRequest } from "../controllers/tenant/requestMaintenanceController.js";
+import { createFraudReport } from "../controllers/fraudReportController.js";
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.post("/browse-unit/:unitId/view", requireAuthentication(["TENANT"]), reco
 router.post("/browse-unit/:unitId/review", requireAuthentication(["TENANT"]), createUnitReview);                    // create unit review
 router.patch("/browse-unit/review/:reviewId", requireAuthentication(["TENANT"]), updateUnitReview);                 // update unit review
 router.delete("/browse-unit/review/:reviewId", requireAuthentication(["TENANT"]), deleteUnitReview);               // delete unit review
+router.post("/fraud-reports", requireAuthentication(["TENANT"]), createFraudReport);                               // report fraudulent listings
 
 // ----------------------------------------------------- SUBMIT TENANT SCREENING
 router.post("/screening/:screeningId/submit", requireAuthentication(["TENANT"]), tenantSubmitScreeningInfo);              // tenant submits screening info (mock AI analysis)

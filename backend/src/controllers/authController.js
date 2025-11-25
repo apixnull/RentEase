@@ -410,8 +410,18 @@ export const login = async (req, res) => {
     });
     req.session.user = { id: user.id, role: user.role };
 
-    // Optionally, update last login
-    await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
+    // Update last login and track login event
+    const loginDate = new Date();
+    await Promise.all([
+      prisma.user.update({ where: { id: user.id }, data: { lastLogin: loginDate } }),
+      prisma.userLogin.create({
+        data: {
+          userId: user.id,
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || null,
+          userAgent: req.headers['user-agent'] || null,
+        },
+      }),
+    ]);
 
     return res.status(200).json({
       message: "Login successful",

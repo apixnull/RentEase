@@ -171,6 +171,24 @@ export const getSpecificListingAdmin = async (req, res) => {
             avatarUrl: true,
           },
         },
+
+        // ---------------------------------------------------------------------
+        // FRAUD REPORTS
+        // ---------------------------------------------------------------------
+        fraudReports: {
+          orderBy: { createdAt: "desc" },
+          take: 5, // Limit to 5 most recent reports
+          include: {
+            reporter: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -465,24 +483,56 @@ export const getEarningsSummary = async (req, res) => {
     );
 
     const timelineMap = new Map();
+    const isThisMonth = range === "this_month";
 
     listings.forEach((listing) => {
       if (!listing.paymentDate) return;
       const paymentDate = new Date(listing.paymentDate);
-      const monthKey = `${paymentDate.getFullYear()}-${paymentDate.getMonth() + 1}`;
-      const monthLabel = formatMonthKey(paymentDate);
-      const current = timelineMap.get(monthKey) ?? { label: monthLabel, total: 0 };
-      current.total += Number(listing.paymentAmount || 0);
-      timelineMap.set(monthKey, current);
+      
+      if (isThisMonth) {
+        // For this_month, group by day
+        const dateKey = paymentDate.toISOString().split("T")[0]; // YYYY-MM-DD
+        const dayLabel = `${paymentDate.getMonth() + 1}/${paymentDate.getDate()}`;
+        const current = timelineMap.get(dateKey) ?? { label: dayLabel, total: 0, date: dateKey };
+        current.total += Number(listing.paymentAmount || 0);
+        timelineMap.set(dateKey, current);
+      } else {
+        // For other ranges, group by month
+        const monthKey = `${paymentDate.getFullYear()}-${paymentDate.getMonth() + 1}`;
+        const monthLabel = formatMonthKey(paymentDate);
+        const current = timelineMap.get(monthKey) ?? { label: monthLabel, total: 0, date: new Date(paymentDate.getFullYear(), paymentDate.getMonth(), 1).toISOString() };
+        current.total += Number(listing.paymentAmount || 0);
+        timelineMap.set(monthKey, current);
+      }
     });
 
-    const timeline = Array.from(timelineMap.entries())
-      .sort(([a], [b]) => {
-        const [aYear, aMonth] = a.split("-").map(Number);
-        const [bYear, bMonth] = b.split("-").map(Number);
-        return new Date(aYear, aMonth - 1).getTime() - new Date(bYear, bMonth - 1).getTime();
-      })
-      .map(([, value]) => value);
+    // Fill in missing days for this_month
+    let timeline = [];
+    if (isThisMonth) {
+      const dailyTimeline = [];
+      const currentDate = new Date(start);
+      while (currentDate <= end) {
+        const dateKey = currentDate.toISOString().split("T")[0];
+        const dayLabel = `${currentDate.getMonth() + 1}/${currentDate.getDate()}`;
+        const existing = timelineMap.get(dateKey);
+        dailyTimeline.push({
+          label: dayLabel,
+          total: existing?.total || 0,
+          date: dateKey,
+        });
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      timeline = dailyTimeline;
+    } else {
+      // For other ranges, sort by date
+      timeline = Array.from(timelineMap.entries())
+        .sort(([a], [b]) => {
+          const [aYear, aMonth] = a.split("-").map(Number);
+          const [bYear, bMonth] = b.split("-").map(Number);
+          return new Date(aYear, aMonth - 1).getTime() - new Date(bYear, bMonth - 1).getTime();
+        })
+        .map(([, value]) => value);
+    }
 
     const records = listings.map((listing) => ({
       id: listing.id,
