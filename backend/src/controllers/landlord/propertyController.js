@@ -1,5 +1,95 @@
 // file: propertyController.js
 import prisma from "../../libs/prismaClient.js";
+import supabase from "../../libs/supabaseClient.js";
+
+const SUPABASE_BUCKET = "rentease-images";
+const SUPABASE_PUBLIC_BASE_URL = process.env.SUPABASE_URL
+  ? `${process.env.SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/`
+  : null;
+
+const parseCoordinateValue = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const deleteSupabaseImageIfExists = async (publicUrl) => {
+  if (!publicUrl) return;
+
+  // Extract path from Supabase public URL
+  // Format: https://[project].supabase.co/storage/v1/object/public/rentease-images/path/to/file
+  let relativePath = null;
+  
+  try {
+    const urlObj = new URL(publicUrl);
+    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/rentease-images\/(.+)/);
+    if (pathMatch && pathMatch[1]) {
+      relativePath = decodeURIComponent(pathMatch[1]);
+    } else if (SUPABASE_PUBLIC_BASE_URL && publicUrl.startsWith(SUPABASE_PUBLIC_BASE_URL)) {
+      // Fallback to old method if URL format matches
+      relativePath = publicUrl.replace(SUPABASE_PUBLIC_BASE_URL, "");
+    }
+  } catch (err) {
+    console.warn("⚠️ Invalid URL format for image deletion:", err.message);
+    return;
+  }
+
+  if (!relativePath) return;
+
+  try {
+    const { error } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .remove([relativePath]);
+    if (error) {
+      console.warn("⚠️ Failed to delete old property image:", error.message);
+    } else {
+      console.log(`✅ Successfully deleted old property image: ${relativePath}`);
+    }
+  } catch (err) {
+    console.warn("⚠️ Failed to delete old property image:", err.message);
+  }
+};
+
+const sanitizeInstitutionsInput = (institutions) => {
+  if (!Array.isArray(institutions)) {
+    throw new Error("nearInstitutions must be an array.");
+  }
+
+  if (institutions.length > 10) {
+    throw new Error("Maximum of 10 nearby institutions allowed.");
+  }
+
+  const sanitized = institutions
+    .map((inst) => {
+      const name =
+        (typeof inst === "string" ? inst : inst?.name || "").trim();
+      const type =
+        (typeof inst === "string" ? "" : inst?.type || "").trim();
+      return { name, type };
+    })
+    .filter((inst) => inst.name || inst.type);
+
+  sanitized.forEach((inst) => {
+    if (inst.name && inst.name.split(/\s+/).length > 3) {
+      throw new Error(`Institution "${inst.name}" exceeds 3-word limit.`);
+    }
+  });
+
+  return sanitized;
+};
+
+const sanitizeOtherInformationInput = (otherInformation) => {
+  if (!Array.isArray(otherInformation)) {
+    throw new Error("otherInformation must be an array.");
+  }
+
+  return otherInformation
+    .map((info) => ({
+      context: (info?.context || "").trim(),
+      description: (info?.description || "").trim(),
+    }))
+    .filter((info) => info.context || info.description);
+};
 
 // ---------------------------------------------- GET ALL AMENITIES ----------------------------------------------
 export const getAmenities = async (req, res) => {
@@ -445,5 +535,222 @@ export const getPropertyDetailsAndUnits = async (req, res) => {
   } catch (error) {
     console.error("Error fetching property details:", error);
     return res.status(500).json({ message: "Failed to fetch property details" });
+  }
+};
+
+// ------------------------------------------------------------------------------ 
+// GET PROPERTY DATA FOR EDITING (BASIC DETAILS + LOCATION)
+// ------------------------------------------------------------------------------
+
+export const getPropertyEditableData = async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const ownerId = req.user?.id;
+
+    if (!propertyId) {
+      return res.status(400).json({ message: "Property ID is required" });
+    }
+
+    const property = await prisma.property.findFirst({
+      where: { id: propertyId, ownerId },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        street: true,
+        barangay: true,
+        zipCode: true,
+        latitude: true,
+        longitude: true,
+        mainImageUrl: true,
+        nearInstitutions: true,
+        otherInformation: true,
+        city: { select: { id: true, name: true } },
+        municipality: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    return res.json({
+      property: {
+        id: property.id,
+        title: property.title,
+        type: property.type,
+        address: {
+          street: property.street,
+          barangay: property.barangay,
+          zipCode: property.zipCode,
+          city: property.city,
+          municipality: property.municipality,
+        },
+        location: {
+          latitude: property.latitude,
+          longitude: property.longitude,
+        },
+        media: {
+          mainImageUrl: property.mainImageUrl,
+          nearInstitutions: property.nearInstitutions || [],
+          otherInformation: property.otherInformation || [],
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching property editable data:", error);
+    return res
+      .status(500)
+      .json({ message: "Failed to fetch property editable data" });
+  }
+};
+
+// ------------------------------------------------------------------------------ 
+// UPDATE PROPERTY
+// ------------------------------------------------------------------------------
+
+export const updateProperty = async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const ownerId = req.user?.id;
+
+    if (!propertyId) {
+      return res.status(400).json({ message: "Property ID is required" });
+    }
+
+    const existingProperty = await prisma.property.findFirst({
+      where: { id: propertyId, ownerId },
+      select: {
+        id: true,
+        mainImageUrl: true,
+      },
+    });
+
+    if (!existingProperty) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    const {
+      title,
+      type,
+      street,
+      barangay,
+      zipCode,
+      cityId,
+      municipalityId,
+      latitude,
+      longitude,
+      mainImageUrl,
+      nearInstitutions,
+      otherInformation,
+    } = req.body;
+
+    const trimmedTitle = typeof title === "string" ? title.trim() : "";
+    const trimmedType = typeof type === "string" ? type.trim() : "";
+    const trimmedStreet = typeof street === "string" ? street.trim() : "";
+    const trimmedBarangay = typeof barangay === "string" ? barangay.trim() : "";
+    const trimmedZip = typeof zipCode === "string" ? zipCode.trim() : null;
+    const normalizedCityId =
+      typeof cityId === "string" ? cityId.trim() || null : cityId ?? null;
+    const normalizedMunicipalityId =
+      typeof municipalityId === "string"
+        ? municipalityId.trim() || null
+        : municipalityId ?? null;
+
+    if (!trimmedTitle || !trimmedType || !trimmedStreet || !trimmedBarangay) {
+      return res.status(400).json({ message: "Missing required fields." });
+    }
+
+    if (
+      (normalizedCityId && normalizedMunicipalityId) ||
+      (!normalizedCityId && !normalizedMunicipalityId)
+    ) {
+      return res.status(400).json({
+        message: "Provide either a City OR a Municipality, not both.",
+      });
+    }
+
+    let parsedInstitutions;
+    if (nearInstitutions !== undefined) {
+      try {
+        const sanitized = sanitizeInstitutionsInput(nearInstitutions);
+        parsedInstitutions = sanitized.length > 0 ? sanitized : null;
+      } catch (validationError) {
+        return res
+          .status(400)
+          .json({ message: validationError.message || "Invalid institutions." });
+      }
+    }
+
+    let parsedOtherInfo;
+    if (otherInformation !== undefined) {
+      try {
+        const sanitized = sanitizeOtherInformationInput(otherInformation);
+        parsedOtherInfo = sanitized.length > 0 ? sanitized : null;
+      } catch (validationError) {
+        return res
+          .status(400)
+          .json({ message: validationError.message || "Invalid information." });
+      }
+    }
+
+    const trimmedMainImageInput =
+      typeof mainImageUrl === "string" ? mainImageUrl.trim() : "";
+    const resolvedMainImageUrl =
+      trimmedMainImageInput || existingProperty.mainImageUrl;
+
+    if (!resolvedMainImageUrl) {
+      return res
+        .status(400)
+        .json({ message: "Main image is required for the property." });
+    }
+
+    if (
+      existingProperty.mainImageUrl &&
+      resolvedMainImageUrl !== existingProperty.mainImageUrl
+    ) {
+      await deleteSupabaseImageIfExists(existingProperty.mainImageUrl);
+    }
+
+    const updatePayload = {
+      title: trimmedTitle,
+      type: trimmedType,
+      street: trimmedStreet,
+      barangay: trimmedBarangay,
+      zipCode: trimmedZip || null,
+      cityId: normalizedCityId || null,
+      municipalityId: normalizedMunicipalityId || null,
+      latitude: parseCoordinateValue(latitude),
+      longitude: parseCoordinateValue(longitude),
+      mainImageUrl: resolvedMainImageUrl,
+    };
+
+    if (parsedInstitutions !== undefined) {
+      updatePayload.nearInstitutions = parsedInstitutions;
+    }
+
+    if (parsedOtherInfo !== undefined) {
+      updatePayload.otherInformation = parsedOtherInfo;
+    }
+
+    const updatedProperty = await prisma.property.update({
+      where: { id: propertyId },
+      data: updatePayload,
+      select: {
+        id: true,
+        title: true,
+      },
+    });
+
+    return res.json({
+      message: `Property "${updatedProperty.title}" updated successfully.`,
+      property: updatedProperty,
+    });
+  } catch (error) {
+    console.error("Error updating property:", error);
+    return res.status(500).json({
+      message: "Failed to update property.",
+      details: error.message,
+    });
   }
 };

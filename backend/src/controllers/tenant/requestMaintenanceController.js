@@ -1,4 +1,5 @@
 import prisma from "../../libs/prismaClient.js";
+import { createNotification } from "../notificationController.js";
 
 /**
  * @desc Tenant submits a maintenance request
@@ -32,6 +33,18 @@ export const createMaintenanceRequest = async (req, res) => {
       });
     }
 
+    // ✅ Get property to find landlord ID
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { ownerId: true },
+    });
+
+    if (!property) {
+      return res.status(404).json({
+        error: "Property not found.",
+      });
+    }
+
     // ✅ Create the maintenance request
     const maintenance = await prisma.maintenanceRequest.create({
       data: {
@@ -53,6 +66,14 @@ export const createMaintenanceRequest = async (req, res) => {
         updatedAt: true,
       },
     });
+
+    // ✅ Notify landlord about the maintenance request
+    await createNotification(
+      property.ownerId,
+      "MAINTENANCE",
+      "A new maintenance request has been submitted by a tenant. Please review and take action.",
+      { maintenanceRequestId: maintenance.id, status: "OPEN" }
+    );
 
     return res.status(201).json({
       message: "Maintenance request submitted successfully.",

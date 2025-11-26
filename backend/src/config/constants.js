@@ -22,6 +22,7 @@ const ROUTE_SEGMENTS = {
   admin: "/admin",
   chat: "/chat",
   webhook: "/webhook",
+  notification: "/notification",
 };
 
 export const ROUTE_PREFIXES = Object.entries(ROUTE_SEGMENTS).reduce(

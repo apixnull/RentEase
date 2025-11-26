@@ -12,6 +12,7 @@ import tenantRoutes from "./routes/tenantRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
 import sessionMiddleware from "./middlewares/session.js";
@@ -63,6 +64,7 @@ const routeEntries = [
   { key: "tenant", router: tenantRoutes },
   { key: "chat", router: chatRoutes },
   { key: "webhook", router: webhookRoutes },
+  { key: "notification", router: notificationRoutes },
 ];
 
 routeEntries.forEach(({ key, router }) => {

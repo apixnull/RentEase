@@ -1,4 +1,5 @@
 import prisma from "../../libs/prismaClient.js";
+import { createNotification } from "../notificationController.js";
 
 /**
  * @desc Get all maintenance requests for a landlord
@@ -92,8 +93,13 @@ export const updateMaintenanceStatus = async (req, res) => {
     // --- Verify ownership ---
     const maintenance = await prisma.maintenanceRequest.findUnique({
       where: { id: maintenanceId },
-      include: {
+      select: {
+        id: true,
+        propertyId: true,
+        unitId: true,
+        status: true,
         property: { select: { ownerId: true, title: true } },
+        reporter: { select: { id: true } },
       },
     });
 
@@ -136,6 +142,40 @@ export const updateMaintenanceStatus = async (req, res) => {
         unitId: true,
       },
     });
+
+    // Notify tenant about the status update
+    let notificationMessage = "";
+    if (status === "IN_PROGRESS") {
+      notificationMessage = "Your maintenance request is now in progress. The landlord has started working on it.";
+    } else if (status === "RESOLVED") {
+      notificationMessage = "Great news! Your maintenance request has been resolved. The issue has been fixed.";
+    } else if (status === "INVALID") {
+      notificationMessage = "Your maintenance request has been marked as invalid. Please contact the landlord if you have any questions.";
+    }
+
+    if (notificationMessage && maintenance.reporter?.id) {
+      // Find the lease associated with this maintenance request
+      const lease = await prisma.lease.findFirst({
+        where: {
+          tenantId: maintenance.reporter.id,
+          propertyId: maintenance.propertyId,
+          unitId: maintenance.unitId,
+          status: "ACTIVE",
+        },
+        select: { id: true },
+      });
+
+      await createNotification(
+        maintenance.reporter.id,
+        "MAINTENANCE",
+        notificationMessage,
+        { 
+          maintenanceRequestId: maintenance.id, 
+          status: status,
+          leaseId: lease?.id || null
+        }
+      );
+    }
 
     // Update unit condition based on status change
     if (maintenanceWithUnit.unitId) {

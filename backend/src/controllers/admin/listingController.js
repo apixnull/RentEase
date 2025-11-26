@@ -1,4 +1,5 @@
 import prisma from "../../libs/prismaClient.js";
+import { createNotification } from "../notificationController.js";
 
 const getDateRangeWindow = (range = "this_month", yearParam) => {
   const now = new Date();
@@ -319,12 +320,13 @@ export const updateListingStatus = async (req, res) => {
       });
     }
 
-    // Fetch current listing to get existing resubmissionHistory and lifecycleStatus
+    // Fetch current listing to get existing resubmissionHistory, lifecycleStatus, and landlordId
     const currentListing = await prisma.listing.findUnique({
       where: { id: listingId },
       select: { 
         resubmissionHistory: true,
         lifecycleStatus: true,
+        landlordId: true,
       },
     });
 
@@ -427,6 +429,32 @@ export const updateListingStatus = async (req, res) => {
       where: { id: listingId },
       data: updateData,
     });
+
+    // -------------------------------------------------------------------------
+    // 📬 Notify landlord about the listing status update
+    // -------------------------------------------------------------------------
+    if (currentListing.landlordId) {
+      let notificationMessage = "";
+      
+      if (action === "approve") {
+        notificationMessage = "Great news! Your listing has been approved and is now visible to tenants.";
+      } else if (action === "flag") {
+        const flagReason = reason || "Suspicious content or violation detected.";
+        notificationMessage = `Your listing has been flagged. Reason: ${flagReason}. Please review and make necessary changes.`;
+      } else if (action === "block") {
+        const blockReason = reason || "Severe policy violation or fraudulent activity.";
+        notificationMessage = `Your listing has been blocked. Reason: ${blockReason}. Please contact support if you have questions.`;
+      }
+
+      if (notificationMessage) {
+        await createNotification(
+          currentListing.landlordId,
+          "LISTING",
+          notificationMessage,
+          { listingId: listingId, status: updatedListing.lifecycleStatus, action: action }
+        );
+      }
+    }
 
     return res.status(200).json({
       message: `Listing successfully ${action}d.`,

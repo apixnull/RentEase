@@ -1,8 +1,8 @@
 // file: routes/landlordRoutes.js
 import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
-import { createProperty, getAmenities, getCitiesAndMunicipalities, getLandlordProperties, getPropertyDetailsAndUnits, } from "../controllers/landlord/propertyController.js";
-import { createUnit, getUnitDetails } from "../controllers/landlord/unitController.js";
+import { createProperty, getAmenities, getCitiesAndMunicipalities, getLandlordProperties, getPropertyDetailsAndUnits, getPropertyEditableData, updateProperty, } from "../controllers/landlord/propertyController.js";
+import { createUnit, getUnitDetails, updateUnit } from "../controllers/landlord/unitController.js";
 import { createPaymentSession, getEligibleUnitsForListing, getLandlordListingInfoSuccess, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview, getListingByUnitIdForSuccess, toggleListingVisibility} from "../controllers/landlord/listingController.js";
 import { getLandlordScreeningsList, getSpeceficScreeningLandlord, inviteTenantForScreening, landlordReviewTenantScreening, deletePendingScreening} from "../controllers/landlord/tenantScreeningController.js";
 import { cancelLease, createLease, createPayment, findTenantForLease, getAllLeases, getAllPropertiesWithUnits, getAllPropertiesWithUnitsAndSuggestedTenants, getLeaseById, getLandlordMonthlyPayments, markPaymentAsPaid, terminateLease, updateLease, addLandlordNote, updateLandlordNote, deleteLandlordNote } from "../controllers/landlord/leaseController.js";
@@ -19,11 +19,14 @@ router.get("/property/amenities", requireAuthentication(["LANDLORD"]), getAmenit
 router.get("/property/city-municipality", requireAuthentication(["LANDLORD"]), getCitiesAndMunicipalities);           // get all city and municipality
 router.post("/property/create", requireAuthentication(["LANDLORD"]), createProperty);                                 // create a new property
 router.get("/property/properties", requireAuthentication(["LANDLORD"]), getLandlordProperties);                       // get all properties owned by landlord
+router.get("/property/:propertyId/edit-data", requireAuthentication(["LANDLORD"]), getPropertyEditableData);                 // get property info for edit
+router.patch("/property/:propertyId", requireAuthentication(["LANDLORD"]), updateProperty);                                  // update an existing property
 router.get("/property/:propertyId", requireAuthentication(["LANDLORD"]), getPropertyDetailsAndUnits);                         // get specific property details
 
 // ----------------------------------------------------- UNIT
 router.get("/unit/:unitId", requireAuthentication(["LANDLORD"]), getUnitDetails);                                     // get specific unit details 
 router.post("/unit/:propertyId/create", requireAuthentication(["LANDLORD"]), createUnit);                             // create a new unit
+router.patch("/unit/:unitId", requireAuthentication(["LANDLORD"]), updateUnit);                                       // update an existing unit
 
 
 // ----------------------------------------------------- LISTING

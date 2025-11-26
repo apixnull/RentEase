@@ -32,7 +32,6 @@ import ScreeningForm from "./pages/private/tenant/screening/ScreeningForm.tsx";
 import Maintenance from "./pages/private/landlord/maintenance/Maintenance.tsx";
 import Tenants from "./pages/private/landlord/tenants/Tenants.tsx";
 import Financials from "./pages/private/landlord/financials/Financials.tsx";
-import Reports from "./pages/private/landlord/reports/Reports.tsx";
 import Engagement from "./pages/private/landlord/reports/Engagement.tsx";
 import TenantScreeningLandlord from "./pages/private/landlord/screening/TenantScreeningLandlord.tsx";
 import TenantScreeningTenant from "./pages/private/tenant/screening/TenantScreeningTenant.tsx";
@@ -88,7 +87,11 @@ const DisplayProperties = lazy(
 const DisplaySpecificProperty = lazy(
   () => import("./pages/private/landlord/property/DisplaySpecificProperty")
 );
+const EditProperty = lazy(
+  () => import("./pages/private/landlord/property/EditProperty")
+);
 const CreateUnit = lazy(() => import("./pages/private/landlord/unit/CreateUnit"));
+const EditUnit = lazy(() => import("./pages/private/landlord/unit/EditUnit"));
 
 // Private pages - Tenant
 const TenantDashboard = lazy(
@@ -157,10 +160,12 @@ const router = createBrowserRouter([
       // properties
       { path: "properties", element: <Suspense fallback={<Loader />}><DisplayProperties /></Suspense> },                                                        // display all properties 
       { path: "properties/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplaySpecificProperty property={null} /></PropertyLayout></Suspense> },     // display specific property
+      { path: "properties/:propertyId/edit", element: <Suspense fallback={<Loader />}><EditProperty /></Suspense> },                                           // edit property basics
 
       // units
       { path: "units/:propertyId", element: <Suspense fallback={<Loader />}><PropertyLayout><DisplayUnits units={[]} /></PropertyLayout></Suspense> },                     // display all units 
       { path: "units/:propertyId/:unitId", element: <Suspense fallback={<Loader />}><DisplaySpecificUnit /></Suspense> },                                       // display specific unit 
+      { path: "units/:propertyId/:unitId/edit", element: <Suspense fallback={<Loader />}><EditUnit /></Suspense> },                                       // edit unit 
         
       // listing
       { path: "listing", element: <Suspense fallback={<Loader />}><LandlordListing /></Suspense>},                                                              // display all landlord listings
@@ -191,9 +196,8 @@ const router = createBrowserRouter([
       // financials
       { path: "financials", element: <Suspense fallback={<Loader />}><Financials /></Suspense>},
 
-      // reports 
-      { path: "reports", element: <Suspense fallback={<Loader />}><Reports /></Suspense>},
-      { path: "reports/engagement", element: <Suspense fallback={<Loader />}><Engagement /></Suspense>},
+      // engagement
+      { path: "engagement", element: <Suspense fallback={<Loader />}><Engagement /></Suspense>},
 
       // payments
       { path: "payments", element: <Suspense fallback={<Loader />}><RentPayments /></Suspense>},

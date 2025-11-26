@@ -76,3 +76,18 @@ export const emitReadReceipt = (channelId, tenantId, landlordId, readAt) => {
   console.log(`✅ Emitted read receipt for channel ${channelId}`);
 };
 
+/**
+ * Emit new notification to a specific user
+ * @param {string} userId - User ID to notify
+ * @param {Object} notificationData - Notification data
+ */
+export const emitNotification = (userId, notificationData) => {
+  if (!ioInstance) {
+    console.warn("⚠️ Socket.IO instance not initialized");
+    return;
+  }
+
+  ioInstance.to(`user-${userId}`).emit("notification:new", notificationData);
+  console.log(`📬 Emitted notification ${notificationData.id} to user ${userId}`);
+};
+

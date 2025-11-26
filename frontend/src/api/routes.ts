@@ -16,6 +16,7 @@ export const apiRoutes = {
   admin: createRouteBuilder("/admin"),
   chat: createRouteBuilder("/chat"),
   webhook: createRouteBuilder("/webhook"),
+  notification: createRouteBuilder("/notification"),
 };
 
 

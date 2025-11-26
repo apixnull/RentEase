@@ -23,5 +23,13 @@ export const getLandlordPropertiesRequest = (options?: { signal?: AbortSignal })
 export const getPropertyDetailsAndUnitsRequest = (propertyId: string, options?: { signal?: AbortSignal }) =>
   privateApi.get(apiRoutes.landlord(`/property/${propertyId}`), { signal: options?.signal });
 
+// Get property data for edit view
+export const getPropertyEditableDataRequest = (propertyId: string, options?: { signal?: AbortSignal }) =>
+  privateApi.get(apiRoutes.landlord(`/property/${propertyId}/edit-data`), { signal: options?.signal });
+
+// Update property
+export const updatePropertyRequest = (propertyId: string, data: any, options?: { signal?: AbortSignal }) =>
+  privateApi.patch(apiRoutes.landlord(`/property/${propertyId}`), data, { signal: options?.signal });
+
 
 

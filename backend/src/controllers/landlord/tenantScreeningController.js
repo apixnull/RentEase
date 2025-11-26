@@ -1,4 +1,5 @@
 import prisma from "../../libs/prismaClient.js";
+import { createNotification } from "../notificationController.js";
 
 // ----------------------------------------------
 // INVITE TENANT FOR SCREENING
@@ -58,7 +59,7 @@ export const inviteTenantForScreening = async (req, res) => {
       });
     }
 
-    await prisma.tenantScreening.create({
+    const screening = await prisma.tenantScreening.create({
       data: {
         tenantId: tenant.id,
         landlordId,
@@ -66,6 +67,14 @@ export const inviteTenantForScreening = async (req, res) => {
         status: "PENDING",
       },
     });
+
+    // Create notification for the invited tenant
+    await createNotification(
+      tenant.id,
+      "SCREENING",
+      "You have been invited to complete a tenant screening application. Please submit your details to proceed.",
+      { screeningId: screening.id }
+    );
 
     return res.status(201).json({
       message: "Tenant screening invitation sent successfully.",
@@ -152,7 +161,22 @@ export const landlordReviewTenantScreening = async (req, res) => {
     });
 
     // ------------------------------------------------------------
-    // 6. Return message only
+    // 6. Notify tenant about the review decision
+    // ------------------------------------------------------------
+    const notificationMessage =
+      action === "APPROVED"
+        ? "Great news! Your tenant screening application has been approved. The landlord is ready to move forward."
+        : "Your tenant screening application has been reviewed. Unfortunately, it was not approved at this time.";
+
+    await createNotification(
+      screening.tenantId,
+      "SCREENING",
+      notificationMessage,
+      { screeningId: screening.id, status: action }
+    );
+
+    // ------------------------------------------------------------
+    // 7. Return message only
     // ------------------------------------------------------------
     return res.status(200).json({
       message:

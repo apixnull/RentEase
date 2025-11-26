@@ -15,3 +15,11 @@ export const createUnitRequest = (
   options?: { signal?: AbortSignal }
 ) =>
   privateApi.post(apiRoutes.landlord(`/unit/${propertyId}/create`), data, { signal: options?.signal });
+
+// Update an existing unit
+export const updateUnitRequest = (
+  unitId: string,
+  data: any,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.patch(apiRoutes.landlord(`/unit/${unitId}`), data, { signal: options?.signal });

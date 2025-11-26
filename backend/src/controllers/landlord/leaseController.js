@@ -1,5 +1,6 @@
 import prisma from "../../libs/prismaClient.js";
 import supabase from "../../libs/supabaseClient.js";
+import { createNotification } from "../notificationController.js";
 
 /**
  * Helper function to compute tenant behavior metrics from payments and maintenance requests
@@ -136,6 +137,14 @@ export const createLease = async (req, res) => {
         id: true,
       },
     });
+
+    // --- Notify tenant about the lease invitation ---
+    await createNotification(
+      tenantId,
+      "LEASE",
+      "You have been invited to a new lease agreement. Please review and accept or reject the offer.",
+      { leaseId: newLease.id, status: "PENDING" }
+    );
 
     return res.status(201).json({
       message: "Lease created successfully and is pending activation.",
@@ -685,6 +694,14 @@ export const createPayment = async (req, res) => {
 
       console.log("✅ Payment created with transaction:", newPayment);
 
+      // Notify tenant about payment creation (already paid)
+      await createNotification(
+        lease.tenantId,
+        "PAYMENT",
+        `A payment of ₱${parsedAmount.toLocaleString()} has been recorded and marked as paid.`,
+        { leaseId: leaseId, paymentId: newPayment.id, status: "PAID" }
+      );
+
       return res.status(201).json({
         message: "Payment record created successfully.",
         payment: newPayment,
@@ -710,6 +727,19 @@ export const createPayment = async (req, res) => {
       });
 
       console.log("✅ Payment created:", newPayment);
+
+      // Notify tenant about new payment (pending)
+      const dueDateFormatted = parsedDueDate.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      await createNotification(
+        lease.tenantId,
+        "PAYMENT",
+        `A new payment of ₱${parsedAmount.toLocaleString()} has been added. Due date: ${dueDateFormatted}.`,
+        { leaseId: leaseId, paymentId: newPayment.id, status: "PENDING" }
+      );
 
       return res.status(201).json({
         message: "Payment record created successfully.",
@@ -825,6 +855,14 @@ export const markPaymentAsPaid = async (req, res) => {
     ]);
 
     console.log("✅ Payment updated and transaction created");
+
+    // Notify tenant about payment being marked as paid
+    await createNotification(
+      payment.lease.tenantId,
+      "PAYMENT",
+      `Your payment of ₱${finalAmount.toLocaleString()} has been marked as paid. Thank you!`,
+      { leaseId: payment.leaseId, paymentId: paymentId, status: "PAID" }
+    );
 
     return res.status(200).json({
       message: "Payment marked as paid successfully.",
@@ -1102,6 +1140,7 @@ export const terminateLease = async (req, res) => {
       where: { id },
       select: {
         landlordId: true,
+        tenantId: true,
         status: true,
         endDate: true,
       },
@@ -1147,6 +1186,14 @@ export const terminateLease = async (req, res) => {
         },
       }),
     ]);
+
+    // Notify tenant about lease termination
+    await createNotification(
+      lease.tenantId,
+      "LEASE",
+      "Your lease has been terminated by the landlord. Please contact them if you have any questions.",
+      { leaseId: id, status: "TERMINATED" }
+    );
 
     return res
       .status(200)

@@ -423,7 +423,7 @@ const UnitStatsSection = ({ unit }: { unit: Unit }) => {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Engagement</h3>
         <Button
-          onClick={() => navigate('/landlord/reports/engagement')}
+          onClick={() => navigate('/landlord/engagement')}
           variant="outline"
           size="sm"
           className="gap-2 text-xs h-8"

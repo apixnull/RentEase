@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -21,6 +21,15 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { logoutRequest } from "@/api/authApi";
+import {
+  getNotificationsRequest,
+  getUnreadCountRequest,
+  markNotificationAsReadRequest,
+  markAllNotificationsAsReadRequest,
+  type Notification,
+} from "@/api/notificationApi";
+import { useSocket } from "@/hooks/useSocket";
+import { formatDistanceToNow } from "date-fns";
 
 // Enhanced sidebar configuration with status indicators
 const sidebarItems = [
@@ -434,6 +443,8 @@ const Sidebar = ({
   );
 };
 
+const MAX_VISIBLE_NOTIFICATIONS = 6;
+
 const Header = ({ 
   onMobileMenuClick, 
   sidebarCollapsed,
@@ -444,14 +455,48 @@ const Header = ({
   onToggleSidebar: () => void;
 }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [breadcrumbs, setBreadcrumbs] = useState<
     { name: string; path?: string }[]
   >([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const notifRef = useRef<HTMLDivElement>(null);
 
+  const fetchNotifications = async () => {
+    try {
+      const [notifsRes, countRes] = await Promise.all([
+        getNotificationsRequest({ limit: MAX_VISIBLE_NOTIFICATIONS }),
+        getUnreadCountRequest(),
+      ]);
+      setNotifications(notifsRes.data.notifications);
+      setUnreadCount(countRes.data.unreadCount);
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Close notifications when clicking outside
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const handleRealtimeNotification = useCallback((newNotification: Notification) => {
+    setNotifications((prev) => {
+      const updated = [newNotification, ...prev];
+      return updated.slice(0, MAX_VISIBLE_NOTIFICATIONS);
+    });
+    setUnreadCount((prev) => prev + 1);
+    toast.info(newNotification.message, {
+      description: "New notification",
+    });
+  }, []);
+
+  useSocket(handleRealtimeNotification);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
@@ -468,42 +513,90 @@ const Header = ({
     };
   }, [notifsOpen]);
 
-  // Enhanced notifications data
-  const notifications = [
-    {
-      id: 1,
-      title: "Rent payment due in 3 days",
-      time: "2 hours ago",
-      read: false,
-      link: "/tenant/payments",
-      type: "payment",
-    },
-    {
-      id: 2,
-      title: "Maintenance request approved",
-      time: "1 day ago",
-      read: true,
-      link: "/tenant/maintenance",
-      type: "maintenance",
-    },
-    {
-      id: 3,
-      title: "New message from landlord",
-      time: "2 days ago",
-      read: true,
-      link: "/tenant/messages",
-      type: "message",
-    },
-    {
-      id: 4,
-      title: "Lease renewal available",
-      time: "3 days ago",
-      read: true,
-      link: "/tenant/lease",
-      type: "lease",
-    },
-  ];
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await markNotificationAsReadRequest(notificationId);
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === notificationId ? { ...n, status: "READ", read: true } : n
+        )
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllNotificationsAsReadRequest();
+      setNotifications((prev) =>
+        prev.map((n) => ({ ...n, status: "READ", read: true }))
+      );
+      setUnreadCount(0);
+      toast.success("All notifications marked as read");
+    } catch (err) {
+      console.error("Failed to mark all as read:", err);
+    }
+  };
+
+  const getNotificationLink = (notification: Notification): string => {
+    const type = notification.type?.toUpperCase() || "SYSTEM";
+    switch (type) {
+      case "PAYMENT":
+        // Route to lease details page with payments tab if leaseId is available
+        if (notification.leaseId) {
+          return `/tenant/my-lease/${notification.leaseId}/details`;
+        }
+        return "/tenant/payments";
+      case "MAINTENANCE":
+        // Route to lease details page with maintenance tab if leaseId is available
+        if (notification.leaseId) {
+          return `/tenant/my-lease/${notification.leaseId}/details`;
+        }
+        return "/tenant/maintenance";
+      case "MESSAGE":
+        return "/tenant/messages";
+      case "LEASE":
+        // Route to specific lease with lease tab if leaseId is available
+        if (notification.leaseId) {
+          return `/tenant/my-lease/${notification.leaseId}/details`;
+        }
+        return "/tenant/my-lease";
+      case "SCREENING":
+        // Route to specific screening if screeningId is available
+        if (notification.screeningId) {
+          return `/tenant/screening/${notification.screeningId}`;
+        }
+        return "/tenant/screening";
+      default:
+        return "/tenant";
+    }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    const type = notification.type?.toUpperCase() || "SYSTEM";
+    
+    // Set the appropriate tab in sessionStorage before navigation
+    if (notification.leaseId) {
+      if (type === "PAYMENT") {
+        // Set payments tab for payment notifications
+        sessionStorage.setItem(`lease-${notification.leaseId}-activeTab`, "payments");
+      } else if (type === "MAINTENANCE") {
+        // Set maintenance tab for maintenance notifications
+        sessionStorage.setItem(`lease-${notification.leaseId}-activeTab`, "maintenance");
+      } else if (type === "LEASE") {
+        // Set lease tab for lease notifications (termination, etc.)
+        sessionStorage.setItem(`lease-${notification.leaseId}-activeTab`, "lease");
+      }
+    }
+
+    // Mark as read if unread
+    if (!notification.read) {
+      handleMarkAsRead(notification.id);
+    }
+    setNotifsOpen(false);
+  };
 
   // Enhanced breadcrumb logic (simplified - removed icons)
   useEffect(() => {
@@ -570,7 +663,7 @@ const Header = ({
   }, [location.pathname]);
 
   return (
-    <header className="bg-white/80 backdrop-blur-sm px-4 py-3 shadow-sm border-b border-gray-200/60">
+    <header className="relative z-[200] bg-white/80 backdrop-blur-sm px-4 py-3 shadow-sm border-b border-gray-200/60">
       <div className="flex items-center justify-between w-full gap-3">
         {/* Left Section - Menu & Breadcrumbs */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -679,10 +772,10 @@ const Header = ({
             <AnimatePresence>
               {notifsOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-1rem)] bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-xl z-50 overflow-hidden"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-2xl z-[9999] overflow-hidden"
                 >
                   <div className="p-3 border-b border-gray-100/60 bg-gradient-to-r from-white to-gray-50/50">
                     <div className="flex justify-between items-center">
@@ -690,69 +783,98 @@ const Header = ({
                         <Bell className="h-4 w-4" />
                         Notifications
                       </h3>
-                      <button className="text-sm text-emerald-600 hover:underline font-medium">
-                        Mark all as read
-                      </button>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllAsRead}
+                          className="text-sm text-emerald-600 hover:underline font-medium"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
                     </div>
                   </div>
 
                   <div className="max-h-64 overflow-y-auto">
-                    {notifications.map((notification) => (
-                      <Link
-                        key={notification.id}
-                        to={notification.link}
-                        onClick={() => setNotifsOpen(false)}
-                      >
-                        <motion.div
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className={cn(
-                            "p-3 hover:bg-gray-50/50 transition-all duration-200 border-b border-gray-100/50 last:border-b-0 group text-sm",
-                            !notification.read && "bg-emerald-50/30"
-                          )}
+                    {loading ? (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        Loading notifications...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        No notifications yet
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <Link
+                          key={notification.id}
+                          to={getNotificationLink(notification)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleNotificationClick(notification);
+                            // Navigate after setting sessionStorage
+                            navigate(getNotificationLink(notification));
+                          }}
                         >
-                          <div className="flex gap-3">
-                            <div className={cn(
-                              "w-2 h-2 rounded-full mt-2 flex-shrink-0",
-                              !notification.read ? "bg-emerald-500" : "bg-gray-300"
-                            )} />
-                            <div className="flex-1 min-w-0">
-                              <p
+                          <motion.div
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={cn(
+                              "p-3 hover:bg-gray-50/50 transition-all duration-200 border-b border-gray-100/50 last:border-b-0 group text-sm cursor-pointer",
+                              !notification.read && "bg-emerald-50/30"
+                            )}
+                          >
+                            <div className="flex gap-3">
+                              <div
                                 className={cn(
-                                  "font-medium group-hover:text-emerald-700 transition-colors",
+                                  "w-2 h-2 rounded-full mt-2 flex-shrink-0",
                                   !notification.read
-                                    ? "text-gray-900"
-                                    : "text-gray-700"
+                                    ? "bg-emerald-500"
+                                    : "bg-gray-300"
                                 )}
-                              >
-                                {notification.title}
-                              </p>
-                              <div className="flex items-center justify-between mt-1">
-                                <p className="text-xs text-gray-500">
-                                  {notification.time}
-                                </p>
-                                <motion.div
-                                  whileHover={{ x: 2 }}
-                                  className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className={cn(
+                                    "font-medium group-hover:text-emerald-700 transition-colors",
+                                    !notification.read
+                                      ? "text-gray-900"
+                                      : "text-gray-700"
+                                  )}
                                 >
-                                  <ChevronRight className="h-3 w-3" />
-                                </motion.div>
+                                  {notification.message}
+                                </p>
+                                <div className="flex items-center justify-between mt-1">
+                                  <p className="text-xs text-gray-500">
+                                    {formatDistanceToNow(
+                                      new Date(notification.createdAt),
+                                      { addSuffix: true }
+                                    )}
+                                  </p>
+                                  <motion.div
+                                    whileHover={{ x: 2 }}
+                                    className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <ChevronRight className="h-3 w-3" />
+                                  </motion.div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </motion.div>
-                      </Link>
-                    ))}
+                          </motion.div>
+                        </Link>
+                      ))
+                    )}
                   </div>
 
-                  <div className="p-3 text-center border-t border-gray-100/60 bg-gray-50/30">
-                    <Link
-                      to="/tenant/notifications"
-                      className="text-sm text-emerald-600 hover:underline font-medium"
+                  <div className="p-3 border-t border-gray-100/60 bg-gray-50/30 flex flex-col gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      asChild
                       onClick={() => setNotifsOpen(false)}
                     >
-                      View all notifications
-                    </Link>
+                      <Link to="/tenant/notifications">View notifications</Link>
+                    </Button>
                   </div>
                 </motion.div>
               )}

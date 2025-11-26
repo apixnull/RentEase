@@ -3,10 +3,10 @@ import { io, Socket } from "socket.io-client";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 /**
- * Custom hook for managing Socket.IO connection for chat channel updates
+ * Custom hook for managing Socket.IO connection for chat channel updates and notifications
  * Automatically connects, joins user room, and handles reconnection
  */
-export const useSocket = () => {
+export const useSocket = (onNotification?: (notification: any) => void) => {
   const currentUser = useAuthStore((state) => state.user);
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -37,7 +37,7 @@ export const useSocket = () => {
       }
       
       // Production: use production backend URL (without /api)
-      return "https://rentease-vnw8.onrender.com";
+      return "https://rentease-tm0i.onrender.com";
     };
 
     const socketUrl = getSocketUrl();
@@ -70,18 +70,27 @@ export const useSocket = () => {
       setIsConnected(false);
     });
 
+    // Listen for real-time notifications
+    if (onNotification) {
+      socket.on("notification:new", (notification) => {
+        console.log("📬 Received new notification:", notification);
+        onNotification(notification);
+      });
+    }
+
     // Cleanup on unmount or user change
     return () => {
       if (socketRef.current) {
         socketRef.current.off("connect");
         socketRef.current.off("disconnect");
         socketRef.current.off("connect_error");
+        socketRef.current.off("notification:new");
         socketRef.current.disconnect();
         socketRef.current = null;
         setIsConnected(false);
       }
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, onNotification]);
 
   return {
     socket: socketRef.current,

@@ -1,5 +1,6 @@
 // file: controllers/tenant/leaseController.js
 import prisma from "../../libs/prismaClient.js";
+import { createNotification } from "../notificationController.js";
 /**
  * @desc Get all leases belonging to the current tenant
  * @route GET /api/tenant/leases
@@ -208,6 +209,14 @@ export const handleTenantLeaseAction = async (req, res) => {
 
       await prisma.$transaction(transactionPromises);
 
+      // Notify landlord that tenant accepted the lease
+      await createNotification(
+        lease.landlordId,
+        "LEASE",
+        "Great news! The tenant has accepted the lease agreement. The lease is now active.",
+        { leaseId: lease.id, status: "ACTIVE" }
+      );
+
       return res.status(200).json({
         message: `Lease accepted and activated. ${paymentsToCreate.length} payments created.`,
         paymentsCreated: paymentsToCreate.length,
@@ -220,6 +229,14 @@ export const handleTenantLeaseAction = async (req, res) => {
         where: { id: leaseId },
         data: { status: "CANCELLED", updatedAt: now },
       });
+
+      // Notify landlord that tenant rejected the lease
+      await createNotification(
+        lease.landlordId,
+        "LEASE",
+        "The tenant has rejected the lease agreement. The lease has been cancelled.",
+        { leaseId: lease.id, status: "CANCELLED" }
+      );
 
       return res.status(200).json({ message: "Lease has been rejected and cancelled." });
     }

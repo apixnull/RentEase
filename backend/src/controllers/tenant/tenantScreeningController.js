@@ -1,5 +1,6 @@
 import prisma from "../../libs/prismaClient.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { createNotification } from "../notificationController.js";
 
 // ============================================================================
 // Gemini AI Setup
@@ -550,7 +551,17 @@ export const tenantSubmitScreeningInfo = async (req, res) => {
     });
 
     // ------------------------------------------------------------
-    // 5. Return simple success message
+    // 5. Notify landlord that tenant has submitted screening
+    // ------------------------------------------------------------
+    await createNotification(
+      screening.landlordId,
+      "SCREENING",
+      `A tenant has submitted their screening application. Review the details and make your decision.`,
+      { screeningId: screening.id }
+    );
+
+    // ------------------------------------------------------------
+    // 6. Return simple success message
     // ------------------------------------------------------------
     return res.status(200).json({ message: "Tenant screening form submitted successfully." });
   } catch (error) {

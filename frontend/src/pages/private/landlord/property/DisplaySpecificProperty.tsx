@@ -414,7 +414,11 @@ const DisplaySpecificProperty = ({ property, loading, error }: { property: Prope
   };
 
   const handleEdit = () => {
-    toast.success("Edit property functionality would open here");
+    if (!property?.id) {
+      toast.error("Property not available");
+      return;
+    }
+    navigate(`/landlord/properties/${property.id}/edit`);
   };
 
   const handleRetry = () => window.location.reload();

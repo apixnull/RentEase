@@ -274,3 +274,116 @@ export const createUnit = async (req, res) => {
     });
   }
 };
+
+// ---------------------------------------------- UPDATE UNIT ----------------------------------------------
+export const updateUnit = async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    const {
+      label,
+      description,
+      floorNumber,
+      maxOccupancy,
+      mainImageUrl,
+      otherImages,
+      unitLeaseRules,
+      targetPrice,
+      requiresScreening,
+      amenities,
+    } = req.body;
+
+    const ownerId = req.user?.id;
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized: owner not found" });
+    }
+
+    // ✅ Basic validation
+    if (!unitId || !label || !description || !targetPrice) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // ✅ Validate unit ownership
+    const existingUnit = await prisma.unit.findFirst({
+      where: {
+        id: unitId,
+        property: { ownerId },
+      },
+      include: {
+        property: { select: { id: true } },
+      },
+    });
+
+    if (!existingUnit) {
+      return res
+        .status(404)
+        .json({ message: "Unit not found or not owned by landlord" });
+    }
+
+    // ✅ Validate other images count
+    if (Array.isArray(otherImages) && otherImages.length > 6) {
+      return res.status(400).json({
+        message: "Maximum of 6 other images allowed",
+      });
+    }
+
+    // ✅ Prevent duplicate unit labels (case + space insensitive) - exclude current unit
+    const normalize = (str) => str.replace(/\s+/g, "").toLowerCase();
+    const normalizedLabel = normalize(label);
+
+    const existingUnits = await prisma.unit.findMany({
+      where: {
+        propertyId: existingUnit.propertyId,
+        id: { not: unitId }, // Exclude current unit
+      },
+      select: { label: true },
+    });
+
+    if (existingUnits.some((u) => normalize(u.label) === normalizedLabel)) {
+      return res.status(400).json({
+        message: `A unit with the label "${label}" already exists in this property.`,
+      });
+    }
+
+    // ✅ Convert and validate numeric fields
+    const parsedMaxOccupancy = maxOccupancy ? Number(maxOccupancy) : 1;
+    const parsedFloorNumber = floorNumber ? Number(floorNumber) : null;
+    const parsedTargetPrice = Number(targetPrice);
+
+    if (parsedTargetPrice > 100000) {
+      return res
+        .status(400)
+        .json({ message: "Target price cannot exceed ₱100,000" });
+    }
+
+    // ✅ Update unit
+    const updatedUnit = await prisma.unit.update({
+      where: { id: unitId },
+      data: {
+        label: label.trim(),
+        description,
+        floorNumber: parsedFloorNumber,
+        maxOccupancy: parsedMaxOccupancy,
+        mainImageUrl: mainImageUrl || null,
+        otherImages: otherImages || null,
+        unitLeaseRules: unitLeaseRules || null,
+        targetPrice: parsedTargetPrice,
+        requiresScreening: requiresScreening ?? false,
+        amenities: amenities
+          ? { set: [], connect: amenities.map((id) => ({ id })) }
+          : { set: [] },
+      },
+      include: { amenities: true },
+    });
+
+    return res.status(200).json({
+      message: "Unit updated successfully",
+      unit: updatedUnit,
+    });
+  } catch (error) {
+    console.error("Error updating unit:", error);
+    return res.status(500).json({
+      message: "Failed to update unit",
+      error: error.message,
+    });
+  }
+};
