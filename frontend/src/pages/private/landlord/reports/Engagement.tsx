@@ -149,7 +149,7 @@ const Engagement = () => {
       if (endDate) params.endDate = endDate;
 
       const res = await getEngagementDataRequest(params);
-      setEngagementData(res.data);
+      setEngagementData(res.data || null);
     } catch (error: any) {
       if (error?.name === 'CanceledError') return;
       console.error('Error loading engagement data:', error);
@@ -179,8 +179,8 @@ const Engagement = () => {
 
   const selectedProperty = properties.find(p => p.id === selectedPropertyId);
   const availableUnits = selectedPropertyId === 'ALL' 
-    ? properties.flatMap(p => p.Unit.map(u => ({ ...u, propertyTitle: p.title })))
-    : selectedProperty?.Unit.map(u => ({ ...u, propertyTitle: selectedProperty.title })) || [];
+    ? (properties || []).flatMap(p => (p?.Unit || []).map(u => ({ ...u, propertyTitle: p.title })))
+    : (selectedProperty?.Unit || []).map(u => ({ ...u, propertyTitle: selectedProperty?.title || '' })) || [];
 
   // Calculate filtered summary based on selected unit
   const filteredSummary = useMemo(() => {
@@ -193,13 +193,16 @@ const Engagement = () => {
     }
 
     // Filter views and reviews by selected unit
+    const rawViews = engagementData.rawViews || [];
+    const rawReviews = engagementData.rawReviews || [];
+    
     const filteredViews = selectedUnitIdForChart !== 'ALL'
-      ? engagementData.rawViews.filter(v => v.unitId === selectedUnitIdForChart)
-      : engagementData.rawViews;
+      ? rawViews.filter(v => v.unitId === selectedUnitIdForChart)
+      : rawViews;
     
     const filteredReviews = selectedUnitIdForChart !== 'ALL'
-      ? engagementData.rawReviews.filter(r => r.unitId === selectedUnitIdForChart)
-      : engagementData.rawReviews;
+      ? rawReviews.filter(r => r.unitId === selectedUnitIdForChart)
+      : rawReviews;
 
     const totalViews = filteredViews.length;
     const totalReviews = filteredReviews.length;
@@ -216,16 +219,19 @@ const Engagement = () => {
 
   // Format chart data with client-side unit filtering
   const chartData = useMemo(() => {
-    if (!engagementData?.rawViews || !engagementData?.rawReviews) return [];
+    if (!engagementData) return [];
+    
+    const rawViews = engagementData.rawViews || [];
+    const rawReviews = engagementData.rawReviews || [];
     
     // Filter views and reviews by selected unit
     const filteredViews = selectedUnitIdForChart !== 'ALL'
-      ? engagementData.rawViews.filter(v => v.unitId === selectedUnitIdForChart)
-      : engagementData.rawViews;
+      ? rawViews.filter(v => v.unitId === selectedUnitIdForChart)
+      : rawViews;
     
     const filteredReviews = selectedUnitIdForChart !== 'ALL'
-      ? engagementData.rawReviews.filter(r => r.unitId === selectedUnitIdForChart)
-      : engagementData.rawReviews;
+      ? rawReviews.filter(r => r.unitId === selectedUnitIdForChart)
+      : rawReviews;
 
     // Calculate daily views and reviews
     const dailyViewsMap = new Map();
@@ -242,7 +248,7 @@ const Engagement = () => {
     });
 
     // Generate all dates in range for complete chart
-    if (!engagementData.summary.dateRange.start || !engagementData.summary.dateRange.end) return [];
+    if (!engagementData.summary?.dateRange?.start || !engagementData.summary?.dateRange?.end) return [];
     
     const dateStart = new Date(engagementData.summary.dateRange.start);
     const dateEnd = new Date(engagementData.summary.dateRange.end);
@@ -409,7 +415,7 @@ const Engagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Properties</SelectItem>
-                  {properties.map(property => (
+                  {(properties || []).map(property => (
                     <SelectItem key={property.id} value={property.id}>
                       {property.title}
                     </SelectItem>
@@ -496,7 +502,7 @@ const Engagement = () => {
                   <Eye className="h-4 w-4" />
                   <span>
                     {selectedUnitIdForChart !== 'ALL' 
-                      ? `${availableUnits.find(u => u.id === selectedUnitIdForChart)?.label || 'Selected unit'} views`
+                      ? `${(availableUnits || []).find(u => u.id === selectedUnitIdForChart)?.label || 'Selected unit'} views`
                       : 'Unit views in selected period'}
                   </span>
                 </div>
@@ -513,7 +519,7 @@ const Engagement = () => {
                   <Star className="h-4 w-4" />
                   <span>
                     {selectedUnitIdForChart !== 'ALL' 
-                      ? `${availableUnits.find(u => u.id === selectedUnitIdForChart)?.label || 'Selected unit'} reviews`
+                      ? `${(availableUnits || []).find(u => u.id === selectedUnitIdForChart)?.label || 'Selected unit'} reviews`
                       : 'Reviews received'}
                   </span>
                 </div>
@@ -557,14 +563,14 @@ const Engagement = () => {
                   <Select 
                     value={selectedUnitIdForChart} 
                     onValueChange={setSelectedUnitIdForChart}
-                    disabled={availableUnits.length === 0}
+                    disabled={!availableUnits || availableUnits.length === 0}
                   >
                     <SelectTrigger className="w-[180px] h-8 text-xs">
                       <SelectValue placeholder="All Units" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Units</SelectItem>
-                      {availableUnits.map(unit => (
+                      {(availableUnits || []).map(unit => (
                         <SelectItem key={unit.id} value={unit.id}>
                           {unit.label} {selectedPropertyId !== 'ALL' ? '' : `(${unit.propertyTitle})`}
                         </SelectItem>
@@ -573,19 +579,19 @@ const Engagement = () => {
                   </Select>
                 </div>
                 <CardDescription className="flex flex-wrap items-center gap-2">
-                  {engagementData.summary.dateRange.start && engagementData.summary.dateRange.end && (
+                  {engagementData.summary?.dateRange?.start && engagementData.summary?.dateRange?.end && (
                     <>
                       <span>
                         {format(parseISO(engagementData.summary.dateRange.start), 'MMM dd, yyyy')} - {format(parseISO(engagementData.summary.dateRange.end), 'MMM dd, yyyy')}
                       </span>
                       {selectedPropertyId !== 'ALL' && (
                         <span className="text-slate-500">
-                          • {properties.find(p => p.id === selectedPropertyId)?.title || 'Property'}
+                          • {(properties || []).find(p => p.id === selectedPropertyId)?.title || 'Property'}
                         </span>
                       )}
                       {selectedUnitIdForChart !== 'ALL' && (
                         <span className="text-slate-500">
-                          • {availableUnits.find(u => u.id === selectedUnitIdForChart)?.label || 'Unit'}
+                          • {(availableUnits || []).find(u => u.id === selectedUnitIdForChart)?.label || 'Unit'}
                         </span>
                       )}
                     </>
@@ -790,7 +796,7 @@ const Engagement = () => {
               <CardDescription>All units sorted by engagement (highest to lowest)</CardDescription>
             </CardHeader>
             <CardContent>
-              {engagementData.units.length === 0 ? (
+              {!engagementData.units || engagementData.units.length === 0 ? (
                 <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
                   No data available for selected filters.
                 </div>
@@ -807,7 +813,7 @@ const Engagement = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {engagementData.units.map((unit) => (
+                    {(engagementData.units || []).map((unit) => (
                       <TableRow key={unit.unitId}>
                         <TableCell>
                           <div>

@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
-import L, { type LeafletEvent } from "leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
 import "leaflet-defaulticon-compatibility";
+import { motion } from "framer-motion";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   getCitiesAndMunicipalitiesRequest,
   getPropertyEditableDataRequest,
@@ -20,7 +21,7 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   AlertTriangle,
   Building,
-  ChevronLeft,
+  ArrowLeft,
   Home,
   Image as ImageIcon,
   Link as LinkIcon,
@@ -31,6 +32,11 @@ import {
   RefreshCw,
   Search,
   Upload,
+  Edit,
+  Save,
+  Info,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 type Option = { id: string; name: string };
@@ -657,63 +663,126 @@ const EditProperty = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-6 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-600">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <p className="text-sm">Loading property details…</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 py-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header Skeleton */}
+          <div className="mb-6">
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/50 shadow-lg p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-12 w-12 rounded-xl" />
+                  <div>
+                    <Skeleton className="h-7 w-32 mb-2" />
+                    <Skeleton className="h-4 w-48" />
+                  </div>
+                </div>
+                <Skeleton className="h-10 w-24" />
+              </div>
+            </div>
+          </div>
+
+          {/* Form Sections Skeleton */}
+          <div className="space-y-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i} className="shadow-md">
+                <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b">
+                  <Skeleton className="h-6 w-32 mb-2" />
+                  <Skeleton className="h-4 w-48" />
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                  <Skeleton className="h-24 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto space-y-6 pb-8">
-        <div className="flex flex-col gap-3">
-          <Button
-            variant="ghost"
-            className="w-fit px-0 text-slate-600 hover:text-slate-900"
-            onClick={() => navigate(-1)}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back to property
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              Edit Property
-            </h1>
-            <p className="text-sm text-slate-600">
-              Update the property information and location, then save your changes when you’re ready.
-            </p>
+    <div className="min-h-screen py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <motion.div
+          className="relative mb-6"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/50 shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 via-emerald-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Edit className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">Edit Property</h1>
+                  <p className="text-sm text-gray-600">Update your property information</p>
+                </div>
+              </div>
+              <Link to={`/landlord/properties/${propertyId}`}>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back
+                </Button>
+              </Link>
+            </div>
           </div>
-        </div>
+        </motion.div>
 
         {error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="flex items-center gap-3 text-red-700 py-4">
-              <AlertTriangle className="h-5 w-5" />
-              <span>{error}</span>
-            </CardContent>
-          </Card>
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="border-red-200 bg-red-50 shadow-sm">
+              <CardContent className="flex items-center gap-3 text-red-700 py-4">
+                <AlertTriangle className="h-5 w-5" />
+                <span>{error}</span>
+              </CardContent>
+            </Card>
+          </motion.div>
         )}
 
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Basic Details</CardTitle>
+        {/* Basic Details */}
+        <Card className="shadow-md">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+            <CardTitle className="flex items-center gap-2">
+              <Home className="w-5 h-5 text-blue-600" />
+              Basic Details
+            </CardTitle>
+            <CardDescription>Essential information about your property</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6 space-y-6">
             <div className="space-y-2">
-              <Label>Property Title</Label>
+              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                Property Title *
+                <Info className="h-4 w-4 text-gray-400" />
+              </label>
               <Input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="e.g., Cozy Apartment near IT Park"
+                className="h-10"
+                required
               />
             </div>
 
             <div className="space-y-3">
-              <Label>Property Type</Label>
-              <div className="grid sm:grid-cols-2 gap-3">
+              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                Property Type *
+                <Info className="h-4 w-4 text-gray-400" />
+              </label>
+              <div className="grid sm:grid-cols-2 gap-4">
                 {PROPERTY_TYPES.map((propertyType) => {
                   const Icon = propertyType.icon;
                   const selected = type === propertyType.value;
@@ -722,10 +791,10 @@ const EditProperty = () => {
                       key={propertyType.value}
                       type="button"
                       onClick={() => setType(propertyType.value)}
-                      className={`text-left rounded-xl border p-4 transition-all ${
+                      className={`text-left rounded-xl border-2 p-4 transition-all ${
                         selected
-                          ? "border-emerald-500 bg-emerald-50 shadow-sm"
-                          : "border-slate-200 bg-white hover:border-emerald-300"
+                          ? "border-emerald-500 bg-emerald-50 shadow-md"
+                          : "border-slate-200 bg-white hover:border-emerald-300 hover:shadow-sm"
                       }`}
                     >
                       <Icon
@@ -736,7 +805,7 @@ const EditProperty = () => {
                       <div className="font-semibold text-slate-900">
                         {propertyType.label}
                       </div>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 mt-1">
                         {propertyType.description}
                       </p>
                     </button>
@@ -745,42 +814,59 @@ const EditProperty = () => {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label>Street</Label>
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  Street *
+                  <Info className="h-4 w-4 text-gray-400" />
+                </label>
                 <Input
                   value={street}
                   onChange={(event) => setStreet(event.target.value)}
                   placeholder="House No., Street Name"
+                  className="h-10"
+                  required
                 />
               </div>
               <div className="space-y-2">
-                <Label>Barangay</Label>
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  Barangay *
+                  <Info className="h-4 w-4 text-gray-400" />
+                </label>
                 <Input
                   value={barangay}
                   onChange={(event) => setBarangay(event.target.value)}
                   placeholder="Barangay name"
+                  className="h-10"
+                  required
                 />
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label>ZIP code</Label>
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  ZIP Code
+                  <Info className="h-4 w-4 text-gray-400" />
+                </label>
                 <Input
                   value={zipCode}
                   onChange={(event) => setZipCode(event.target.value)}
                   placeholder="e.g., 6000"
                   inputMode="numeric"
+                  className="h-10"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Locality Type</Label>
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  Locality Type *
+                  <Info className="h-4 w-4 text-gray-400" />
+                </label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
                     variant={localityMode === "city" ? "default" : "outline"}
-                    className="flex-1"
+                    className="flex-1 h-10"
                     onClick={() => {
                       setLocalityMode("city");
                       setMunicipality(null);
@@ -791,7 +877,7 @@ const EditProperty = () => {
                   <Button
                     type="button"
                     variant={localityMode === "municipality" ? "default" : "outline"}
-                    className="flex-1"
+                    className="flex-1 h-10"
                     onClick={() => {
                       setLocalityMode("municipality");
                       setCity(null);
@@ -805,7 +891,10 @@ const EditProperty = () => {
 
             {localityMode === "city" && (
               <div className="space-y-2">
-                <Label>Select City</Label>
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  Select City *
+                  <Info className="h-4 w-4 text-gray-400" />
+                </label>
                 <select
                   value={city?.id || ""}
                   onChange={(event) => {
@@ -813,7 +902,8 @@ const EditProperty = () => {
                       cities.find((c) => c.id === event.target.value) || null;
                     setCity(selected);
                   }}
-                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-1 focus-visible:ring-emerald-500"
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  required
                 >
                   <option value="">Choose city</option>
                   {cities.map((c) => (
@@ -827,7 +917,10 @@ const EditProperty = () => {
 
             {localityMode === "municipality" && (
               <div className="space-y-2">
-                <Label>Select Municipality</Label>
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  Select Municipality *
+                  <Info className="h-4 w-4 text-gray-400" />
+                </label>
                 <select
                   value={municipality?.id || ""}
                   onChange={(event) => {
@@ -835,7 +928,8 @@ const EditProperty = () => {
                       municipalities.find((m) => m.id === event.target.value) || null;
                     setMunicipality(selected);
                   }}
-                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-1 focus-visible:ring-emerald-500"
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  required
                 >
                   <option value="">Choose municipality</option>
                   {municipalities.map((m) => (
@@ -849,13 +943,18 @@ const EditProperty = () => {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Location & Map</CardTitle>
+        {/* Location & Map */}
+        <Card className="shadow-md">
+          <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 border-b">
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-emerald-600" />
+              Location & Map
+            </CardTitle>
+            <CardDescription>Set your property location on the map</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="flex-1 flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 bg-white">
+          <CardContent className="pt-6 space-y-6">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex-1 flex items-center gap-2 border-2 border-slate-200 rounded-xl px-4 py-2.5 bg-white focus-within:border-emerald-400 transition-colors">
                 <Search className="h-4 w-4 text-slate-400" />
                 <input
                   value={localityQuery}
@@ -871,29 +970,35 @@ const EditProperty = () => {
                 />
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleLocalitySearch} className="whitespace-nowrap">
+                <Button onClick={handleLocalitySearch} className="whitespace-nowrap h-10">
+                  <Search className="h-4 w-4 mr-2" />
                   Search
                 </Button>
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   onClick={getCurrentLocation}
                   disabled={isLocating}
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap h-10"
                 >
-                  <Locate className="h-4 w-4 mr-2" />
-                  {isLocating ? "Locating…" : "Use my location"}
+                  {isLocating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Locate className="h-4 w-4 mr-2" />
+                  )}
+                  {isLocating ? "Locating…" : "My Location"}
                 </Button>
               </div>
             </div>
 
-            <div className="rounded-md border border-gray-200 bg-gray-50">
+            <div className="rounded-xl border-2 border-gray-200 bg-gray-50 overflow-hidden shadow-sm">
               <MapContainer
-                whenReady={(event: LeafletEvent) => {
-                  return mapRef.current = event.target as L.Map;
+                // @ts-ignore - whenReady signature issue with react-leaflet types
+                whenReady={(event: any) => {
+                  mapRef.current = event.target as L.Map;
                 }}
                 center={mapCenter}
                 zoom={latitude && longitude ? 14 : 11}
-                className="h-72 w-full rounded-t-md"
+                className="h-80 w-full"
                 maxBounds={CEBU_BOUNDS as any}
                 maxBoundsViscosity={1.0}
               >
@@ -901,30 +1006,36 @@ const EditProperty = () => {
                 <MapClickHandler onMapClick={handleMapClick} />
                 {latitude && longitude && <Marker position={[latitude, longitude]} />}
               </MapContainer>
-              <div className="p-4 space-y-3 text-sm">
+              <div className="p-5 space-y-4 bg-white border-t">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-800 flex items-center gap-2">
+                  <span className="font-semibold text-slate-800 flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-emerald-500" />
                     Coordinates
                   </span>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="text-emerald-600"
+                    className="text-emerald-600 hover:bg-emerald-50"
                     onClick={handleFlyToMarker}
                     disabled={!latitude || !longitude}
                   >
                     <Navigation className="h-3.5 w-3.5 mr-1" />
-                    Focus marker
+                    Focus Marker
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono text-slate-600">
-                  <div className="rounded bg-white px-2 py-1 border border-gray-200">
-                    {latitude ? latitude.toFixed(6) : "Not set"}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-slate-50 px-3 py-2 border border-gray-200">
+                    <p className="text-xs text-slate-500 mb-1">Latitude</p>
+                    <p className="text-sm font-mono text-slate-800">
+                      {latitude ? latitude.toFixed(6) : "Not set"}
+                    </p>
                   </div>
-                  <div className="rounded bg-white px-2 py-1 border border-gray-200">
-                    {longitude ? longitude.toFixed(6) : "Not set"}
+                  <div className="rounded-lg bg-slate-50 px-3 py-2 border border-gray-200">
+                    <p className="text-xs text-slate-500 mb-1">Longitude</p>
+                    <p className="text-sm font-mono text-slate-800">
+                      {longitude ? longitude.toFixed(6) : "Not set"}
+                    </p>
                   </div>
                 </div>
                 <p className="text-xs text-slate-500">
@@ -934,11 +1045,11 @@ const EditProperty = () => {
               </div>
             </div>
             {mapMessage && (
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600 flex items-center gap-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 flex items-center gap-2">
                 {isReverseGeocoding ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  <RefreshCw className="h-4 w-4 animate-spin text-emerald-500" />
                 ) : (
-                  <MapPin className="h-3.5 w-3.5 text-emerald-500" />
+                  <MapPin className="h-4 w-4 text-emerald-500" />
                 )}
                 <span>{mapMessage}</span>
               </div>
@@ -946,57 +1057,66 @@ const EditProperty = () => {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle>Nearby Institutions</CardTitle>
-              <p className="text-sm text-slate-500">
-                Highlight up to 10 nearby landmarks to help tenants understand your location.
-              </p>
+        {/* Nearby Institutions */}
+        <Card className="shadow-md">
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Building className="w-5 h-5 text-purple-600" />
+                  Nearby Institutions
+                </CardTitle>
+                <CardDescription>
+                  Highlight up to 10 nearby landmarks to help tenants understand your location.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addInstitution}
+                disabled={nearInstitutions.length >= MAX_INSTITUTIONS}
+                className="whitespace-nowrap w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add ({nearInstitutions.length}/{MAX_INSTITUTIONS})
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={addInstitution}
-              disabled={nearInstitutions.length >= MAX_INSTITUTIONS}
-              className="whitespace-nowrap w-full sm:w-auto"
-            >
-              + Add ({nearInstitutions.length}/{MAX_INSTITUTIONS})
-            </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6 space-y-4">
             {nearInstitutions.length === 0 ? (
-              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                No nearby institutions listed yet.
+              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <Building className="h-10 w-10 text-slate-400 mx-auto mb-3" />
+                <p className="text-sm text-slate-500">No nearby institutions listed yet.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {nearInstitutions.map((institution, index) => (
                   <div
                     key={`institution-${index}`}
-                    className="grid md:grid-cols-12 gap-3 border border-slate-200 rounded-xl p-4 bg-white"
+                    className="grid md:grid-cols-12 gap-4 border-2 border-slate-200 rounded-xl p-5 bg-white hover:border-purple-200 transition-colors"
                   >
                     <div className="md:col-span-5 space-y-2">
-                      <Label>Institution Name</Label>
+                      <label className="text-sm font-semibold text-gray-700">Institution Name</label>
                       <Input
                         value={institution.name}
                         onChange={(event) =>
                           updateInstitution(index, { name: event.target.value })
                         }
                         placeholder="e.g., Ayala Center"
+                        className="h-10"
                       />
                       <p className="text-xs text-slate-400">
                         Keep it to three words for readability.
                       </p>
                     </div>
                     <div className="md:col-span-5 space-y-2">
-                      <Label>Type</Label>
+                      <label className="text-sm font-semibold text-gray-700">Type</label>
                       <select
                         value={institution.type}
                         onChange={(event) =>
                           updateInstitution(index, { type: event.target.value })
                         }
-                        className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-1 focus-visible:ring-emerald-500"
+                        className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                       >
                         <option value="">Select type</option>
                         {INSTITUTION_TYPES.map((type) => (
@@ -1006,13 +1126,16 @@ const EditProperty = () => {
                         ))}
                       </select>
                     </div>
-                    <div className="md:col-span-2 flex md:items-end">
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-sm font-semibold text-gray-700 block opacity-0 pointer-events-none select-none h-[20px]">Action</label>
                       <Button
-                        variant="outline"
-                        className="w-full border-red-200 text-red-600 hover:bg-red-50"
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="w-full h-10 text-red-500 hover:text-red-700 hover:bg-red-50"
                         onClick={() => removeInstitution(index)}
                       >
-                        Remove
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -1022,38 +1145,46 @@ const EditProperty = () => {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle>Other Information</CardTitle>
-              <p className="text-sm text-slate-500">
-                Add quick facts such as “Pet-friendly” or “Second floor”.
-              </p>
+        {/* Other Information */}
+        <Card className="shadow-md">
+          <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Info className="w-5 h-5 text-amber-600" />
+                  Other Information
+                </CardTitle>
+                <CardDescription>
+                  Add quick facts such as "Pet-friendly" or "Second floor".
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addOtherInformation}
+                disabled={otherInformation.length >= MAX_OTHER_INFO}
+                className="whitespace-nowrap w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add ({otherInformation.length}/{MAX_OTHER_INFO})
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={addOtherInformation}
-              disabled={otherInformation.length >= MAX_OTHER_INFO}
-              className="whitespace-nowrap w-full sm:w-auto"
-            >
-              + Add ({otherInformation.length}/{MAX_OTHER_INFO})
-            </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6 space-y-4">
             {otherInformation.length === 0 ? (
-              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                Add quick facts like “Second floor” or “Pet-friendly”.
+              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <Info className="h-10 w-10 text-slate-400 mx-auto mb-3" />
+                <p className="text-sm text-slate-500">Add quick facts like "Second floor" or "Pet-friendly".</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {otherInformation.map((info, index) => (
                   <div
                     key={`info-${index}`}
-                    className="grid md:grid-cols-12 gap-3 border border-slate-200 rounded-xl p-4 bg-white"
+                    className="grid md:grid-cols-12 gap-4 border-2 border-slate-200 rounded-xl p-5 bg-white hover:border-amber-200 transition-colors"
                   >
                     <div className="md:col-span-4 space-y-2">
-                      <Label>Context</Label>
+                      <label className="text-sm font-semibold text-gray-700">Context</label>
                       <Input
                         value={info.context}
                         onChange={(event) =>
@@ -1062,10 +1193,11 @@ const EditProperty = () => {
                           })
                         }
                         placeholder="e.g., Second Floor"
+                        className="h-10"
                       />
                     </div>
                     <div className="md:col-span-6 space-y-2">
-                      <Label>Description</Label>
+                      <label className="text-sm font-semibold text-gray-700">Description</label>
                       <Input
                         value={info.description}
                         onChange={(event) =>
@@ -1074,15 +1206,18 @@ const EditProperty = () => {
                           })
                         }
                         placeholder="e.g., Balcony overlooks the garden"
+                        className="h-10"
                       />
                     </div>
                     <div className="md:col-span-2 flex md:items-end">
                       <Button
-                        variant="outline"
-                        className="w-full border-red-200 text-red-600 hover:bg-red-50"
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="w-full h-10 text-red-500 hover:text-red-700 hover:bg-red-50"
                         onClick={() => removeOtherInformation(index)}
                       >
-                        Remove
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -1092,42 +1227,48 @@ const EditProperty = () => {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Property Photo</CardTitle>
+        {/* Property Photo */}
+        <Card className="shadow-md">
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b">
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-purple-600" />
+              Property Photo
+            </CardTitle>
+            <CardDescription>Upload or link an image for your property</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Label className="text-sm font-medium text-slate-700">
-                Image Source:
-              </Label>
+          <CardContent className="pt-6 space-y-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                Image Source
+                <Info className="h-4 w-4 text-gray-400" />
+              </label>
               <div className="flex gap-2">
                 <Button
                   type="button"
                   variant={imageMode === "link" ? "default" : "outline"}
                   onClick={() => handleImageModeChange("link")}
-                  className="h-8 px-3 text-xs flex items-center gap-1"
+                  className="h-10 px-4 text-sm flex items-center gap-2"
                 >
-                  <LinkIcon className="h-3.5 w-3.5" />
+                  <LinkIcon className="h-4 w-4" />
                   Use Link
                 </Button>
                 <Button
                   type="button"
                   variant={imageMode === "upload" ? "default" : "outline"}
                   onClick={() => handleImageModeChange("upload")}
-                  className="h-8 px-3 text-xs flex items-center gap-1"
+                  className="h-10 px-4 text-sm flex items-center gap-2"
                 >
-                  <Upload className="h-3.5 w-3.5" />
+                  <Upload className="h-4 w-4" />
                   Upload File
                 </Button>
               </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {imageMode === "link" ? (
                   <div className="space-y-2">
-                    <Label>Image Link</Label>
+                    <label className="text-sm font-semibold text-gray-700">Image Link</label>
                     <Input
                       placeholder="https://example.com/property.jpg"
                       value={imageLink}
@@ -1135,6 +1276,7 @@ const EditProperty = () => {
                         setImageLink(event.target.value);
                         setMainImagePreview(event.target.value);
                       }}
+                      className="h-10"
                     />
                     <p className="text-xs text-slate-500">
                       Paste a direct image link for your property.
@@ -1142,8 +1284,8 @@ const EditProperty = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <Label>Upload Image</Label>
-                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-emerald-400 transition-colors">
+                    <label className="text-sm font-semibold text-gray-700">Upload Image</label>
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-purple-400 transition-colors bg-gray-50 cursor-pointer">
                       <input
                         type="file"
                         accept="image/*"
@@ -1154,18 +1296,22 @@ const EditProperty = () => {
                         }
                       />
                       <label htmlFor="edit-image-upload" className="cursor-pointer block">
-                        <ImageIcon className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-                        <div className="text-sm font-semibold text-slate-700">
+                        <ImageIcon className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                        <div className="text-sm font-semibold text-slate-700 mb-2">
                           Click to upload a new image
                         </div>
                         <p className="text-xs text-slate-500">PNG/JPG up to 5MB</p>
                       </label>
                     </div>
                     {imageError && (
-                      <p className="text-xs text-red-500">{imageError}</p>
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        {imageError}
+                      </p>
                     )}
                     {imageFile && (
-                      <p className="text-xs text-emerald-700">
+                      <p className="text-xs text-emerald-700 flex items-center gap-1">
+                        <ImageIcon className="h-3 w-3" />
                         Selected: {imageFile.name}
                       </p>
                     )}
@@ -1173,11 +1319,9 @@ const EditProperty = () => {
                 )}
               </div>
               <div className="space-y-3">
-                <Label className="text-sm font-semibold text-gray-900">
-                  Preview
-                </Label>
+                <label className="text-sm font-semibold text-gray-700">Preview</label>
                 {mainImagePreview ? (
-                  <div className="w-full aspect-square rounded-xl border border-slate-200 overflow-hidden bg-slate-100">
+                  <div className="w-full aspect-square rounded-xl border-2 border-purple-200 overflow-hidden bg-slate-100 shadow-sm">
                     <img
                       src={mainImagePreview}
                       alt="Property preview"
@@ -1185,9 +1329,9 @@ const EditProperty = () => {
                     />
                   </div>
                 ) : (
-                  <div className="w-full aspect-square rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400">
+                  <div className="w-full aspect-square rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-slate-400">
                     <div className="text-center">
-                      <ImageIcon className="h-10 w-10 mx-auto mb-2" />
+                      <ImageIcon className="h-12 w-12 mx-auto mb-3 text-slate-400" />
                       <p className="text-sm">No image selected</p>
                     </div>
                   </div>
@@ -1197,27 +1341,32 @@ const EditProperty = () => {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-emerald-100 bg-emerald-50/70">
-          <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-3 py-4">
-            <div className="text-sm text-emerald-900">
-              Review your changes, then save to update this property.
-            </div>
-            <Button
-              size="lg"
-              disabled={!isFormReady || isSaving}
-              onClick={handleSave}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Saving…
-                </>
-              ) : (
-                "Save Changes"
-              )}
+        {/* Submit Button */}
+        <div className="flex items-center justify-end gap-4 pt-4 border-t">
+          <Link to={`/landlord/properties/${propertyId}`}>
+            <Button type="button" variant="outline">
+              Cancel
             </Button>
-          </CardContent>
-        </Card>
+          </Link>
+          <Button
+            type="button"
+            disabled={!isFormReady || isSaving}
+            onClick={handleSave}
+            className="bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 gap-2"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

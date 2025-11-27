@@ -17,6 +17,8 @@ export default defineConfig({
       "/socket.io": {
         target: "http://localhost:5000", // your backend port
         ws: true, // 👈 enables WebSocket proxying
+        changeOrigin: true,
+        secure: false,
       },
     },
   },

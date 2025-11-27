@@ -304,7 +304,18 @@ const Leases = () => {
       ]);
 
       const leasesData: ApiLeasesResponse = leasesResponse.data;
-      setLeases(leasesData.leases || []);
+      const allLeases = leasesData.leases || [];
+      setLeases(allLeases);
+      
+      // Debug: Log lease counts by status
+      if (allLeases.length > 0) {
+        const statusCounts = allLeases.reduce((acc, lease) => {
+          acc[lease.status] = (acc[lease.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        console.log('📊 Total leases loaded:', allLeases.length);
+        console.log('📊 Leases by status:', statusCounts);
+      }
 
       const propertiesData = propertiesResponse.data?.properties ?? propertiesResponse.data ?? [];
       setPropertiesWithUnits(Array.isArray(propertiesData) ? propertiesData : []);
@@ -329,14 +340,10 @@ const Leases = () => {
     lease.status === 'ACTIVE' || lease.status === 'PENDING'
   ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  // Past leases: COMPLETED, TERMINATED, CANCELLED, or leases created more than 1 week ago with terminated/cancelled status
-  const pastLeases = leases.filter(lease => {
-    const isPastStatus = lease.status === 'COMPLETED' || lease.status === 'TERMINATED' || lease.status === 'CANCELLED';
-    const isOldTerminatedOrCancelled = (lease.status === 'TERMINATED' || lease.status === 'CANCELLED') && 
-      (new Date().getTime() - new Date(lease.createdAt).getTime()) > 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
-    
-    return isPastStatus || isOldTerminatedOrCancelled;
-  }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  // Past leases: All leases that are not ACTIVE or PENDING (i.e., COMPLETED, TERMINATED, CANCELLED)
+  const pastLeases = leases.filter(lease => 
+    lease.status !== 'ACTIVE' && lease.status !== 'PENDING'
+  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const isLeaseExpiringSoon = (lease: Lease) => {
     if (!lease.endDate) return false;

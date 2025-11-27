@@ -57,7 +57,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { cancelLeaseRequest, getLeaseByIdRequest, terminateLeaseRequest, addLandlordNoteRequest, updateLandlordNoteRequest, deleteLandlordNoteRequest } from '@/api/landlord/leaseApi';
+import { cancelLeaseRequest, getLeaseByIdRequest, terminateLeaseRequest, completeLeaseRequest, addLandlordNoteRequest, updateLandlordNoteRequest, deleteLandlordNoteRequest } from '@/api/landlord/leaseApi';
 import { createPaymentRequest, markPaymentAsPaidRequest } from '@/api/landlord/paymentApi';
 import { toast } from 'sonner';
 
@@ -481,10 +481,13 @@ const ViewSpecificLease = () => {
   });
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [terminateLoading, setTerminateLoading] = useState(false);
+  const [completeLoading, setCompleteLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [terminateConfirmation, setTerminateConfirmation] = useState('');
+  const [completeConfirmation, setCompleteConfirmation] = useState('');
   const [cancelConfirmation, setCancelConfirmation] = useState('');
   const terminatePhrase = 'TERMINATE';
+  const completePhrase = 'COMPLETE';
   const cancelPhrase = 'CANCEL';
   const [addNoteModal, setAddNoteModal] = useState(false);
   const [editNoteModal, setEditNoteModal] = useState<{ isOpen: boolean; noteIndex: number | null; note: LandlordNote | null }>({
@@ -498,6 +501,7 @@ const ViewSpecificLease = () => {
     setSettingsModalOpen(open);
     if (!open) {
       setTerminateConfirmation('');
+      setCompleteConfirmation('');
       setCancelConfirmation('');
     }
   };
@@ -1009,6 +1013,35 @@ const ViewSpecificLease = () => {
     }
   };
 
+  const handleCompleteLease = async () => {
+    if (!leaseId || !lease) return;
+
+    const nicknameOrLabel =
+      lease.leaseNickname ||
+      `${lease.tenant.firstName} ${lease.tenant.lastName} - ${lease.unit.label}`;
+
+    const confirmMessage = `Mark "${nicknameOrLabel}" as completed?\n\n• The lease end date has passed.\n• Remaining pending payments will be locked.\n• You will no longer be able to record or edit payments for this lease.\n• This action cannot be undone.`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setCompleteLoading(true);
+      await completeLeaseRequest(leaseId);
+      await fetchLeaseData(true);
+      handleSettingsModalChange(false);
+      toast.success('Lease marked as completed successfully!');
+    } catch (error: any) {
+      console.error('Error completing lease:', error);
+      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to complete lease. Please try again.';
+      toast.error(errorMessage);
+    } finally {
+      setCompleteLoading(false);
+      setCompleteConfirmation('');
+    }
+  };
+
   const handleTerminateLease = async () => {
     if (!leaseId || !lease) return;
 
@@ -1111,7 +1144,19 @@ const ViewSpecificLease = () => {
   const leaseIsCancelled = lease.status === 'CANCELLED';
   const leaseIsCompleted = lease.status === 'COMPLETED';
   const leaseCanCancel = leaseIsPending;
-  const leaseCanTerminate = leaseIsActive;
+  
+  // Check if end date has passed or is today
+  const isEndDatePassed = () => {
+    if (!lease.endDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(lease.endDate);
+    endDate.setHours(0, 0, 0, 0);
+    return endDate <= today;
+  };
+  
+  const leaseCanComplete = leaseIsActive && isEndDatePassed();
+  const leaseCanTerminate = leaseIsActive && !isEndDatePassed();
   const leaseIsClosed = leaseIsTerminated || leaseIsCancelled || leaseIsCompleted;
   const canEditLease = leaseIsPending;
   
@@ -2376,6 +2421,33 @@ const ViewSpecificLease = () => {
               </div>
             )}
 
+            {leaseCanComplete && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 space-y-4">
+                <div className="flex items-center gap-2 text-blue-800">
+                  <CheckCircle className="w-4 h-4" />
+                  <p className="text-sm font-semibold">Mark lease as completed</p>
+                </div>
+                <p className="text-xs sm:text-sm text-blue-800">
+                  The lease end date has passed. Marking as completed will lock outstanding payments and prevent any further edits or payment updates.
+                </p>
+                <p className="text-xs text-blue-700">
+                  This action cannot be undone. Type <span className="font-mono text-blue-900">{completePhrase}</span> to confirm.
+                </p>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-blue-900">Confirmation</Label>
+                  <Input
+                    value={completeConfirmation}
+                    onChange={(e) => setCompleteConfirmation(e.target.value.toUpperCase())}
+                    placeholder={`Type "${completePhrase}" to confirm`}
+                    className="bg-white/80 border-blue-200 focus-visible:ring-blue-300"
+                  />
+                  <p className="text-[11px] text-blue-700">
+                    Enter the exact phrase to enable completion.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {leaseCanTerminate && (
               <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4 space-y-4">
                 <div className="flex items-center gap-2 text-rose-800">
@@ -2427,6 +2499,18 @@ const ViewSpecificLease = () => {
                 onClick={handleCancelLease}
               >
                 {cancelLoading ? 'Cancelling...' : 'Cancel Lease'}
+              </Button>
+            )}
+            {leaseCanComplete && (
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={
+                  completeLoading ||
+                  completeConfirmation.trim() !== completePhrase
+                }
+                onClick={handleCompleteLease}
+              >
+                {completeLoading ? 'Completing...' : 'Mark as Completed'}
               </Button>
             )}
             {leaseCanTerminate && (

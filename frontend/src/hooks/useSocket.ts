@@ -43,10 +43,18 @@ export const useSocket = (onNotification?: (notification: any) => void) => {
     const socketUrl = getSocketUrl();
 
     const socket = io(socketUrl, {
-      transports: ["websocket", "polling"],
+      // In development, prefer polling first (works better with Vite proxy)
+      // Then upgrade to websocket if available
+      transports: import.meta.env.MODE === "development" 
+        ? ["polling", "websocket"] 
+        : ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      // Force new connection to avoid stale connections
+      forceNew: true,
     });
 
     socketRef.current = socket;

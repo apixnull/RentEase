@@ -18,7 +18,7 @@ import {
   DollarSign,
   Shield,
   X,
-  Image as ImageIcon,
+
   Loader,
   Edit,
   Plus,
@@ -26,7 +26,7 @@ import {
   Camera,
   Star,
   Info,
-  Users,
+
   Save,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -598,7 +598,7 @@ const EditUnit = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 py-6">
+    <div className="min-h-screen py-6">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div

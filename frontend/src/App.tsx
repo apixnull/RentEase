@@ -12,50 +12,18 @@ import { useAuthStore } from "./stores/useAuthStore";
 import {
   getUserInfoRequest,
 } from "./api/authApi";
-import DisplaySpecificUnit from "./pages/private/landlord/unit/DisplaySpecificUnit";
-import DisplayUnits from "./pages/private/landlord/unit/DisplayUnits";
-import PropertyLayout from "./pages/private/landlord/property/PropertyLayout";
-import LandlordListing from "./pages/private/landlord/listing/LandlordListing";
-import ReviewUnitForListing from "./pages/private/landlord/listing/ReviewUnitForListing";
-import { ListingDetails } from "./pages/private/landlord/listing/ListingDetails";
-import ListingPaymentSuccess from "./pages/private/landlord/listing/ListingPaymentSuccess";
-import ViewUnitDetails from "./pages/private/tenant/browse-unit/ViewUnitDetails.tsx";
-import BrowseUnitLayout from "./pages/private/tenant/browse-unit/BrowseUnitLayout.tsx";
-import LandlordMessages from "./pages/private/landlord/messages/LandlordMessages.tsx";
-import TenantMessages from "./pages/private/tenant/messages/TenantMessages.tsx";
-import ViewChannelMessages from "./pages/private/tenant/messages/ViewChannelMessagesTenant.tsx";
-import ViewChannelMessagesLandlord from "./pages/private/landlord/messages/ViewChannelMessagesLandlord.tsx";
-import Leases from "./pages/private/landlord/lease/Leases.tsx";
-import ViewSpecificLease from "./pages/private/landlord/lease/ViewSpecificLease.tsx";
-import MyLease from "./pages/private/tenant/lease/MyLease.tsx";
-import ScreeningForm from "./pages/private/tenant/screening/ScreeningForm.tsx";
-import Maintenance from "./pages/private/landlord/maintenance/Maintenance.tsx";
-import Tenants from "./pages/private/landlord/tenants/Tenants.tsx";
-import Financials from "./pages/private/landlord/financials/Financials.tsx";
-import Engagement from "./pages/private/landlord/reports/Engagement.tsx";
-import TenantScreeningLandlord from "./pages/private/landlord/screening/TenantScreeningLandlord.tsx";
-import TenantScreeningTenant from "./pages/private/tenant/screening/TenantScreeningTenant.tsx";
-import ViewSpecificScreeningLandlord from "./pages/private/landlord/screening/ViewSpecificScreeningLandlord.tsx";
-import ViewSpecificScreeningTenant from "./pages/private/tenant/screening/ViewSpecificScreeningTenant.tsx";
-import CreateLease from "./pages/private/landlord/lease/CreateLease.tsx";
-import EditLease from "./pages/private/landlord/lease/EditLease.tsx";
-import MyLeaseDetails from "./pages/private/tenant/lease/MyLeaseDetails.tsx";
-import AdminListing from "./pages/private/admin/listing/AdminListing.tsx";
-import AdminListingDetails from "./pages/private/admin/listing/specific-listing-details/AdminListingDetailsLayout.tsx";
-import AllUsers from "./pages/private/admin/users/AllUsers.tsx";
-import UserDetailsPage from "./pages/private/admin/users/UserDetails.tsx";
-import AdminEarnings from "./pages/private/admin/earnings/AdminEarnings.tsx";
-import AdminFraudReports from "./pages/private/admin/reports/AdminFraudReports.tsx";
-import AdminAnalytics from "./pages/private/admin/analytics/AdminAnalytics.tsx";
-import RentPayments from "./pages/private/landlord/payments/RentPayments.tsx";
-
-
 // ------------------------------- Lazy Imports
 // Layouts
 const PublicLayout = lazy(() => import("./layouts/PublicLayout"));
 const LandlordLayout = lazy(() => import("./layouts/LandlordLayout"));
 const TenantLayout = lazy(() => import("./layouts/TenantLayout"));
 const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
+const PropertyLayout = lazy(
+  () => import("./pages/private/landlord/property/PropertyLayout")
+);
+const BrowseUnitLayout = lazy(
+  () => import("./pages/private/tenant/browse-unit/BrowseUnitLayout")
+);
 
 // Public pages
 const Landing = lazy(() => import("./pages/public/Landing"));
@@ -90,8 +58,64 @@ const DisplaySpecificProperty = lazy(
 const EditProperty = lazy(
   () => import("./pages/private/landlord/property/EditProperty")
 );
+const DisplayUnits = lazy(
+  () => import("./pages/private/landlord/unit/DisplayUnits")
+);
+const DisplaySpecificUnit = lazy(
+  () => import("./pages/private/landlord/unit/DisplaySpecificUnit")
+);
 const CreateUnit = lazy(() => import("./pages/private/landlord/unit/CreateUnit"));
 const EditUnit = lazy(() => import("./pages/private/landlord/unit/EditUnit"));
+const LandlordListing = lazy(
+  () => import("./pages/private/landlord/listing/LandlordListing")
+);
+const ReviewUnitForListing = lazy(
+  () => import("./pages/private/landlord/listing/ReviewUnitForListing")
+);
+const ListingDetails = lazy(() =>
+  import("./pages/private/landlord/listing/ListingDetails").then(
+    (module) => ({ default: module.ListingDetails })
+  )
+);
+const ListingPaymentSuccess = lazy(
+  () => import("./pages/private/landlord/listing/ListingPaymentSuccess")
+);
+const LandlordMessages = lazy(
+  () => import("./pages/private/landlord/messages/LandlordMessages.tsx")
+);
+const ViewChannelMessagesLandlord = lazy(
+  () => import("./pages/private/landlord/messages/ViewChannelMessagesLandlord.tsx")
+);
+const TenantScreeningLandlord = lazy(
+  () => import("./pages/private/landlord/screening/TenantScreeningLandlord.tsx")
+);
+const ViewSpecificScreeningLandlord = lazy(
+  () =>
+    import("./pages/private/landlord/screening/ViewSpecificScreeningLandlord.tsx")
+);
+const Leases = lazy(() => import("./pages/private/landlord/lease/Leases.tsx"));
+const ViewSpecificLease = lazy(
+  () => import("./pages/private/landlord/lease/ViewSpecificLease.tsx")
+);
+const CreateLease = lazy(
+  () => import("./pages/private/landlord/lease/CreateLease.tsx")
+);
+const EditLease = lazy(
+  () => import("./pages/private/landlord/lease/EditLease.tsx")
+);
+const Maintenance = lazy(
+  () => import("./pages/private/landlord/maintenance/Maintenance.tsx")
+);
+const Tenants = lazy(() => import("./pages/private/landlord/tenants/Tenants.tsx"));
+const Financials = lazy(
+  () => import("./pages/private/landlord/financials/Financials.tsx")
+);
+const Engagement = lazy(
+  () => import("./pages/private/landlord/reports/Engagement.tsx")
+);
+const RentPayments = lazy(
+  () => import("./pages/private/landlord/payments/RentPayments.tsx")
+);
 
 // Private pages - Tenant
 const TenantDashboard = lazy(
@@ -100,10 +124,55 @@ const TenantDashboard = lazy(
 const BrowseProperties = lazy(
   () => import("./pages/private/tenant/browse-unit/BrowseUnit.tsx")
 );
+const ViewUnitDetails = lazy(
+  () => import("./pages/private/tenant/browse-unit/ViewUnitDetails.tsx")
+);
+const TenantMessages = lazy(
+  () => import("./pages/private/tenant/messages/TenantMessages.tsx")
+);
+const ViewChannelMessages = lazy(
+  () => import("./pages/private/tenant/messages/ViewChannelMessagesTenant.tsx")
+);
+const MyLease = lazy(() => import("./pages/private/tenant/lease/MyLease.tsx"));
+const MyLeaseDetails = lazy(
+  () => import("./pages/private/tenant/lease/MyLeaseDetails.tsx")
+);
+const ScreeningForm = lazy(
+  () => import("./pages/private/tenant/screening/ScreeningForm.tsx")
+);
+const TenantScreeningTenant = lazy(
+  () => import("./pages/private/tenant/screening/TenantScreeningTenant.tsx")
+);
+const ViewSpecificScreeningTenant = lazy(
+  () =>
+    import("./pages/private/tenant/screening/ViewSpecificScreeningTenant.tsx")
+);
 
 // Private pages - Admin
 const AdminDashboard = lazy(
   () => import("./pages/private/admin/AdminDashboard")
+);
+const AdminListing = lazy(
+  () => import("./pages/private/admin/listing/AdminListing.tsx")
+);
+const AdminListingDetails = lazy(
+  () =>
+    import(
+      "./pages/private/admin/listing/specific-listing-details/AdminListingDetailsLayout.tsx"
+    )
+);
+const AllUsers = lazy(() => import("./pages/private/admin/users/AllUsers.tsx"));
+const UserDetailsPage = lazy(
+  () => import("./pages/private/admin/users/UserDetails.tsx")
+);
+const AdminEarnings = lazy(
+  () => import("./pages/private/admin/earnings/AdminEarnings.tsx")
+);
+const AdminFraudReports = lazy(
+  () => import("./pages/private/admin/reports/AdminFraudReports.tsx")
+);
+const AdminAnalytics = lazy(
+  () => import("./pages/private/admin/analytics/AdminAnalytics.tsx")
 );
 
 // Shared private pages
@@ -242,7 +311,7 @@ const router = createBrowserRouter([
   },
 
   // browse unit
-  { path: "tenant/browse-unit",element: <ProtectedRoute allowedRoles={["TENANT"]}><BrowseUnitLayout /></ProtectedRoute>,
+  { path: "tenant/browse-unit",element: <ProtectedRoute allowedRoles={["TENANT"]}><Suspense fallback={<Loader />}><BrowseUnitLayout /></Suspense></ProtectedRoute>,
     children: [
       { index: true, element: <Suspense fallback={<Loader />}><BrowseProperties /></Suspense> },
       { path: ":listingId/details", element: <Suspense fallback={<Loader />}><ViewUnitDetails /></Suspense> },

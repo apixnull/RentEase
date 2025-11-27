@@ -143,8 +143,26 @@ const LandlordDashboard = () => {
         setPaymentsLoading(true);
         const response = await getDashboardPaymentsRequest();
         if (response.data) {
-          setOverduePayments(response.data.overduePayments || []);
-          setUpcomingPayments(response.data.upcomingPayments || []);
+          // Filter out payments from ended/completed/terminated/cancelled leases
+          const endedLeaseStatuses = ['ENDED', 'COMPLETED', 'TERMINATED', 'CANCELLED'];
+          const overdue = (response.data.overduePayments || []).filter((payment: any) => {
+            // If lease status is available, filter it out
+            if (payment.lease?.status) {
+              return !endedLeaseStatuses.includes(payment.lease.status);
+            }
+            // If status not available, include it (backend should have filtered already)
+            return true;
+          });
+          const upcoming = (response.data.upcomingPayments || []).filter((payment: any) => {
+            // If lease status is available, filter it out
+            if (payment.lease?.status) {
+              return !endedLeaseStatuses.includes(payment.lease.status);
+            }
+            // If status not available, include it (backend should have filtered already)
+            return true;
+          });
+          setOverduePayments(overdue);
+          setUpcomingPayments(upcoming);
         }
       } catch (error: any) {
         console.error('Failed to fetch payments:', error);
@@ -341,8 +359,26 @@ const LandlordDashboard = () => {
 
       // Update payments
       if (paymentsResponse.data) {
-        setOverduePayments(paymentsResponse.data.overduePayments || []);
-        setUpcomingPayments(paymentsResponse.data.upcomingPayments || []);
+        // Filter out payments from ended/completed/terminated/cancelled leases
+        const endedLeaseStatuses = ['ENDED', 'COMPLETED', 'TERMINATED', 'CANCELLED'];
+        const overdue = (paymentsResponse.data.overduePayments || []).filter((payment: any) => {
+          // If lease status is available, filter it out
+          if (payment.lease?.status) {
+            return !endedLeaseStatuses.includes(payment.lease.status);
+          }
+          // If status not available, include it (backend should have filtered already)
+          return true;
+        });
+        const upcoming = (paymentsResponse.data.upcomingPayments || []).filter((payment: any) => {
+          // If lease status is available, filter it out
+          if (payment.lease?.status) {
+            return !endedLeaseStatuses.includes(payment.lease.status);
+          }
+          // If status not available, include it (backend should have filtered already)
+          return true;
+        });
+        setOverduePayments(overdue);
+        setUpcomingPayments(upcoming);
       }
 
       // Update leases

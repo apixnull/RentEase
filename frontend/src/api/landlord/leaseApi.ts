@@ -34,6 +34,10 @@ export const cancelLeaseRequest = (leaseId: string) =>
 export const terminateLeaseRequest = (leaseId: string) =>
   privateApi.patch(apiRoutes.landlord(`/lease/${leaseId}/terminate`));
 
+// ✅ Mark lease as completed
+export const completeLeaseRequest = (leaseId: string) =>
+  privateApi.patch(apiRoutes.landlord(`/lease/${leaseId}/complete`));
+
 // ✏️ Update pending lease
 export const updateLeaseRequest = (leaseId: string, payload: any) =>
   privateApi.patch(apiRoutes.landlord(`/lease/${leaseId}/update`), payload);
