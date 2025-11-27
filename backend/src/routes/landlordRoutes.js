@@ -5,7 +5,7 @@ import { createProperty, getAmenities, getCitiesAndMunicipalities, getLandlordPr
 import { createUnit, getUnitDetails, updateUnit } from "../controllers/landlord/unitController.js";
 import { createPaymentSession, getEligibleUnitsForListing, getLandlordListingInfoSuccess, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview, getListingByUnitIdForSuccess, toggleListingVisibility} from "../controllers/landlord/listingController.js";
 import { getLandlordScreeningsList, getSpeceficScreeningLandlord, inviteTenantForScreening, landlordReviewTenantScreening, deletePendingScreening} from "../controllers/landlord/tenantScreeningController.js";
-import { cancelLease, createLease, createPayment, findTenantForLease, getAllLeases, getAllPropertiesWithUnits, getAllPropertiesWithUnitsAndSuggestedTenants, getLeaseById, getLandlordMonthlyPayments, markPaymentAsPaid, terminateLease, updateLease, addLandlordNote, updateLandlordNote, deleteLandlordNote } from "../controllers/landlord/leaseController.js";
+import { cancelLease, createLease, createPayment, findTenantForLease, getAllLeases, getAllPropertiesWithUnits, getAllPropertiesWithUnitsAndSuggestedTenants, getLeaseById, getLandlordMonthlyPayments, markPaymentAsPaid, terminateLease, completeLease, updateLease, addLandlordNote, updateLandlordNote, deleteLandlordNote } from "../controllers/landlord/leaseController.js";
 import { getAllMaintenanceRequestsByLandlord, updateMaintenanceStatus} from "../controllers/landlord/maintenanceController.js";
 import { getAllTransactions, createTransaction, updateTransaction, deleteTransaction, getPropertiesWithUnits } from "../controllers/landlord/financialController.js";
 import { getEngagementData } from "../controllers/landlord/engagementController.js";
@@ -51,6 +51,7 @@ router.get("/lease/list", requireAuthentication(["LANDLORD"]), getAllLeases);   
 router.get("/lease/:id/details", requireAuthentication(["LANDLORD"]), getLeaseById);                                    // 🔍 Get specific lease details
 router.patch("/lease/:id/cancel", requireAuthentication(["LANDLORD"]), cancelLease);                                    // ❌ Cancel pending lease
 router.patch("/lease/:id/terminate", requireAuthentication(["LANDLORD"]), terminateLease);                              // ⛔ Terminate lease early
+router.patch("/lease/:id/complete", requireAuthentication(["LANDLORD"]), completeLease);                                 // ✅ Mark lease as completed
 router.patch("/lease/:id/update", requireAuthentication(["LANDLORD"]), updateLease);                                     // ✏️ Update pending lease
 router.get("/lease/properties-with-units", requireAuthentication(["LANDLORD"]), getAllPropertiesWithUnits); // 🏠 Get all properties + units (for editing - includes all units)
 router.get("/lease/properties-with-units-and-tenants", requireAuthentication(["LANDLORD"]), getAllPropertiesWithUnitsAndSuggestedTenants); // 🏠 Get all properties + units + suggested tenants (with riskLevel)

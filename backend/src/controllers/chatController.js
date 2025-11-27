@@ -188,10 +188,35 @@ export const sendMessageCreateChannel = async (req, res) => {
         select: { id: true },
       });
 
-      // 6️⃣ Determine channel status based on active lease
+      // 6️⃣ Check for previous leases (not active) and set them to ENDED
+      if (!activeLease) {
+        const previousLeases = await prisma.lease.findMany({
+          where: {
+            tenantId,
+            landlordId,
+            status: { not: "ENDED" },
+          },
+          select: { id: true },
+        });
+
+        if (previousLeases.length > 0) {
+          await prisma.lease.updateMany({
+            where: {
+              tenantId,
+              landlordId,
+              status: { not: "ENDED" },
+            },
+            data: {
+              status: "ENDED",
+            },
+          });
+        }
+      }
+
+      // 7️⃣ Determine channel status based on active lease
       const channelStatus = activeLease ? "ACTIVE" : "INQUIRY";
 
-      // 7️⃣ Create a new chat channel
+      // 8️⃣ Create a new chat channel
       channel = await prisma.chatChannel.create({
         data: {
           tenantId,
@@ -201,7 +226,7 @@ export const sendMessageCreateChannel = async (req, res) => {
       });
     }
 
-    // 8️⃣ Create the message within the channel
+    // 9️⃣ Create the message within the channel
     const message = await prisma.chatMessage.create({
       data: {
         channelId: channel.id,
@@ -210,8 +235,8 @@ export const sendMessageCreateChannel = async (req, res) => {
       },
     });
 
-    // 9️⃣ Check if status needs updating (e.g., lease became active)
-    const activeLease = await prisma.lease.findFirst({
+    // 🔟 Check if status needs updating (e.g., lease became active)
+    const activeLeaseCheck = await prisma.lease.findFirst({
       where: {
         tenantId,
         landlordId,
@@ -220,11 +245,11 @@ export const sendMessageCreateChannel = async (req, res) => {
       select: { id: true },
     });
 
-    const shouldBeActive = activeLease !== null;
+    const shouldBeActive = activeLeaseCheck !== null;
     const currentStatus = channel.status;
     const needsStatusUpdate = shouldBeActive && currentStatus !== "ACTIVE";
 
-    // 🔟 Update the channel's message snapshot fields and status if needed
+    // 1️⃣1️⃣ Update the channel's message snapshot fields and status if needed
     const updatedChannel = await prisma.chatChannel.update({
       where: { id: channel.id },
       data: {
@@ -244,7 +269,7 @@ export const sendMessageCreateChannel = async (req, res) => {
       },
     });
 
-    // 1️⃣1️⃣ Emit Socket.IO events
+    // 1️⃣2️⃣ Emit Socket.IO events
     emitChannelUpdate(updatedChannel);
     emitNewMessage(
       {
@@ -258,7 +283,7 @@ export const sendMessageCreateChannel = async (req, res) => {
       landlordId
     );
 
-    // 1️⃣2️⃣ Return channel info
+    // 1️⃣3️⃣ Return channel info
     return res.status(201).json({
       channelId: channel.id,
       message: existingChannel 

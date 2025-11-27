@@ -25,7 +25,7 @@ const allowedOrigins = getAllowedOrigins();
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      // Allow requests with no origin
+      // Allow requests with no origin (like from Vite proxy)
       if (!origin) return callback(null, true);
       
       if (allowedOrigins.includes(origin) || process.env.NODE_ENV === "development") {
@@ -37,6 +37,11 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  // Allow both polling and websocket transports
+  transports: ["polling", "websocket"],
+  // Increase ping timeout for development
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 // Set io instance in socket service for use in controllers

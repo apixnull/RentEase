@@ -259,11 +259,17 @@ export const getDashboardPayments = async (req, res) => {
     const sevenDaysFromNow = new Date(today);
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-    // Get all leases for this landlord
+    // Get all active leases for this landlord (exclude ended/completed/terminated/cancelled)
     const leases = await prisma.lease.findMany({
-      where: { landlordId },
+      where: { 
+        landlordId,
+        status: {
+          notIn: ['ENDED', 'COMPLETED', 'TERMINATED', 'CANCELLED']
+        }
+      },
       select: {
         id: true,
+        status: true,
         property: {
           select: {
             id: true,
@@ -338,6 +344,7 @@ export const getDashboardPayments = async (req, res) => {
           lease: lease
             ? {
                 id: lease.id,
+                status: lease.status,
                 property: lease.property
                   ? {
                       id: lease.property.id,
@@ -386,6 +393,7 @@ export const getDashboardPayments = async (req, res) => {
           lease: lease
             ? {
                 id: lease.id,
+                status: lease.status,
                 property: lease.property
                   ? {
                       id: lease.property.id,

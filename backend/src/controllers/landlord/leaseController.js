@@ -1123,6 +1123,126 @@ export const cancelLease = async (req, res) => {
 };
 
 /**
+ * @desc Mark a lease as completed (when end date has passed)
+ * @route PATCH /api/landlord/lease/:id/complete
+ * @access Private (Landlord)
+ */
+export const completeLease = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const landlordId = req.user?.id;
+
+    if (!landlordId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const lease = await prisma.lease.findUnique({
+      where: { id },
+      select: {
+        landlordId: true,
+        tenantId: true,
+        status: true,
+        endDate: true,
+      },
+    });
+
+    if (!lease) {
+      return res.status(404).json({ error: "Lease not found." });
+    }
+
+    if (lease.landlordId !== landlordId) {
+      return res
+        .status(403)
+        .json({ error: "You do not have permission to complete this lease." });
+    }
+
+    if (lease.status === "COMPLETED") {
+      return res
+        .status(400)
+        .json({ error: "Lease has already been completed." });
+    }
+
+    if (["CANCELLED", "TERMINATED"].includes(lease.status)) {
+      return res.status(400).json({
+        error: `Lease is already ${lease.status.toLowerCase()} and cannot be completed.`,
+      });
+    }
+
+    if (!lease.endDate) {
+      return res.status(400).json({
+        error: "Lease does not have an end date and cannot be completed.",
+      });
+    }
+
+    // Check if end date has passed or is today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(lease.endDate);
+    endDate.setHours(0, 0, 0, 0);
+
+    if (endDate > today) {
+      return res.status(400).json({
+        error: "Lease end date has not yet passed. Cannot mark as completed.",
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.payment.updateMany({
+        where: {
+          leaseId: id,
+          status: "PENDING",
+        },
+        data: {
+          reminderStage: 0,
+        },
+      }),
+      prisma.lease.update({
+        where: { id },
+        data: {
+          status: "COMPLETED",
+        },
+      }),
+    ]);
+
+    // Update chat channel status to ENDED if it exists
+    const chatChannel = await prisma.chatChannel.findFirst({
+      where: {
+        tenantId: lease.tenantId,
+        landlordId: lease.landlordId,
+      },
+      select: { id: true },
+    });
+
+    if (chatChannel) {
+      await prisma.chatChannel.update({
+        where: { id: chatChannel.id },
+        data: {
+          status: "ENDED",
+        },
+      });
+    }
+
+    // Notify tenant about lease completion
+    await createNotification(
+      lease.tenantId,
+      "LEASE",
+      "Your lease has been completed. Thank you for being a great tenant!",
+      { leaseId: id, status: "COMPLETED" }
+    );
+
+    return res
+      .status(200)
+      .json({ message: "Lease marked as completed successfully." });
+  } catch (err) {
+    console.error("Error completing lease:", err);
+    return res.status(500).json({
+      error: "Failed to complete lease.",
+      details: err.message,
+    });
+  }
+};
+
+/**
  * @desc Terminate a lease early (locks further edits & payments)
  * @route PATCH /api/landlord/lease/:id/terminate
  * @access Private (Landlord)
@@ -1186,6 +1306,24 @@ export const terminateLease = async (req, res) => {
         },
       }),
     ]);
+
+    // Update chat channel status to ENDED if it exists
+    const chatChannel = await prisma.chatChannel.findFirst({
+      where: {
+        tenantId: lease.tenantId,
+        landlordId: lease.landlordId,
+      },
+      select: { id: true },
+    });
+
+    if (chatChannel) {
+      await prisma.chatChannel.update({
+        where: { id: chatChannel.id },
+        data: {
+          status: "ENDED",
+        },
+      });
+    }
 
     // Notify tenant about lease termination
     await createNotification(
