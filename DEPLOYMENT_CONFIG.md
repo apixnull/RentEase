@@ -3,7 +3,7 @@
 ## Current Deployment URLs
 
 - **Frontend**: https://rent-ease-management.vercel.app/
-- **Backend**: https://rentease-vnw8.onrender.com
+- **Backend**: https://rentease-production-1e1b.up.railway.app
 
 ## Environment-Based Configuration
 
@@ -18,8 +18,8 @@ Both frontend and backend now automatically detect the environment and use the a
   - Socket.io: Uses Vite proxy (`/`)
 
 - **Production Mode** (`npm run build`):
-  - API: `https://rentease-vnw8.onrender.com/api`
-  - Socket.io: `https://rentease-vnw8.onrender.com`
+  - API: `https://rentease-production-1e1b.up.railway.app/api`
+  - Socket.io: `https://rentease-production-1e1b.up.railway.app`
 
 - **Override**: Set `VITE_BACKEND_URL` to override automatic detection
 
@@ -42,19 +42,19 @@ Both frontend and backend now automatically detect the environment and use the a
 Go to: Vercel Dashboard → Your Project → Settings → Environment Variables
 
 ```
-VITE_BACKEND_URL=https://rentease-vnw8.onrender.com/api
+VITE_BACKEND_URL=https://rentease-production-1e1b.up.railway.app/api
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-## Render Environment Variables
+## Railway Environment Variables
 
-Go to: Render Dashboard → Your Service → Environment
+Go to: Railway Dashboard → Your Service → Variables
 
 ```
 NODE_ENV=production
-PORT=10000
-DATABASE_URL=<Internal Database URL>
+PORT=5000
+DATABASE_URL=<Railway PostgreSQL Connection String>
 FRONTEND_URL=https://rent-ease-management.vercel.app
 JWT_SECRET=<strong-random-string>
 SESSION_SECRET=<strong-random-string>
@@ -66,13 +66,35 @@ GEMINI_API_KEY=your-gemini-api-key
 RESEND_API_KEY=your-resend-api-key
 ```
 
+### Railway Deployment Fix for `npm ci` Error
+
+If you're getting `npm ci` errors during Railway deployment:
+
+1. **Regenerate package-lock.json**:
+   ```bash
+   cd backend
+   rm package-lock.json
+   npm install
+   git add package-lock.json
+   git commit -m "Update package-lock.json"
+   git push
+   ```
+
+2. **Or use npm install instead** (if package-lock.json is problematic):
+   - In Railway dashboard, go to your service → Settings → Build
+   - Change build command from `npm ci` to `npm install`
+
+3. **Ensure Node version matches**:
+   - Railway should auto-detect Node version from `package.json` or `.nvmrc`
+   - You can also set it in Railway environment variables: `NODE_VERSION=22.21.1`
+
 ## Testing the Configuration
 
 ### Test Frontend → Backend API
 
 1. Open browser console on your frontend
 2. Make an API call (e.g., login)
-3. Check Network tab - should call `https://rentease-vnw8.onrender.com/api/...`
+3. Check Network tab - should call `https://rentease-production-1e1b.up.railway.app/api/...`
 
 ### Test Socket.io Connection
 
@@ -82,7 +104,7 @@ RESEND_API_KEY=your-resend-api-key
 
 ### Test Backend CORS
 
-1. Visit: `https://rentease-vnw8.onrender.com/`
+1. Visit: `https://rentease-production-1e1b.up.railway.app/`
 2. Should see: `{"message":"✅ Welcome to the API root route"}`
 3. Check browser console for CORS errors when making API calls
 
@@ -92,7 +114,7 @@ RESEND_API_KEY=your-resend-api-key
 
 - **Symptom**: `Access-Control-Allow-Origin` errors in browser console
 - **Fix**: 
-  1. Verify `FRONTEND_URL` in Render matches your Vercel URL exactly
+  1. Verify `FRONTEND_URL` in Railway matches your Vercel URL exactly
   2. Ensure no trailing slashes
   3. Redeploy backend after changing environment variables
 
@@ -102,20 +124,20 @@ RESEND_API_KEY=your-resend-api-key
 - **Fix**:
   1. Check `FRONTEND_URL` in backend matches frontend URL
   2. Verify Socket.io CORS settings in `backend/src/server.js`
-  3. Check Render logs for connection errors
+  3. Check Railway logs for connection errors
 
 ### API Calls Failing
 
 - **Symptom**: 404 or connection errors
 - **Fix**:
   1. Verify `VITE_BACKEND_URL` in Vercel includes `/api` at the end
-  2. Check backend is running: `https://rentease-vnw8.onrender.com/`
+  2. Check backend is running: `https://rentease-production-1e1b.up.railway.app/`
   3. Verify API routes are correct
 
 ## Next Steps
 
 1. ✅ Set environment variables in Vercel
-2. ✅ Set environment variables in Render
+2. ✅ Set environment variables in Railway
 3. ✅ Redeploy both frontend and backend
 4. ✅ Test API connections
 5. ✅ Test Socket.io connections

@@ -37,7 +37,7 @@ export const useSocket = (onNotification?: (notification: any) => void) => {
       }
       
       // Production: use production backend URL (without /api)
-      return "https://rentease-tm0i.onrender.com";
+      return "https://rentease-production-1e1b.up.railway.app";
     };
 
     const socketUrl = getSocketUrl();
