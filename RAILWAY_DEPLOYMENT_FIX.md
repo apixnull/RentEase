@@ -49,21 +49,24 @@ ERROR: failed to build: failed to solve: process "npm ci" did not complete succe
    - Set **Root Directory** to `backend`
    - Save and redeploy
 
-### Solution 4: Add Node Version Specification
+### Solution 4: Fix Node.js Version (Prisma 7.0.0 requires Node.js 22.12+)
 
-Create a `.nvmrc` file in the `backend` directory:
+**Issue**: Railway is using Node.js v22.11.0, but Prisma 7.0.0 requires Node.js 22.12+ (or 20.19+, 24.0+).
 
-```bash
-cd backend
-echo "22.21.1" > .nvmrc
-git add .nvmrc
-git commit -m "Add Node version specification"
-git push
-```
+**Solution A - Use nixpacks.toml (Recommended)**:
+A `backend/nixpacks.toml` file has been created that specifies Node.js 22.21.1. This should be automatically detected by Railway.
 
-Or set it in Railway environment variables:
-- Variable: `NODE_VERSION`
-- Value: `22.21.1`
+**Solution B - Set Railway Environment Variable**:
+1. Go to Railway Dashboard → Your Service → **Variables**
+2. Add a new variable:
+   - **Name**: `NIXPACKS_NODE_VERSION`
+   - **Value**: `22.21.1`
+3. Save and redeploy
+
+**Solution C - Use .nvmrc file**:
+A `.nvmrc` file has been created in the `backend` directory with `22.21.1`. Railway should detect this automatically.
+
+**Note**: The `package.json` also specifies `"engines": { "node": ">=22.12.0" }` which should help Railway detect the required version.
 
 ## Verify Your Setup
 
