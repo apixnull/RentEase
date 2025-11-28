@@ -18,7 +18,6 @@ NODE_ENV=production
 PORT=10000
 DATABASE_URL=<Internal Database URL from Render>
 FRONTEND_URL=https://rent-ease-management.vercel.app
-JWT_SECRET=<generate-strong-random-string>
 SESSION_SECRET=<generate-strong-random-string>
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
@@ -41,7 +40,6 @@ NODE_ENV=development
 PORT=5000
 FRONTEND_URL=http://localhost:5173
 DATABASE_URL=postgresql://user:password@localhost:5432/rentease
-JWT_SECRET=your-local-jwt-secret
 SESSION_SECRET=your-local-session-secret
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
@@ -55,7 +53,7 @@ RESEND_API_KEY=your-resend-api-key
 
 ## Generating Secrets
 
-To generate strong secrets for JWT and Session:
+To generate strong secrets for Session:
 
 ```bash
 # On Linux/Mac

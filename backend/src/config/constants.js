@@ -47,5 +47,14 @@ export const getFrontendUrl = () => {
   return DEFAULT_FRONTEND_URLS[mode];
 };
 
-export const getAllowedOrigins = () => [getFrontendUrl()];
+export const getAllowedOrigins = () => {
+  const frontendUrl = getFrontendUrl();
+  // Normalize URL (remove trailing slash) and include both versions
+  const normalizedUrl = frontendUrl.replace(/\/$/, "");
+  return [
+    normalizedUrl,
+    `${normalizedUrl}/`, // Include with trailing slash
+    frontendUrl, // Original
+  ];
+};
 

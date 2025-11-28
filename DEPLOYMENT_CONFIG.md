@@ -56,7 +56,6 @@ NODE_ENV=production
 PORT=5000
 DATABASE_URL=<Railway PostgreSQL Connection String>
 FRONTEND_URL=https://rent-ease-management.vercel.app
-JWT_SECRET=<strong-random-string>
 SESSION_SECRET=<strong-random-string>
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
