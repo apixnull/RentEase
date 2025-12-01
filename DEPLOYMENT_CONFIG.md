@@ -62,7 +62,12 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 UPSTASH_REDIS_REST_URL=your-upstash-redis-url
 UPSTASH_REDIS_REST_TOKEN=your-upstash-redis-token
 GEMINI_API_KEY=your-gemini-api-key
-RESEND_API_KEY=your-resend-api-key
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=RentEase <your-email@gmail.com>
 ```
 
 ### Railway Deployment Fix for `npm ci` Error

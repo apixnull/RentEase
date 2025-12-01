@@ -109,7 +109,12 @@ Make sure these are set in Railway:
 - `UPSTASH_REDIS_REST_URL=<your-redis-url>`
 - `UPSTASH_REDIS_REST_TOKEN=<your-redis-token>`
 - `GEMINI_API_KEY=<your-key>` (if using)
-- `RESEND_API_KEY=<your-key>` (if using)
+- `SMTP_HOST=smtp.gmail.com` (or your SMTP provider)
+- `SMTP_PORT=587` (or 465 for SSL)
+- `SMTP_SECURE=false` (true for port 465, false for others)
+- `SMTP_USER=<your-email>` (SMTP authentication email)
+- `SMTP_PASS=<your-app-password>` (SMTP password/app password)
+- `SMTP_FROM=RentEase <your-email@gmail.com>` (from email address)
 
 ## Still Having Issues?
 

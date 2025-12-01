@@ -14,13 +14,3 @@ npx prisma db push
     npx prisma generate
 
 
-
-
-
-
-
-############# localhost webhooks exposure to paymongo
-
- npm install -g smee-client
-
-smee -u https://smee.io/0TxwAOsCA5QhQ5W --target http://localhost:5000/api/webhook/paymongo

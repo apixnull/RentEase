@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 import http from "http";
 import { setIoInstance } from "./services/socketService.js";
 import prisma from "./libs/prismaClient.js";
+import { startPaymentReminderCron } from "./services/paymentReminderCron.js";
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
 
@@ -214,6 +215,9 @@ server.listen(PORT, () => {
   console.log(`📦 Environment: ${env}`);
   console.log(`🌐 Frontend URL: ${frontendUrl}`);
   console.log(`🔌 Socket.io enabled`);
+  
+  // Start payment reminder cron job
+  startPaymentReminderCron();
 });
 
 // Export io instance for use in controllers

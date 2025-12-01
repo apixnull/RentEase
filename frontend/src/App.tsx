@@ -119,6 +119,9 @@ const Reports = lazy(
 const LeaseAnalytics = lazy(
   () => import("./pages/private/landlord/reports/LeaseAnalytics.tsx")
 );
+const MaintenanceAnalytics = lazy(
+  () => import("./pages/private/landlord/reports/MaintenanceAnalytics")
+);
 const RentPayments = lazy(
   () => import("./pages/private/landlord/payments/RentPayments.tsx")
 );
@@ -188,6 +191,9 @@ const ListingAnalytics = lazy(
 );
 const FraudReportAnalytics = lazy(
   () => import("./pages/private/admin/reports-analytics/FraudReportAnalytics.tsx")
+);
+const AdminSettings = lazy(
+  () => import("./pages/private/admin/settings/AdminSettings.tsx")
 );
 
 // Shared private pages
@@ -295,6 +301,7 @@ const router = createBrowserRouter([
       { path: "reports", element: <Suspense fallback={<Loader />}><Reports /></Suspense>},
       // lease analytics
       { path: "lease-analytics", element: <Suspense fallback={<Loader />}><LeaseAnalytics /></Suspense>},
+      { path: "maintenance-analytics", element: <Suspense fallback={<Loader />}><MaintenanceAnalytics /></Suspense>},
 
       // payments
       { path: "payments", element: <Suspense fallback={<Loader />}><RentPayments /></Suspense>},
@@ -359,6 +366,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Suspense fallback={<Loader />}><AdminDashboard /></Suspense> },
       { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },
+      { path: "settings", element: <Suspense fallback={<Loader />}><AdminSettings /></Suspense> },
 
       // users
       { path: "users", element: <Suspense fallback={<Loader />}><AllUsers /></Suspense> },

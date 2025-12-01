@@ -5,6 +5,7 @@ import { getAllUsers, getUserDetails, updateUserStatus } from "../controllers/ad
 import { getFraudReports, getFraudReportsAnalytics } from "../controllers/fraudReportController.js";
 import { getUserAnalytics, getListingAnalytics } from "../controllers/admin/reportAnalyticsController.js";
 import { getAdminDashboard } from "../controllers/admin/dashboardController.js";
+import { triggerPaymentReminders } from "../controllers/admin/paymentReminderController.js";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 
 const router = Router();
@@ -30,5 +31,8 @@ router.get("/fraud-reports", requireAuthentication(["ADMIN"]), getFraudReports);
 router.get("/report-analytics/users", requireAuthentication(["ADMIN"]), getUserAnalytics);                                                           // 📊 User analytics for reports
 router.get("/report-analytics/listings", requireAuthentication(["ADMIN"]), getListingAnalytics);                                                    // 📊 Listing analytics for reports
 router.get("/report-analytics/fraud-reports", requireAuthentication(["ADMIN"]), getFraudReportsAnalytics);                                                       // 📊 Reports analytics with status breakdown
+
+// ----------------------------------------------------- PAYMENT REMINDERS (Testing/Admin)
+router.post("/payment-reminders/trigger", requireAuthentication(["ADMIN"]), triggerPaymentReminders);                                               // 🔔 Manually trigger payment reminder emails
 
 export default router;

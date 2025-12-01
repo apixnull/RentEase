@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Shield,
   MoreHorizontal,
+  Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,13 @@ const sidebarItems = [
     description: "Platform insights and analytics",
     badge: null,
   },
+  {
+    path: "/admin/settings",
+    name: "Settings",
+    icon: Settings,
+    description: "System settings and utilities",
+    badge: null,
+  },
 ];
 
 // Breadcrumb configuration
@@ -85,6 +93,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin/logs": { name: "System Logs" },
   "/admin/alerts": { name: "Alerts" },
   "/admin/account": { name: "Account" },
+  "/admin/settings": { name: "Settings" },
 };
 
 // Custom hook for sidebar state management

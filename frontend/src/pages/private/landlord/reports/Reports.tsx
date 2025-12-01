@@ -387,6 +387,32 @@ const Reports = () => {
         </CardContent>
       </Card>
 
+      {/* Maintenance Analytics Button Section */}
+      <Card className="border border-slate-200 shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-600 via-amber-600 to-yellow-600 text-white grid place-items-center shadow-lg">
+                <Wrench className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Maintenance Analytics</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Track maintenance requests, status trends, and tenant information by property and unit
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => navigate('/landlord/maintenance-analytics')}
+              className="h-11 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 px-6 text-sm font-semibold text-white shadow-md shadow-amber-500/30 hover:brightness-110"
+            >
+              <Wrench className="w-4 h-4 mr-2" />
+              View Maintenance Analytics
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
     </div>
   );
 };

@@ -50,7 +50,12 @@
 | Variable Name | Value | Description |
 |--------------|-------|-------------|
 | `GEMINI_API_KEY` | `your-gemini-api-key` | Google Gemini API key (for AI features) |
-| `RESEND_API_KEY` | `your-resend-api-key` | Resend API key (for email sending) |
+| `SMTP_HOST` | `smtp.gmail.com` | SMTP server hostname |
+| `SMTP_PORT` | `587` | SMTP server port (587 for TLS, 465 for SSL) |
+| `SMTP_SECURE` | `false` | Use SSL (true for port 465, false for others) |
+| `SMTP_USER` | `your-email@gmail.com` | SMTP authentication email |
+| `SMTP_PASS` | `your-app-password` | SMTP authentication password/app password |
+| `SMTP_FROM` | `RentEase <your-email@gmail.com>` | From email address |
 
 ### Payment (Optional - if using PayMongo)
 
@@ -98,7 +103,12 @@ SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your-upstash-token
 GEMINI_API_KEY=your-gemini-api-key
-RESEND_API_KEY=re_your-resend-api-key
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=RentEase <your-email@gmail.com>
 ```
 
 ---
@@ -132,10 +142,18 @@ RESEND_API_KEY=re_your-resend-api-key
 2. Create or copy your API key
 3. Paste into `GEMINI_API_KEY`
 
-### RESEND_API_KEY
-1. Go to [Resend Dashboard](https://resend.com/api-keys)
-2. Create or copy your API key
-3. Paste into `RESEND_API_KEY`
+### SMTP Configuration (Email Sending)
+1. Choose your email provider (Gmail, Outlook, SendGrid, etc.)
+2. For Gmail:
+   - Enable 2-factor authentication
+   - Generate an App Password: [Google Account Settings](https://myaccount.google.com/apppasswords)
+   - Use `smtp.gmail.com` as `SMTP_HOST`
+   - Use `587` as `SMTP_PORT`
+   - Set `SMTP_SECURE=false`
+   - Use your Gmail address as `SMTP_USER`
+   - Use the generated app password as `SMTP_PASS`
+3. For other providers, check their SMTP settings documentation
+4. Set `SMTP_FROM` to your desired "from" address (e.g., `RentEase <your-email@gmail.com>`)
 
 ---
 

@@ -12,6 +12,7 @@ import { getEngagementData } from "../controllers/landlord/engagementController.
 import { getDashboardMetrics, getDashboardPayments, getDashboardLeases, getDashboardScreenings, getDashboardMaintenance, getDashboardListings, getDashboardFinancial } from "../controllers/landlord/dashboardController.js";
 import { getReportsData } from "../controllers/landlord/reportsController.js";
 import { getLeaseAnalytics } from "../controllers/landlord/leaseAnalyticsController.js";
+import { getMaintenanceAnalytics } from "../controllers/landlord/maintenanceAnalyticsController.js";
 
 
 const router = Router();
@@ -102,6 +103,8 @@ router.get("/reports", requireAuthentication(["LANDLORD"]), getReportsData);
 router.get("/engagement", requireAuthentication(["LANDLORD"]), getEngagementData);
 // ----------------------------------------------------- LEASE ANALYTICS
 router.get("/lease-analytics", requireAuthentication(["LANDLORD"]), getLeaseAnalytics);
+// ----------------------------------------------------- MAINTENANCE ANALYTICS
+router.get("/maintenance-analytics", requireAuthentication(["LANDLORD"]), getMaintenanceAnalytics);
 
 export default router;
  
