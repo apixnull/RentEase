@@ -13,12 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, RefreshCcw, Eye, Calendar, User, Building, Flag } from "lucide-react";
+import { AlertTriangle, RefreshCcw, Eye, Calendar, User, Building, Flag, Loader2, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import type { FraudReport } from "@/api/admin/fraudReportApi";
 
-type DateFilter = "all" | "this_week" | "this_month" | "this_year";
+type DateFilter = "all" | "this_week" | "this_month";
 
 const AdminFraudReports = () => {
   const navigate = useNavigate();
@@ -26,7 +26,7 @@ const AdminFraudReports = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("this_week");
   const [tablePage, setTablePage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -118,13 +118,6 @@ const AdminFraudReports = () => {
         endDate.setHours(23, 59, 59, 999);
         break;
       }
-      case "this_year": {
-        startDate = new Date(now.getFullYear(), 0, 1);
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date(now.getFullYear(), 11, 31);
-        endDate.setHours(23, 59, 59, 999);
-        break;
-      }
       default:
         return data;
     }
@@ -169,62 +162,164 @@ const AdminFraudReports = () => {
     <div className="space-y-6 p-6">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -10 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        className="relative overflow-hidden rounded-2xl"
       >
-        <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 text-white grid place-items-center shadow-md">
-                  <Flag className="h-5 w-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl font-semibold text-gray-900">Fraud Reports</CardTitle>
-                  <p className="text-sm text-gray-600 mt-0.5">Tenant fraud reports and complaints</p>
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-purple-200/80 via-indigo-200/75 to-blue-200/70 opacity-95" />
+        <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-purple-300/50 to-indigo-400/40 blur-3xl"
+            initial={{ opacity: 0.4, scale: 0.85 }}
+            animate={{ opacity: 0.7, scale: 1.05 }}
+            transition={{ duration: 3, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
+          />
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-blue-200/40 to-indigo-200/35 blur-3xl"
+            initial={{ opacity: 0.3 }}
+            animate={{ opacity: 0.6 }}
+            transition={{ duration: 3.5, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
+          />
+
+          <div className="px-4 sm:px-6 py-5 space-y-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4 min-w-0">
+                <motion.div whileHover={{ scale: 1.05 }} className="relative flex-shrink-0">
+                  <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 grid place-items-center shadow-xl shadow-indigo-500/30">
+                    <Flag className="h-5 w-5 relative z-10 text-orange-500" />
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                  </div>
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: 'spring', stiffness: 220 }}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-purple-600 border border-purple-100 shadow-sm grid place-items-center"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                  </motion.div>
+                </motion.div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                      Fraud Reports
+                    </h1>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                    <Flag className="h-4 w-4 text-indigo-500" />
+                    Monitor and manage tenant fraud reports and complaints
+                  </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="gap-2"
-              >
-                <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
+
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                <Button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="h-11 rounded-xl bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 px-5 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 hover:brightness-110 disabled:opacity-70"
+                >
+                  {refreshing ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Refreshing
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <RefreshCcw className="h-4 w-4" />
+                      Refresh
+                    </span>
+                  )}
+                </Button>
+              </div>
             </div>
-          </CardHeader>
-        </Card>
+
+            {/* Stats and Filters Section */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-200/60">
+              {/* Stats */}
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Total Reports</p>
+                  <p className="text-2xl font-bold text-gray-900">{data?.length || 0}</p>
+                </div>
+                <div className="h-12 w-px bg-slate-200" />
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Filtered</p>
+                  <p className="text-2xl font-bold text-gray-900">{filteredData.length}</p>
+                </div>
+              </div>
+
+              {/* Date Filter Buttons */}
+              <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-lg border border-slate-200">
+                <Button
+                  variant={dateFilter === "this_week" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setDateFilter("this_week")}
+                  className={`text-xs h-8 px-4 !active:bg-white/90 !active:text-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0 ${
+                    dateFilter === "this_week"
+                      ? "bg-white shadow-sm text-slate-600 font-medium border border-slate-200"
+                      : "text-slate-500 hover:text-slate-600 hover:bg-white/60"
+                  }`}
+                >
+                  This Week
+                </Button>
+                <Button
+                  variant={dateFilter === "this_month" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setDateFilter("this_month")}
+                  className={`text-xs h-8 px-4 !active:bg-white/90 !active:text-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0 ${
+                    dateFilter === "this_month"
+                      ? "bg-white shadow-sm text-slate-600 font-medium border border-slate-200"
+                      : "text-slate-500 hover:text-slate-600 hover:bg-white/60"
+                  }`}
+                >
+                  This Month
+                </Button>
+                <Button
+                  variant={dateFilter === "all" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setDateFilter("all")}
+                  className={`text-xs h-8 px-4 !active:bg-white/90 !active:text-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0 ${
+                    dateFilter === "all"
+                      ? "bg-white shadow-sm text-slate-600 font-medium border border-slate-200"
+                      : "text-slate-500 hover:text-slate-600 hover:bg-white/60"
+                  }`}
+                >
+                  All Time
+                </Button>
+              </div>
+            </div>
+
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, ease: 'easeOut', delay: 0.15 }}
+              style={{ originX: 0 }}
+              className="relative h-1 w-full rounded-full overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-400/80 via-indigo-400/80 to-blue-400/80" />
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
+              />
+            </motion.div>
+          </div>
+        </div>
       </motion.div>
 
       {/* Reports Table */}
       <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
         <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center justify-between sm:justify-start gap-4">
-              <CardTitle className="text-lg font-semibold">All Reports</CardTitle>
-              {filteredData && (
-                <Badge variant="secondary" className="text-xs">
-                  {filteredData.length} {filteredData.length === 1 ? "report" : "reports"}
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <Select value={dateFilter} onValueChange={(value: DateFilter) => setDateFilter(value)}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Filter by date" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="this_week">This Week</SelectItem>
-                  <SelectItem value="this_month">This Month</SelectItem>
-                  <SelectItem value="this_year">This Year</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold">All Reports</CardTitle>
+            {filteredData && (
+              <Badge variant="secondary" className="text-xs">
+                {filteredData.length} {filteredData.length === 1 ? "report" : "reports"}
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent>

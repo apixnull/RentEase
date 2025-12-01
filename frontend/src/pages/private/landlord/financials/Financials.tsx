@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DollarSign, TrendingUp, TrendingDown, Plus, Repeat, Search, Trash2, Sparkles, Users, X, ChevronDown, ChevronUp, Loader2, RefreshCcw, Calendar, CalendarDays, Clock, Filter, Download } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Plus, Repeat, Trash2, Sparkles, Users, X, ChevronDown, ChevronUp, Loader2, RefreshCcw, Filter, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAllTransactionsRequest, createTransactionRequest, updateTransactionRequest, deleteTransactionRequest, getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
@@ -31,9 +31,21 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import type { ChartConfig } from '@/components/ui/chart';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import { 
 
-// Interfaces
+  
+  calculateRecurringAmount, 
+  formatCurrency, 
+  formatCurrencyForPDF, 
+  formatCategory, 
+  getWordCount,
+  transactionOccursOnDate,
+  normalizeDate,
+  recurringOccursInRange
+} from './helpers';
+import { useTransactionFilters } from './useTransactionFilters';
+
+// Types
 interface Property {
   id: string;
   title: string;
@@ -58,7 +70,7 @@ interface Transaction {
   amount: number;
   description: string;
   date: string;
-  type: string; // "INCOME" or "EXPENSE"
+  type: string;
   category: string | null;
   recurringInterval: string | null;
   createdAt?: string;
@@ -79,82 +91,23 @@ interface Transaction {
   } | null;
 }
 
-const DAY_IN_MS = 1000 * 60 * 60 * 24;
-
-const normalizeDate = (date: Date) => {
-  const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
-  return normalized;
-};
-
-const transactionOccursOnDate = (transaction: Transaction, targetDate: Date) => {
-  const transactionDate = normalizeDate(new Date(transaction.date));
-  const dateToCheck = normalizeDate(targetDate);
-  const today = normalizeDate(new Date());
-
-  if (dateToCheck < transactionDate) return false;
-  if (dateToCheck > today) return false;
-
-  const interval = transaction.recurringInterval;
-
-  if (!interval || interval === 'NONE') {
-    return dateToCheck.getTime() === transactionDate.getTime();
-  }
-
-  const diffDays = Math.floor((dateToCheck.getTime() - transactionDate.getTime()) / DAY_IN_MS);
-
-  switch (interval) {
-    case 'DAILY':
-      return diffDays >= 0;
-    case 'WEEKLY':
-      return diffDays >= 0 && diffDays % 7 === 0;
-    case 'MONTHLY': {
-      const diffMonths =
-        (dateToCheck.getFullYear() - transactionDate.getFullYear()) * 12 +
-        (dateToCheck.getMonth() - transactionDate.getMonth());
-      return diffMonths >= 0 && dateToCheck.getDate() === transactionDate.getDate();
-    }
-    case 'YEARLY':
-      return (
-        dateToCheck.getFullYear() >= transactionDate.getFullYear() &&
-        dateToCheck.getMonth() === transactionDate.getMonth() &&
-        dateToCheck.getDate() === transactionDate.getDate()
-      );
-    default:
-      return false;
-  }
-};
-
-const recurringOccursInRange = (transaction: Transaction, startRange: Date, endRange: Date) => {
-  if (!transaction.recurringInterval) return false;
-  const cursor = new Date(startRange);
-  while (cursor <= endRange) {
-    if (transactionOccursOnDate(transaction, cursor)) {
-      return true;
-    }
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return false;
-};
+type DateFilterType = 'THIS_MONTH' | 'THIS_YEAR' | 'ALL_TIME';
+type FilterType = 'ALL' | 'INCOME' | 'EXPENSE';
+type ReportFilterType = 'ALL_PROPERTIES' | 'SPECIFIC_PROPERTY';
+type FilterScope = 'ALL_PROPERTIES' | 'SPECIFIC_PROPERTY' | 'SPECIFIC_UNIT';
 
 const Financials = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterPropertyId, setFilterPropertyId] = useState<string>('ALL_PROPERTIES');
-  const [filterUnitId, setFilterUnitId] = useState<string>('ALL_TRANSACTIONS');
-  const [filterType, setFilterType] = useState<string>('ALL');
-  const [filterCategory, setFilterCategory] = useState<string>('ALL');
-  const [dateFilter, setDateFilter] = useState<'SPECIFIC_MONTH' | 'SPECIFIC_YEAR' | 'ALL_TIME' | 'MONTH_RANGE'>('SPECIFIC_MONTH');
-  const [customMonth, setCustomMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
-  const [customYear, setCustomYear] = useState<string>(new Date().getFullYear().toString());
-  const [startMonth, setStartMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
-  const [endMonth, setEndMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [filterScope, setFilterScope] = useState<FilterScope>('ALL_PROPERTIES');
+  const [filterPropertyId, setFilterPropertyId] = useState<string>('');
+  const [filterUnitId, setFilterUnitId] = useState<string>('');
+  const [filterType, setFilterType] = useState<FilterType>('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterType>('THIS_MONTH');
   const [currentPage, setCurrentPage] = useState(1);
-  const [isTimelineCollapsed, setIsTimelineCollapsed] = useState(false);
-  const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
+  const [isTimelineCollapsed, setIsTimelineCollapsed] = useState(true);
   const ITEMS_PER_PAGE = 10;
   
   // Transaction modal
@@ -175,16 +128,10 @@ const Financials = () => {
   
   // PDF Download Modal
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [pdfFilterType, setPdfFilterType] = useState<'ALL_PROPERTIES' | 'SPECIFIC_PROPERTY'>('ALL_PROPERTIES');
+  const [pdfFilterType, setPdfFilterType] = useState<ReportFilterType>('ALL_PROPERTIES');
   const [pdfPropertyId, setPdfPropertyId] = useState<string>('');
-  const [pdfDateFilter, setPdfDateFilter] = useState<'ALL_TIME' | 'SPECIFIC_MONTH' | 'SPECIFIC_YEAR' | 'MONTH_RANGE'>('ALL_TIME');
-  const [pdfCustomMonth, setPdfCustomMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
-  const [pdfCustomYear, setPdfCustomYear] = useState<string>(new Date().getFullYear().toString());
-  const [pdfStartMonth, setPdfStartMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
-  const [pdfEndMonth, setPdfEndMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [pdfDateFilter, setPdfDateFilter] = useState<DateFilterType>('ALL_TIME');
   const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [generatingExcel, setGeneratingExcel] = useState(false);
-  const [downloadType, setDownloadType] = useState<'PDF' | 'EXCEL'>('PDF');
 
   useEffect(() => {
     fetchData();
@@ -214,143 +161,21 @@ const Financials = () => {
     }
   };
 
-  const dateRange = useMemo(() => {
-    if (dateFilter === 'ALL_TIME') {
-      return null; // No date range for all time
-    }
-
-    const now = new Date();
-    let startRange: Date | null = null;
-    let endRange: Date | null = null;
-
-    switch (dateFilter) {
-      case 'SPECIFIC_MONTH': {
-        const selectedDate = customMonth ? new Date(`${customMonth}-01`) : now;
-        startRange = startOfMonth(selectedDate);
-        endRange = endOfMonth(selectedDate);
-        break;
-      }
-      case 'SPECIFIC_YEAR': {
-        const year = customYear ? parseInt(customYear) : now.getFullYear();
-        startRange = startOfYear(new Date(year, 0, 1));
-        endRange = endOfYear(new Date(year, 11, 31));
-        break;
-      }
-      case 'MONTH_RANGE': {
-        if (startMonth && endMonth) {
-          const startDate = new Date(`${startMonth}-01`);
-          const endDate = new Date(`${endMonth}-01`);
-          startRange = startOfMonth(startDate);
-          endRange = endOfMonth(endDate);
-        }
-        break;
-      }
-      default:
-        return null;
-    }
-
-    if (!startRange || !endRange) return null;
-
-    return {
-      startDate: normalizeDate(startRange),
-      endDate: normalizeDate(endRange),
-    };
-  }, [dateFilter, customMonth, customYear, startMonth, endMonth]);
-
-  const matchesDateFilter = (transaction: Transaction) => {
-    if (dateFilter === 'ALL_TIME') return true; // Show all transactions
-    if (!dateRange) return true;
-    const recordDate = new Date(transaction.date);
-    if (Number.isNaN(recordDate.getTime())) return false;
-
-    if (isWithinInterval(recordDate, { start: dateRange.startDate, end: dateRange.endDate })) {
-      return true;
-    }
-
-    if (!transaction.recurringInterval) return false;
-    return recurringOccursInRange(transaction, dateRange.startDate, dateRange.endDate);
-  };
-
-  const filteredTransactions = useMemo(() => {
-    let filtered = transactions;
-
-    // Filter by type
-    if (filterType && filterType !== 'ALL') {
-      filtered = filtered.filter(transaction => transaction.type === filterType);
-    }
-
-    // Filter by category (only if type is selected)
-    if (filterType !== 'ALL' && filterCategory && filterCategory !== 'ALL') {
-      filtered = filtered.filter(transaction => transaction.category === filterCategory);
-    }
-
-    // Filter by search term
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(transaction =>
-        transaction.description.toLowerCase().includes(term) ||
-        transaction.property.title.toLowerCase().includes(term) ||
-        transaction.category?.toLowerCase().includes(term) ||
-        transaction.unit?.label.toLowerCase().includes(term)
-      );
-    }
-
-    // Filter by property
-    if (filterPropertyId && filterPropertyId !== 'ALL_PROPERTIES') {
-      filtered = filtered.filter(transaction => transaction.propertyId === filterPropertyId);
-      
-      // Filter by unit (only when a specific property is selected)
-      if (filterUnitId && filterUnitId !== 'ALL_TRANSACTIONS') {
-        if (filterUnitId === 'PROPERTY_LEVEL') {
-          // Property level transactions have no unitId (null)
-          filtered = filtered.filter(transaction => transaction.unitId === null);
-        } else if (filterUnitId === 'ALL_UNITS') {
-          // All unit-level transactions (exclude property-level)
-          filtered = filtered.filter(transaction => transaction.unitId !== null);
-        } else {
-          // Specific unit transactions
-          filtered = filtered.filter(transaction => transaction.unitId === filterUnitId);
-        }
-      }
-    }
-
-    // Date filter
-    filtered = filtered.filter(transaction => matchesDateFilter(transaction));
-
-    // Sort by date (newest first) - regardless of income/expense type
-    // Use date only (ignore time) to ensure consistent sorting
-    filtered = [...filtered].sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      
-      // Set time to 0 for date-only comparison
-      dateA.setHours(0, 0, 0, 0);
-      dateB.setHours(0, 0, 0, 0);
-      
-      const timeA = dateA.getTime();
-      const timeB = dateB.getTime();
-      
-      // If dates are equal, sort by createdAt (newest first) as secondary sort
-      if (timeA === timeB) {
-        const createdAtA = new Date(a.createdAt || 0).getTime();
-        const createdAtB = new Date(b.createdAt || 0).getTime();
-        return createdAtB - createdAtA;
-      }
-      
-      return timeB - timeA; // Descending order (newest first)
-    });
-
-    return filtered;
-  }, [transactions, filterType, filterCategory, searchTerm, filterPropertyId, filterUnitId, dateFilter, customMonth, customYear]);
+  // Use custom hook for filtering
+  const { filteredTransactions, dateRange } = useTransactionFilters({
+    transactions,
+    filterType,
+    filterCategory: 'ALL',
+    filterPropertyId: filterScope === 'SPECIFIC_PROPERTY' ? filterPropertyId : 'ALL_PROPERTIES',
+    filterUnitId: filterScope === 'SPECIFIC_UNIT' ? filterUnitId : (filterScope === 'SPECIFIC_PROPERTY' ? 'ALL_TRANSACTIONS' : 'ALL_TRANSACTIONS'),
+    dateFilter,
+    customMonth: format(new Date(), 'yyyy-MM'),
+    customYear: new Date().getFullYear().toString(),
+  });
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterPropertyId, filterUnitId, filterType, filterCategory, dateFilter, customMonth, customYear, startMonth, endMonth]);
-
-  // Reset category filter when type changes
-  useEffect(() => {
-    setFilterCategory('ALL');
-  }, [filterType]);
+  }, [filterScope, filterPropertyId, filterUnitId, filterType, dateFilter]);
 
   const paginatedTransactions = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -362,136 +187,12 @@ const Financials = () => {
   const selectedProperty = properties.find(p => p.id === transactionForm.propertyId);
   const availableUnits = selectedProperty?.Unit || [];
 
-  // Get all units from properties (not from transactions) for filter
-  const allUnits = useMemo(() => {
-    const units: Array<{ id: string; label: string; propertyId: string }> = [];
-    
-    properties.forEach(property => {
-      property.Unit.forEach(unit => {
-        units.push({
-          id: unit.id,
-          label: unit.label,
-          propertyId: property.id,
-        });
-      });
-    });
-    
-    return units;
-  }, [properties]);
 
-  // Filter units by selected property
-  const filteredUnits = useMemo(() => {
-    if (!filterPropertyId || filterPropertyId === 'ALL_PROPERTIES') return allUnits;
-    return allUnits.filter(unit => unit.propertyId === filterPropertyId);
-  }, [allUnits, filterPropertyId]);
-
-  // Calculate recurring transaction amount and occurrences
-  const calculateRecurringAmount = (transaction: Transaction): { totalAmount: number; occurrences: number } => {
-    if (!transaction.recurringInterval) {
-      return { totalAmount: transaction.amount, occurrences: 1 };
-    }
-
-    const transactionDate = new Date(transaction.date);
-    const now = new Date();
-    
-    // Reset time to start of day for accurate date comparison
-    transactionDate.setHours(0, 0, 0, 0);
-    now.setHours(0, 0, 0, 0);
-    
-    const diffTime = now.getTime() - transactionDate.getTime();
-    
-    if (diffTime < 0) {
-      return { totalAmount: transaction.amount, occurrences: 1 }; // Transaction is in the future
-    }
-
-    let occurrences = 1;
-
-    switch (transaction.recurringInterval) {
-      case 'DAILY':
-        // Count days from transaction date to today (inclusive)
-        occurrences = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        break;
-      case 'WEEKLY':
-        // Count weeks from transaction date to today
-        // If transaction was on Monday and today is Monday, that's 1 week = 2 occurrences
-        const weeksDiff = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-        occurrences = weeksDiff + 1;
-        break;
-      case 'MONTHLY':
-        // Calculate months difference
-        // Example: Nov 1 to Dec 1 = 1 month = 2 occurrences (Nov + Dec)
-        // Example: Nov 1 to Dec 15 = 1 month = 2 occurrences (Nov + Dec)
-        // Example: Nov 1 to Jan 1 = 2 months = 3 occurrences (Nov + Dec + Jan)
-        const yearsDiff = now.getFullYear() - transactionDate.getFullYear();
-        const monthsDiff = now.getMonth() - transactionDate.getMonth();
-        const totalMonths = yearsDiff * 12 + monthsDiff;
-        
-        // If we're in the same month as the transaction date, it's the first occurrence
-        if (totalMonths === 0) {
-          occurrences = 1;
-        } else {
-          // Count occurrences: initial + number of months passed
-          occurrences = totalMonths + 1;
-        }
-        break;
-      case 'YEARLY':
-        // Calculate years difference
-        const yearsPassed = now.getFullYear() - transactionDate.getFullYear();
-        occurrences = yearsPassed + 1;
-        break;
-      default:
-        return { totalAmount: transaction.amount, occurrences: 1 };
-    }
-
-    return { 
-      totalAmount: transaction.amount * occurrences, 
-      occurrences 
-    };
-  };
-
-  // Get filtered transactions for timeline (applies all filters except date)
+  // Get filtered transactions for timeline (applies all filters including date)
   const getFilteredTransactionsForTimeline = useMemo(() => {
-    let filtered = transactions;
-
-    // Filter by type
-    if (filterType && filterType !== 'ALL') {
-      filtered = filtered.filter(transaction => transaction.type === filterType);
-    }
-
-    // Filter by category (only if type is selected)
-    if (filterType !== 'ALL' && filterCategory && filterCategory !== 'ALL') {
-      filtered = filtered.filter(transaction => transaction.category === filterCategory);
-    }
-
-    // Filter by search term
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(transaction =>
-        transaction.description.toLowerCase().includes(term) ||
-        transaction.property.title.toLowerCase().includes(term) ||
-        transaction.category?.toLowerCase().includes(term) ||
-        transaction.unit?.label.toLowerCase().includes(term)
-      );
-    }
-
-    // Filter by property
-    if (filterPropertyId && filterPropertyId !== 'ALL_PROPERTIES') {
-      filtered = filtered.filter(transaction => transaction.propertyId === filterPropertyId);
-      
-      // Filter by unit (only when a specific property is selected)
-      if (filterUnitId && filterUnitId !== 'ALL_TRANSACTIONS') {
-        if (filterUnitId === 'PROPERTY_LEVEL') {
-          filtered = filtered.filter(transaction => transaction.unitId === null);
-        } else if (filterUnitId === 'ALL_UNITS') {
-          filtered = filtered.filter(transaction => transaction.unitId !== null);
-        } else {
-          filtered = filtered.filter(transaction => transaction.unitId === filterUnitId);
-        }
-      }
-    }
-
-    return filtered;
-  }, [transactions, filterType, filterCategory, filterPropertyId, filterUnitId, searchTerm]);
+    // Use the same filtered transactions as the table to ensure consistency
+    return filteredTransactions;
+  }, [filteredTransactions]);
 
   const timelineRange = useMemo(() => {
     if (dateFilter === 'ALL_TIME') {
@@ -509,8 +210,10 @@ const Financials = () => {
     }
     if (!dateRange) return null;
     let granularity: 'DAILY' | 'MONTHLY' = 'DAILY';
-    if (dateFilter === 'SPECIFIC_YEAR') {
+    if (dateFilter === 'THIS_YEAR') {
       granularity = 'MONTHLY';
+    } else if (dateFilter === 'THIS_MONTH') {
+      granularity = 'DAILY';
     }
     return {
       startDate: dateRange.startDate,
@@ -520,10 +223,6 @@ const Financials = () => {
   }, [dateRange, dateFilter]);
 
 
-  // Word count helper
-  const getWordCount = (text: string) => {
-    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
-  };
 
   // Open transaction update modal
   const handleOpenTransactionUpdate = (transaction: Transaction) => {
@@ -645,33 +344,48 @@ const Financials = () => {
 
   const {
     chartData: dailyChartData,
-    totals: dailyTotal,
-    occurrenceCount: timelineOccurrenceCount,
   } = useMemo(() => {
     if (!timelineRange) {
       return {
         chartData: [],
-        totals: { income: 0, expense: 0 },
-        occurrenceCount: 0,
       };
     }
 
     const days: Date[] = [];
-    const cursor = new Date(timelineRange.startDate);
-    while (cursor <= timelineRange.endDate) {
-      days.push(new Date(cursor));
-      cursor.setDate(cursor.getDate() + 1);
+    const start = normalizeDate(new Date(timelineRange.startDate));
+    const end = normalizeDate(new Date(timelineRange.endDate));
+    const today = normalizeDate(new Date());
+    // For THIS_MONTH, show all days in the month, not just up to today
+    const effectiveEnd = dateFilter === 'THIS_MONTH' ? end : (end > today ? today : end);
+    
+    // Generate all days in the range (inclusive of both start and end)
+    // Calculate the number of days between start and end
+    const startTime = start.getTime();
+    const endTime = effectiveEnd.getTime();
+    const diffTime = endTime - startTime;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end
+    
+    // Generate all days explicitly
+    for (let i = 0; i < diffDays; i++) {
+      const day = new Date(start);
+      day.setDate(start.getDate() + i);
+      day.setHours(0, 0, 0, 0);
+      // Only add if it's within the range
+      if (day.getTime() <= endTime) {
+        days.push(day);
+      }
     }
 
-    let occurrenceCount = 0;
+    // Create daily entries for all days (even if no transactions)
     const dailyEntries = days.map(day => {
       let income = 0;
       let expense = 0;
-      let dayCount = 0;
+      const normalizedDay = normalizeDate(day);
 
+      // Check each transaction to see if it occurs on this day
       getFilteredTransactionsForTimeline.forEach(transaction => {
-        if (transactionOccursOnDate(transaction, day)) {
-          dayCount += 1;
+        // Use the helper function to check if transaction occurs on this day
+        if (transactionOccursOnDate(transaction, normalizedDay)) {
           if (transaction.type === 'INCOME') {
             income += transaction.amount;
           } else {
@@ -680,10 +394,8 @@ const Financials = () => {
         }
       });
 
-      occurrenceCount += dayCount;
-
       return {
-        date: format(day, 'yyyy-MM-dd'),
+        date: format(normalizedDay, 'yyyy-MM-dd'),
         income,
         expense,
       };
@@ -737,20 +449,10 @@ const Financials = () => {
       chartData = Array.from(yearlyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
     }
 
-    const totals = chartData.reduce(
-      (acc, curr) => ({
-        income: acc.income + curr.income,
-        expense: acc.expense + curr.expense,
-      }),
-      { income: 0, expense: 0 }
-    );
-
     return {
       chartData,
-      totals,
-      occurrenceCount,
     };
-  }, [timelineRange, getFilteredTransactionsForTimeline]);
+  }, [timelineRange, getFilteredTransactionsForTimeline, dateFilter]);
 
   const chartConfig = {
     income: {
@@ -763,32 +465,63 @@ const Financials = () => {
     },
   } satisfies ChartConfig;
 
-  // Calculate accounting metrics for timeline
+  // Calculate accounting metrics - use filteredTransactions for accurate totals
   const accountingMetrics = useMemo(() => {
-    const netProfit = dailyTotal.income - dailyTotal.expense;
-    const profitMargin = dailyTotal.income > 0 ? (netProfit / dailyTotal.income) * 100 : 0;
-    const transactionCount = timelineOccurrenceCount;
+    // Calculate totals from filtered transactions (same as table)
+    const { income: accurateIncome, expense: accurateExpense } = filteredTransactions.reduce(
+      (acc, transaction) => {
+        if (transaction.recurringInterval && dateRange) {
+          // For recurring transactions in date range, calculate occurrences within range
+          const transactionDate = normalizeDate(new Date(transaction.date));
+          const rangeStart = dateRange.startDate;
+          const rangeEnd = dateRange.endDate;
+          const today = normalizeDate(new Date());
+          const effectiveEnd = rangeEnd > today ? today : rangeEnd;
+          
+          if (transactionDate <= effectiveEnd) {
+            let occurrences = 0;
+            const cursor = new Date(Math.max(transactionDate.getTime(), rangeStart.getTime()));
+            const endDate = effectiveEnd;
+            
+            while (cursor <= endDate) {
+              if (transactionOccursOnDate(transaction, cursor)) {
+                occurrences++;
+              }
+              cursor.setDate(cursor.getDate() + 1);
+            }
+            
+            const totalAmount = transaction.amount * occurrences;
+            if (transaction.type === 'INCOME') {
+              acc.income += totalAmount;
+            } else {
+              acc.expense += totalAmount;
+            }
+          }
+        } else {
+          // For non-recurring transactions, just add the amount
+          if (transaction.type === 'INCOME') {
+            acc.income += transaction.amount;
+          } else {
+            acc.expense += transaction.amount;
+          }
+        }
+        return acc;
+      },
+      { income: 0, expense: 0 }
+    );
+    
+    const netProfit = accurateIncome - accurateExpense;
+    const profitMargin = accurateIncome > 0 ? (netProfit / accurateIncome) * 100 : 0;
+    const transactionCount = filteredTransactions.length;
 
     return {
       netProfit,
       profitMargin,
       transactionCount,
+      income: accurateIncome,
+      expense: accurateExpense,
     };
-  }, [dailyTotal, timelineOccurrenceCount]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-PH', {
-      style: 'currency',
-      currency: 'PHP',
-    }).format(amount);
-  };
-
-  // Format currency for PDF (ensures ₱ symbol is used and compatible with Microsoft)
-  const formatCurrencyForPDF = (amount: number) => {
-    // Use simple PHP format that works across all PDF viewers
-    const formatted = amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return `PHP ${formatted}`;
-  };
+  }, [filteredTransactions, dateRange]);
 
   const formatDate = (dateString: string) => {
     return format(new Date(dateString), 'MMM dd, yyyy');
@@ -797,188 +530,19 @@ const Financials = () => {
   // Clear all filters
   const clearAllFilters = () => {
     setFilterType('ALL');
-    setFilterCategory('ALL');
-    setFilterPropertyId('ALL_PROPERTIES');
-    setFilterUnitId('ALL_TRANSACTIONS');
-    setDateFilter('SPECIFIC_MONTH');
-    setCustomMonth(format(new Date(), 'yyyy-MM'));
-    setCustomYear(new Date().getFullYear().toString());
-    setStartMonth(format(new Date(), 'yyyy-MM'));
-    setEndMonth(format(new Date(), 'yyyy-MM'));
-    setSearchTerm('');
+    setFilterScope('ALL_PROPERTIES');
+    setFilterPropertyId('');
+    setFilterUnitId('');
+    setDateFilter('THIS_MONTH');
   };
 
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
     return filterType !== 'ALL' || 
-           filterCategory !== 'ALL' || 
-           filterPropertyId !== 'ALL_PROPERTIES' || 
-           (filterPropertyId !== 'ALL_PROPERTIES' && filterUnitId !== 'ALL_TRANSACTIONS') ||
-           dateFilter !== 'SPECIFIC_MONTH' || 
-           searchTerm !== '';
-  }, [filterType, filterCategory, filterPropertyId, filterUnitId, dateFilter, searchTerm]);
+           filterScope !== 'ALL_PROPERTIES' || 
+           dateFilter !== 'THIS_MONTH';
+  }, [filterType, filterScope, dateFilter]);
 
-  const formatCategory = (category: string | null) => {
-    if (!category) return 'N/A';
-    return category.split('_').map(word => 
-      word.charAt(0) + word.slice(1).toLowerCase()
-    ).join(' ');
-  };
-
-  // Generate Excel with filtered transactions
-  const generateExcel = async () => {
-    if (pdfFilterType === 'SPECIFIC_PROPERTY' && !pdfPropertyId) {
-      toast.error('Please select a property');
-      return;
-    }
-
-    try {
-      setGeneratingExcel(true);
-
-      // Filter transactions for Excel (same logic as PDF)
-      let excelTransactions = transactions;
-
-      // Filter by property
-      if (pdfFilterType === 'SPECIFIC_PROPERTY') {
-        excelTransactions = excelTransactions.filter(
-          transaction => transaction.propertyId === pdfPropertyId
-        );
-      }
-
-      // Filter by date range
-      if (pdfDateFilter !== 'ALL_TIME') {
-        let startRange: Date | null = null;
-        let endRange: Date | null = null;
-
-        if (pdfDateFilter === 'SPECIFIC_MONTH') {
-          const selectedDate = pdfCustomMonth ? new Date(`${pdfCustomMonth}-01`) : new Date();
-          startRange = startOfMonth(selectedDate);
-          endRange = endOfMonth(selectedDate);
-        } else if (pdfDateFilter === 'SPECIFIC_YEAR') {
-          const year = pdfCustomYear ? parseInt(pdfCustomYear) : new Date().getFullYear();
-          startRange = startOfYear(new Date(year, 0, 1));
-          endRange = endOfYear(new Date(year, 11, 31));
-        } else if (pdfDateFilter === 'MONTH_RANGE') {
-          if (pdfStartMonth && pdfEndMonth) {
-            const startDate = new Date(`${pdfStartMonth}-01`);
-            const endDate = new Date(`${pdfEndMonth}-01`);
-            startRange = startOfMonth(startDate);
-            endRange = endOfMonth(endDate);
-          }
-        }
-
-        if (startRange && endRange) {
-          const normalizedStart = normalizeDate(startRange);
-          const normalizedEnd = normalizeDate(endRange);
-          
-          excelTransactions = excelTransactions.filter(transaction => {
-            const recordDate = new Date(transaction.date);
-            if (Number.isNaN(recordDate.getTime())) return false;
-
-            if (isWithinInterval(recordDate, { start: normalizedStart, end: normalizedEnd })) {
-              return true;
-            }
-
-            if (!transaction.recurringInterval) return false;
-            return recurringOccursInRange(transaction, normalizedStart, normalizedEnd);
-          });
-        }
-      }
-
-      // Sort by date (oldest first)
-      excelTransactions = [...excelTransactions].sort((a, b) => {
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        return dateA - dateB;
-      });
-
-      // Prepare data for Excel
-      const excelData = excelTransactions.map(transaction => {
-        const { totalAmount, occurrences } = calculateRecurringAmount(transaction);
-        
-        let amountDisplay = '';
-        if (transaction.recurringInterval && occurrences > 1) {
-          amountDisplay = `${transaction.amount.toFixed(2)} × ${occurrences} = ${totalAmount.toFixed(2)}`;
-        } else {
-          amountDisplay = transaction.amount.toFixed(2);
-        }
-
-        return {
-          'Type': transaction.type === 'INCOME' ? 'Income' : 'Expense',
-          'Date': format(new Date(transaction.date), 'yyyy-MM-dd'),
-          'Description': transaction.description,
-          'Property': transaction.property.title,
-          'Unit': transaction.unit ? transaction.unit.label : 'Property-level',
-          'Category': formatCategory(transaction.category),
-          'Recurring': transaction.recurringInterval || 'No',
-          'Amount (PHP)': amountDisplay,
-        };
-      });
-
-      // Create workbook and worksheet
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(excelData);
-
-      // Set column widths
-      const colWidths = [
-        { wch: 12 }, // Type
-        { wch: 12 }, // Date
-        { wch: 40 }, // Description
-        { wch: 25 }, // Property
-        { wch: 15 }, // Unit
-        { wch: 20 }, // Category
-        { wch: 12 }, // Recurring
-        { wch: 20 }, // Amount
-      ];
-      ws['!cols'] = colWidths;
-
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(wb, ws, 'Financial Report');
-
-      // Generate filename
-      let filename = '';
-      const propertyName = pdfFilterType === 'SPECIFIC_PROPERTY' 
-        ? properties.find(p => p.id === pdfPropertyId)?.title.replace(/\s+/g, '-') || 'Property'
-        : 'All-Properties';
-      
-      let dateSuffix = '';
-      if (pdfDateFilter === 'SPECIFIC_MONTH') {
-        const selectedDate = pdfCustomMonth ? new Date(`${pdfCustomMonth}-01`) : new Date();
-        dateSuffix = `-${format(selectedDate, 'yyyy-MM')}`;
-      } else if (pdfDateFilter === 'SPECIFIC_YEAR') {
-        const year = pdfCustomYear || new Date().getFullYear().toString();
-        dateSuffix = `-${year}`;
-      } else if (pdfDateFilter === 'MONTH_RANGE') {
-        if (pdfStartMonth && pdfEndMonth) {
-          dateSuffix = `-${pdfStartMonth}-to-${pdfEndMonth}`;
-        } else {
-          dateSuffix = '-MonthRange';
-        }
-      } else {
-        dateSuffix = '-AllTime';
-      }
-
-      filename = `Financial-Report-${propertyName}${dateSuffix}-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-
-      // Write file
-      XLSX.writeFile(wb, filename);
-      
-      toast.success('Excel file downloaded successfully');
-      setShowDownloadModal(false);
-      setPdfFilterType('ALL_PROPERTIES');
-      setPdfPropertyId('');
-      setPdfDateFilter('ALL_TIME');
-      setPdfCustomMonth(format(new Date(), 'yyyy-MM'));
-      setPdfCustomYear(new Date().getFullYear().toString());
-      setPdfStartMonth(format(new Date(), 'yyyy-MM'));
-      setPdfEndMonth(format(new Date(), 'yyyy-MM'));
-    } catch (error: any) {
-      console.error('Error generating Excel:', error);
-      toast.error('Failed to generate Excel file');
-    } finally {
-      setGeneratingExcel(false);
-    }
-  };
 
   // Generate PDF with filtered transactions
   const generatePDF = async () => {
@@ -1004,22 +568,14 @@ const Financials = () => {
       if (pdfDateFilter !== 'ALL_TIME') {
         let startRange: Date | null = null;
         let endRange: Date | null = null;
+        const now = new Date();
 
-        if (pdfDateFilter === 'SPECIFIC_MONTH') {
-          const selectedDate = pdfCustomMonth ? new Date(`${pdfCustomMonth}-01`) : new Date();
-          startRange = startOfMonth(selectedDate);
-          endRange = endOfMonth(selectedDate);
-        } else if (pdfDateFilter === 'SPECIFIC_YEAR') {
-          const year = pdfCustomYear ? parseInt(pdfCustomYear) : new Date().getFullYear();
-          startRange = startOfYear(new Date(year, 0, 1));
-          endRange = endOfYear(new Date(year, 11, 31));
-        } else if (pdfDateFilter === 'MONTH_RANGE') {
-          if (pdfStartMonth && pdfEndMonth) {
-            const startDate = new Date(`${pdfStartMonth}-01`);
-            const endDate = new Date(`${pdfEndMonth}-01`);
-            startRange = startOfMonth(startDate);
-            endRange = endOfMonth(endDate);
-          }
+        if (pdfDateFilter === 'THIS_MONTH') {
+          startRange = startOfMonth(now);
+          endRange = endOfMonth(now);
+        } else if (pdfDateFilter === 'THIS_YEAR') {
+          startRange = startOfYear(now);
+          endRange = endOfYear(now);
         }
 
         if (startRange && endRange) {
@@ -1111,20 +667,10 @@ const Financials = () => {
 
       // Add date range info
       let dateRangeText = '';
-      if (pdfDateFilter === 'SPECIFIC_MONTH') {
-        const selectedDate = pdfCustomMonth ? new Date(`${pdfCustomMonth}-01`) : new Date();
-        dateRangeText = ` - ${format(selectedDate, 'MMMM yyyy')}`;
-      } else if (pdfDateFilter === 'SPECIFIC_YEAR') {
-        const year = pdfCustomYear || new Date().getFullYear().toString();
-        dateRangeText = ` - Year ${year}`;
-      } else if (pdfDateFilter === 'MONTH_RANGE') {
-        if (pdfStartMonth && pdfEndMonth) {
-          const startDate = new Date(`${pdfStartMonth}-01`);
-          const endDate = new Date(`${pdfEndMonth}-01`);
-          dateRangeText = ` - ${format(startDate, 'MMM yyyy')} to ${format(endDate, 'MMM yyyy')}`;
-        } else {
-          dateRangeText = ' - Month Range';
-        }
+      if (pdfDateFilter === 'THIS_MONTH') {
+        dateRangeText = ` - ${format(new Date(), 'MMMM yyyy')}`;
+      } else if (pdfDateFilter === 'THIS_YEAR') {
+        dateRangeText = ` - Year ${new Date().getFullYear()}`;
       } else {
         dateRangeText = ' - All Time Data';
       }
@@ -1291,18 +837,10 @@ const Financials = () => {
         : 'All-Properties';
       
       let dateSuffix = '';
-      if (pdfDateFilter === 'SPECIFIC_MONTH') {
-        const selectedDate = pdfCustomMonth ? new Date(`${pdfCustomMonth}-01`) : new Date();
-        dateSuffix = `-${format(selectedDate, 'yyyy-MM')}`;
-      } else if (pdfDateFilter === 'SPECIFIC_YEAR') {
-        const year = pdfCustomYear || new Date().getFullYear().toString();
-        dateSuffix = `-${year}`;
-      } else if (pdfDateFilter === 'MONTH_RANGE') {
-        if (pdfStartMonth && pdfEndMonth) {
-          dateSuffix = `-${pdfStartMonth}-to-${pdfEndMonth}`;
-        } else {
-          dateSuffix = '-MonthRange';
-        }
+      if (pdfDateFilter === 'THIS_MONTH') {
+        dateSuffix = `-${format(new Date(), 'yyyy-MM')}`;
+      } else if (pdfDateFilter === 'THIS_YEAR') {
+        dateSuffix = `-${new Date().getFullYear()}`;
       } else {
         dateSuffix = '-AllTime';
       }
@@ -1317,10 +855,6 @@ const Financials = () => {
       setPdfFilterType('ALL_PROPERTIES');
       setPdfPropertyId('');
       setPdfDateFilter('ALL_TIME');
-      setPdfCustomMonth(format(new Date(), 'yyyy-MM'));
-      setPdfCustomYear(new Date().getFullYear().toString());
-      setPdfStartMonth(format(new Date(), 'yyyy-MM'));
-      setPdfEndMonth(format(new Date(), 'yyyy-MM'));
     } catch (error: any) {
       console.error('Error generating PDF:', error);
       toast.error('Failed to generate PDF');
@@ -1331,58 +865,43 @@ const Financials = () => {
 
   const dateFilterLabel = useMemo(() => {
     switch (dateFilter) {
-      case 'SPECIFIC_MONTH': {
-        if (!customMonth) return 'Current Month';
-        const selected = new Date(`${customMonth}-01T00:00:00`);
-        if (Number.isNaN(selected.getTime())) return 'Current Month';
-        return format(selected, 'MMMM yyyy');
-      }
-      case 'SPECIFIC_YEAR': {
-        const year = customYear || new Date().getFullYear().toString();
-        return `Year ${year}`;
-      }
-      case 'MONTH_RANGE': {
-        if (startMonth && endMonth) {
-          const start = new Date(`${startMonth}-01`);
-          const end = new Date(`${endMonth}-01`);
-          if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
-            return `${format(start, 'MMM yyyy')} - ${format(end, 'MMM yyyy')}`;
-          }
-        }
-        return 'Month Range';
-      }
+      case 'THIS_MONTH':
+        return format(new Date(), 'MMMM yyyy');
+      case 'THIS_YEAR':
+        return `Year ${new Date().getFullYear()}`;
       case 'ALL_TIME':
         return 'All Time';
       default:
-        return 'Current Month';
+        return format(new Date(), 'MMMM yyyy');
     }
-  }, [dateFilter, customMonth, customYear, startMonth, endMonth]);
+  }, [dateFilter]);
+
+  // Get all units from all properties for the unit filter
+  const allUnits = useMemo(() => {
+    return properties.flatMap(property => 
+      (property.Unit || []).map(unit => ({
+        ...unit,
+        propertyTitle: property.title,
+        propertyId: property.id,
+      }))
+    );
+  }, [properties]);
 
   const activeFilterChips = useMemo(() => {
     const chips: Array<{ label: string; value: string }> = [];
 
-    if (filterPropertyId !== 'ALL_PROPERTIES') {
-      const property = properties.find(prop => prop.id === filterPropertyId);
+    if (filterScope === 'SPECIFIC_PROPERTY' && filterPropertyId) {
+      const property = properties.find(p => p.id === filterPropertyId);
       chips.push({
-        label: 'Property',
-        value: property?.title || 'Selected property',
+        label: 'Filter',
+        value: property ? `Property: ${property.title}` : 'Selected property',
       });
-
-      if (filterUnitId && filterUnitId !== 'ALL_TRANSACTIONS') {
-        let unitLabel = '';
-        if (filterUnitId === 'PROPERTY_LEVEL') {
-          unitLabel = 'Property-level';
-        } else if (filterUnitId === 'ALL_UNITS') {
-          unitLabel = 'All units';
-        } else {
-          const unit = allUnits.find(unit => unit.id === filterUnitId);
-          unitLabel = unit?.label || 'Specific unit';
-        }
-        chips.push({
-          label: 'Unit',
-          value: unitLabel,
-        });
-      }
+    } else if (filterScope === 'SPECIFIC_UNIT' && filterUnitId) {
+      const unit = allUnits.find(u => u.id === filterUnitId);
+      chips.push({
+        label: 'Filter',
+        value: unit ? `Unit: ${unit.label} (${unit.propertyTitle})` : 'Selected unit',
+      });
     }
 
     if (filterType !== 'ALL') {
@@ -1392,36 +911,21 @@ const Financials = () => {
       });
     }
 
-    if (filterType !== 'ALL' && filterCategory !== 'ALL') {
-      chips.push({
-        label: 'Category',
-        value: formatCategory(filterCategory),
-      });
-    }
-
     // Always show period info
     chips.push({
       label: 'Period',
       value: dateFilterLabel,
     });
 
-    if (searchTerm.trim()) {
-      chips.push({
-        label: 'Search',
-        value: `“${searchTerm.trim()}”`,
-      });
-    }
-
     return chips;
   }, [
+    filterScope,
     filterPropertyId,
     filterUnitId,
     filterType,
-    filterCategory,
     dateFilter,
-    searchTerm,
-    properties,
     allUnits,
+    properties,
     dateFilterLabel,
   ]);
 
@@ -1553,274 +1057,6 @@ const Financials = () => {
         </div>
       </motion.div>
 
-      {/* Enhanced Filters Section - Compact with Collapsible */}
-      <Card className="border border-slate-200 shadow-sm">
-        <CardContent className="p-3">
-          <div className="space-y-3">
-            {/* Header with Filter Icon and Collapse Button */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-slate-500" />
-                <h3 className="text-sm font-semibold text-slate-900">Filters</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                {hasActiveFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearAllFilters}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 text-xs"
-                  >
-                    <X className="w-3 h-3 mr-1" />
-                    Clear All
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
-                  className="h-7 w-7 p-0"
-                >
-                  {isFiltersCollapsed ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronUp className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {/* Period Filter Section - Always Visible */}
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setDateFilter('SPECIFIC_MONTH')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    dateFilter === 'SPECIFIC_MONTH'
-                      ? 'bg-sky-100 text-sky-700 border-2 border-sky-400 shadow-sm'
-                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                  }`}
-                  title="Show all transactions within the selected month"
-                >
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Month
-                </button>
-                <button
-                  onClick={() => setDateFilter('SPECIFIC_YEAR')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    dateFilter === 'SPECIFIC_YEAR'
-                      ? 'bg-sky-100 text-sky-700 border-2 border-sky-400 shadow-sm'
-                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                  }`}
-                  title="Show all transactions within the selected year"
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  Year
-                </button>
-                <button
-                  onClick={() => setDateFilter('MONTH_RANGE')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    dateFilter === 'MONTH_RANGE'
-                      ? 'bg-sky-100 text-sky-700 border-2 border-sky-400 shadow-sm'
-                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                  }`}
-                  title="Show all transactions within a custom month range"
-                >
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Month Range
-                </button>
-                <button
-                  onClick={() => setDateFilter('ALL_TIME')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    dateFilter === 'ALL_TIME'
-                      ? 'bg-sky-100 text-sky-700 border-2 border-sky-400 shadow-sm'
-                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                  }`}
-                  title="Show all transactions grouped by year (2023, 2024, 2025, 2026)"
-                >
-                  <Clock className="h-3.5 w-3.5" />
-                  All Time
-                </button>
-              </div>
-              {/* Period Description and Input */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {dateFilter === 'SPECIFIC_MONTH' && (
-                  <>
-                    <span className="text-xs text-slate-600">Show transactions in:</span>
-                    <Input
-                      type="month"
-                      value={customMonth}
-                      onChange={(e) => setCustomMonth(e.target.value)}
-                      className="h-8 text-xs border-slate-300 focus:border-sky-400 focus:ring-sky-400 w-[140px]"
-                    />
-                  </>
-                )}
-                {dateFilter === 'SPECIFIC_YEAR' && (
-                  <>
-                    <span className="text-xs text-slate-600">Show transactions in year:</span>
-                    <Input
-                      type="number"
-                      value={customYear}
-                      onChange={(e) => setCustomYear(e.target.value)}
-                      min="2000"
-                      max={new Date().getFullYear() + 10}
-                      placeholder="Year"
-                      className="h-8 text-xs border-slate-300 focus:border-sky-400 focus:ring-sky-400 w-[100px]"
-                    />
-                  </>
-                )}
-                {dateFilter === 'MONTH_RANGE' && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-slate-600">Show transactions from:</span>
-                    <Input
-                      type="month"
-                      value={startMonth}
-                      onChange={(e) => setStartMonth(e.target.value)}
-                      className="h-8 text-xs border-slate-300 focus:border-sky-400 focus:ring-sky-400 w-[140px]"
-                    />
-                    <span className="text-xs text-slate-600">to</span>
-                    <Input
-                      type="month"
-                      value={endMonth}
-                      onChange={(e) => setEndMonth(e.target.value)}
-                      min={startMonth}
-                      className="h-8 text-xs border-slate-300 focus:border-sky-400 focus:ring-sky-400 w-[140px]"
-                    />
-                    {startMonth && endMonth && new Date(`${endMonth}-01`) < new Date(`${startMonth}-01`) && (
-                      <span className="text-xs text-red-600">End month must be after or equal to start month</span>
-                    )}
-                  </div>
-                )}
-                {dateFilter === 'ALL_TIME' && (
-                  <span className="text-xs text-slate-600 italic">Displaying all transactions grouped by year (2023, 2024, 2025, 2026)</span>
-                )}
-              </div>
-            </div>
-
-            {/* Collapsible Filter Content */}
-            <AnimatePresence>
-              {!isFiltersCollapsed && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden space-y-3"
-                >
-                  {/* Other Filters - Compact Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {/* Property Filter */}
-                    <Select
-                      value={filterPropertyId}
-                      onValueChange={(value) => {
-                        setFilterPropertyId(value);
-                        setFilterUnitId('ALL_TRANSACTIONS');
-                      }}
-                    >
-                      <SelectTrigger className="h-8 text-xs border-slate-300">
-                        <SelectValue placeholder="Property" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100]">
-                        <SelectItem value="ALL_PROPERTIES">All Properties</SelectItem>
-                        {properties.map(prop => (
-                          <SelectItem key={prop.id} value={prop.id}>{prop.title}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {/* Unit Filter */}
-                    <Select
-                      value={filterUnitId}
-                      onValueChange={setFilterUnitId}
-                      disabled={filterPropertyId === 'ALL_PROPERTIES'}
-                    >
-                      <SelectTrigger className="h-8 text-xs border-slate-300" disabled={filterPropertyId === 'ALL_PROPERTIES'}>
-                        <SelectValue placeholder="Unit" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100]">
-                        <SelectItem value="ALL_TRANSACTIONS">All Transactions</SelectItem>
-                        <SelectItem value="ALL_UNITS">All Units</SelectItem>
-                        <SelectItem value="PROPERTY_LEVEL">Property Level</SelectItem>
-                        {filteredUnits.map(unit => (
-                          <SelectItem key={unit.id} value={unit.id}>{unit.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {/* Type Filter */}
-                    <Select
-                      value={filterType}
-                      onValueChange={setFilterType}
-                    >
-                      <SelectTrigger className="h-8 text-xs border-slate-300">
-                        <SelectValue placeholder="Type" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100]">
-                        <SelectItem value="ALL">All Types</SelectItem>
-                        <SelectItem value="INCOME">Income</SelectItem>
-                        <SelectItem value="EXPENSE">Expense</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {/* Category Filter */}
-                    <Select
-                      value={filterCategory}
-                      onValueChange={setFilterCategory}
-                      disabled={filterType === 'ALL'}
-                    >
-                      <SelectTrigger className="h-8 text-xs border-slate-300" disabled={filterType === 'ALL'}>
-                        <SelectValue placeholder="Category" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100]">
-                        <SelectItem value="ALL">All Categories</SelectItem>
-                        {filterType === 'INCOME' ? (
-                          <>
-                            <SelectItem value="RENT">Rent</SelectItem>
-                            <SelectItem value="LATE_FEE">Late Fee</SelectItem>
-                            <SelectItem value="DEPOSIT">Deposit</SelectItem>
-                            <SelectItem value="OTHER_INCOME">Other Income</SelectItem>
-                          </>
-                        ) : filterType === 'EXPENSE' ? (
-                          <>
-                            <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                            <SelectItem value="REPAIRS">Repairs</SelectItem>
-                            <SelectItem value="UTILITIES">Utilities</SelectItem>
-                            <SelectItem value="INSURANCE">Insurance</SelectItem>
-                            <SelectItem value="TAXES">Taxes</SelectItem>
-                            <SelectItem value="PROPERTY_MANAGEMENT">Property Management</SelectItem>
-                            <SelectItem value="LISTING_ADVERTISING">Listing Advertising</SelectItem>
-                            <SelectItem value="OTHER_EXPENSE">Other Expense</SelectItem>
-                          </>
-                        ) : null}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Search Bar - Always Visible */}
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 h-3.5 w-3.5" />
-                    <Input
-                      placeholder="Search transactions, properties, categories..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-8 h-8 text-xs border-slate-300 focus:border-sky-400 focus:ring-sky-400"
-                    />
-                    {searchTerm && (
-                      <button
-                        onClick={() => setSearchTerm('')}
-                        className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Financial Activity Snapshot - Collapsible */}
       <Card className="shadow-sm border border-slate-200 py-0">
         <CardHeader className="flex flex-col items-stretch border-b !p-0 sm:flex-row">
@@ -1851,13 +1087,13 @@ const Financials = () => {
             <div className="relative z-30 flex flex-1 min-w-[120px] flex-col justify-center gap-1 border-t px-3 py-2.5 text-left sm:border-t-0 sm:border-l sm:px-4 sm:py-3">
               <span className="text-muted-foreground text-[10px] sm:text-xs">Income</span>
               <span className="text-sm leading-none font-bold sm:text-xl text-emerald-600">
-                {formatCurrency(dailyTotal.income)}
+                {formatCurrency(accountingMetrics.income)}
               </span>
             </div>
             <div className="relative z-30 flex flex-1 min-w-[120px] flex-col justify-center gap-1 border-t border-l px-3 py-2.5 text-left sm:border-t-0 sm:px-4 sm:py-3">
               <span className="text-muted-foreground text-[10px] sm:text-xs">Expense</span>
               <span className="text-sm leading-none font-bold sm:text-xl text-red-600">
-                {formatCurrency(dailyTotal.expense)}
+                {formatCurrency(accountingMetrics.expense)}
               </span>
             </div>
             <div className="relative z-30 flex flex-1 min-w-[120px] flex-col justify-center gap-1 border-t border-l px-3 py-2.5 text-left sm:border-t-0 sm:px-4 sm:py-3">
@@ -1919,7 +1155,7 @@ const Financials = () => {
                           if (timelineRange?.granularity === 'YEARLY') {
                             return date.getFullYear().toString();
                           }
-                          if (dateFilter === 'SPECIFIC_YEAR' || timelineRange?.granularity === 'MONTHLY') {
+                          if (dateFilter === 'THIS_YEAR' || timelineRange?.granularity === 'MONTHLY') {
                             return date.toLocaleDateString("en-US", { month: "short" });
                           }
                           return date.toLocaleDateString("en-US", {
@@ -1978,36 +1214,145 @@ const Financials = () => {
       <div className="space-y-4">
         <Card className="border border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-semibold text-slate-900">Transactions</h2>
-                  {hasActiveFilters && (
-                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                      {filteredTransactions.length} result{filteredTransactions.length !== 1 ? 's' : ''}
-                    </Badge>
-                  )}
+            <div className="flex flex-col gap-4">
+              {/* Header Row */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-semibold text-slate-900">Transactions</h2>
+                    {hasActiveFilters && (
+                      <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                        {filteredTransactions.length} result{filteredTransactions.length !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                  </div>
+                  {renderFilterBadges('transactions', 'mt-2')}
                 </div>
-                {renderFilterBadges('transactions', 'mt-2')}
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setShowDownloadModal(true);
+                    }}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Report
+                  </Button>
+                  <Button onClick={() => {
+                    resetTransactionForm();
+                    setShowTransactionModal(true);
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Record Transaction
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline"
-                  onClick={() => {
-                    setDownloadType('PDF');
-                    setShowDownloadModal(true);
-                  }}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Report
-                </Button>
-                <Button onClick={() => {
-                  resetTransactionForm();
-                  setShowTransactionModal(true);
-                }}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Record Transaction
-                </Button>
+
+              {/* Filters Row */}
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3 pt-2 border-t border-slate-200">
+                {/* Period Filter */}
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-slate-500" />
+                  <span className="text-xs font-medium text-slate-700">Period:</span>
+                  <Select
+                    value={dateFilter}
+                    onValueChange={(value) => setDateFilter(value as DateFilterType)}
+                  >
+                    <SelectTrigger className="h-8 text-xs w-[140px]">
+                      <SelectValue placeholder="Select period" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[100]">
+                      <SelectItem value="THIS_MONTH">This Month</SelectItem>
+                      <SelectItem value="THIS_YEAR">This Year</SelectItem>
+                      <SelectItem value="ALL_TIME">All Time</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Scope Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-slate-700">Scope:</span>
+                  <Select
+                    value={filterScope}
+                    onValueChange={(value) => {
+                      setFilterScope(value as FilterScope);
+                      if (value === 'ALL_PROPERTIES') {
+                        setFilterPropertyId('');
+                        setFilterUnitId('');
+                      } else if (value === 'SPECIFIC_PROPERTY') {
+                        setFilterUnitId('');
+                      } else if (value === 'SPECIFIC_UNIT') {
+                        setFilterPropertyId('');
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs w-[150px]">
+                      <SelectValue placeholder="Select scope" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[100]">
+                      <SelectItem value="ALL_PROPERTIES">All Properties</SelectItem>
+                      <SelectItem value="SPECIFIC_PROPERTY">Specific Property</SelectItem>
+                      <SelectItem value="SPECIFIC_UNIT">Specific Unit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Property Selection (when filterScope is SPECIFIC_PROPERTY) */}
+                {filterScope === 'SPECIFIC_PROPERTY' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-slate-700">Property:</span>
+                    <Select
+                      value={filterPropertyId}
+                      onValueChange={setFilterPropertyId}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[180px]">
+                        <SelectValue placeholder="Select property" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100]">
+                        {properties.map(prop => (
+                          <SelectItem key={prop.id} value={prop.id}>
+                            {prop.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Unit Selection (when filterScope is SPECIFIC_UNIT) */}
+                {filterScope === 'SPECIFIC_UNIT' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-slate-700">Unit:</span>
+                    <Select
+                      value={filterUnitId}
+                      onValueChange={setFilterUnitId}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[180px]">
+                        <SelectValue placeholder="Select unit" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100] max-h-[300px] overflow-y-auto">
+                        {allUnits.map(unit => (
+                          <SelectItem key={unit.id} value={unit.id}>
+                            {unit.label} ({unit.propertyTitle})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Clear button */}
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllFilters}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 text-xs px-2 ml-auto"
+                  >
+                    <X className="w-3.5 h-3.5 mr-1" />
+                    Clear All
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -2189,51 +1534,143 @@ const Financials = () => {
         setShowTransactionModal(open);
         if (!open) resetTransactionForm();
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingTransaction ? 'Update Transaction' : 'Record Transaction'}</DialogTitle>
-            <DialogDescription>
-              {editingTransaction ? 'Update the transaction record details' : 'Add a new transaction record to your financials'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Type *</Label>
-                <Select
-                  value={transactionForm.type}
-                  onValueChange={(value) => {
-                    // Set default category when type changes
-                    const defaultCategory = value === 'INCOME' ? 'RENT' : 'MAINTENANCE';
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+          {/* Header with Gradient */}
+          <div className="relative overflow-hidden rounded-t-lg bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 p-6">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                  transactionForm.type === 'INCOME' 
+                    ? 'bg-emerald-500/20 backdrop-blur-sm' 
+                    : transactionForm.type === 'EXPENSE'
+                    ? 'bg-red-500/20 backdrop-blur-sm'
+                    : 'bg-white/20 backdrop-blur-sm'
+                }`}>
+                  <DollarSign className={`h-6 w-6 ${
+                    transactionForm.type === 'INCOME' 
+                      ? 'text-emerald-100' 
+                      : transactionForm.type === 'EXPENSE'
+                      ? 'text-red-100'
+                      : 'text-white'
+                  }`} />
+                </div>
+                <div>
+                  <DialogTitle className="text-2xl font-bold text-white">
+                    {editingTransaction ? 'Update Transaction' : 'Record Transaction'}
+                  </DialogTitle>
+                  <DialogDescription className="text-sky-100 mt-1">
+                    {editingTransaction ? 'Update the transaction record details' : 'Add a new transaction record to your financials'}
+                  </DialogDescription>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Form Content */}
+          <div className="p-6 space-y-6">
+            {/* Transaction Type Selection - Prominent */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <span className="text-red-500">*</span>
+                Transaction Type
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const defaultCategory = 'RENT';
                     setTransactionForm({ 
                       ...transactionForm, 
-                      type: value,
-                      category: transactionForm.category && 
-                        ((value === 'INCOME' && ['RENT', 'LATE_FEE', 'DEPOSIT', 'OTHER_INCOME'].includes(transactionForm.category)) ||
-                         (value === 'EXPENSE' && ['MAINTENANCE', 'REPAIRS', 'UTILITIES', 'INSURANCE', 'TAXES', 'PROPERTY_MANAGEMENT', 'LISTING_ADVERTISING', 'OTHER_EXPENSE'].includes(transactionForm.category)))
+                      type: 'INCOME',
+                      category: transactionForm.category && ['RENT', 'LATE_FEE', 'DEPOSIT', 'OTHER_INCOME'].includes(transactionForm.category)
                         ? transactionForm.category 
                         : defaultCategory
                     });
                   }}
+                  className={`relative p-4 rounded-xl border-2 transition-all ${
+                    transactionForm.type === 'INCOME'
+                      ? 'border-emerald-500 bg-emerald-50 shadow-md'
+                      : 'border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/50'
+                  }`}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent className="z-[100]">
-                    <SelectItem value="INCOME">Income</SelectItem>
-                    <SelectItem value="EXPENSE">Expense</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                      transactionForm.type === 'INCOME' ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}>
+                      <TrendingUp className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <div className={`font-semibold ${transactionForm.type === 'INCOME' ? 'text-emerald-700' : 'text-slate-700'}`}>
+                        Income
+                      </div>
+                      <div className="text-xs text-slate-500">Money received</div>
+                    </div>
+                  </div>
+                  {transactionForm.type === 'INCOME' && (
+                    <div className="absolute top-2 right-2">
+                      <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    </div>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const defaultCategory = 'MAINTENANCE';
+                    setTransactionForm({ 
+                      ...transactionForm, 
+                      type: 'EXPENSE',
+                      category: transactionForm.category && ['MAINTENANCE', 'REPAIRS', 'UTILITIES', 'INSURANCE', 'TAXES', 'PROPERTY_MANAGEMENT', 'LISTING_ADVERTISING', 'OTHER_EXPENSE'].includes(transactionForm.category)
+                        ? transactionForm.category 
+                        : defaultCategory
+                    });
+                  }}
+                  className={`relative p-4 rounded-xl border-2 transition-all ${
+                    transactionForm.type === 'EXPENSE'
+                      ? 'border-red-500 bg-red-50 shadow-md'
+                      : 'border-slate-200 bg-slate-50 hover:border-red-300 hover:bg-red-50/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                      transactionForm.type === 'EXPENSE' ? 'bg-red-500' : 'bg-slate-300'
+                    }`}>
+                      <TrendingDown className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <div className={`font-semibold ${transactionForm.type === 'EXPENSE' ? 'text-red-700' : 'text-slate-700'}`}>
+                        Expense
+                      </div>
+                      <div className="text-xs text-slate-500">Money spent</div>
+                    </div>
+                  </div>
+                  {transactionForm.type === 'EXPENSE' && (
+                    <div className="absolute top-2 right-2">
+                      <div className="h-5 w-5 rounded-full bg-red-500 flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    </div>
+                  )}
+                </button>
               </div>
+            </div>
+
+            {/* Property and Unit */}
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Property *</Label>
+                <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <span className="text-red-500">*</span>
+                  Property
+                </Label>
                 <Select
                   value={transactionForm.propertyId}
                   onValueChange={(value) => {
                     setTransactionForm({ ...transactionForm, propertyId: value, unitId: 'PROPERTY_LEVEL' });
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500">
                     <SelectValue placeholder="Select property" />
                   </SelectTrigger>
                   <SelectContent className="z-[100]">
@@ -2243,16 +1680,14 @@ const Financials = () => {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Unit (Optional)</Label>
+                <Label className="text-sm font-semibold text-slate-700">Unit (Optional)</Label>
                 <Select
                   value={transactionForm.unitId || 'PROPERTY_LEVEL'}
                   onValueChange={(value) => setTransactionForm({ ...transactionForm, unitId: value === 'PROPERTY_LEVEL' ? '' : value })}
                   disabled={!transactionForm.propertyId}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500" disabled={!transactionForm.propertyId}>
                     <SelectValue placeholder="Select unit" />
                   </SelectTrigger>
                   <SelectContent className="z-[100]">
@@ -2263,63 +1698,89 @@ const Financials = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Amount *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={transactionForm.amount}
-                  onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })}
-                  placeholder="0.00"
-                />
-              </div>
             </div>
+
+            {/* Amount and Date */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Date *</Label>
+                <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <span className="text-red-500">*</span>
+                  Amount (PHP)
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₱</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={transactionForm.amount}
+                    onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })}
+                    placeholder="0.00"
+                    className="h-11 pl-8 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <span className="text-red-500">*</span>
+                  Date
+                </Label>
                 <Input
                   type="date"
                   value={transactionForm.date}
                   onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })}
+                  className="h-11 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select
-                  value={transactionForm.category || (transactionForm.type === 'INCOME' ? 'RENT' : 'MAINTENANCE')}
-                  onValueChange={(value) => setTransactionForm({ ...transactionForm, category: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent className="z-[100]">
-                    {transactionForm.type === 'INCOME' ? (
-                      <>
-                        <SelectItem value="RENT">Rent</SelectItem>
-                        <SelectItem value="LATE_FEE">Late Fee</SelectItem>
-                        <SelectItem value="DEPOSIT">Deposit</SelectItem>
-                        <SelectItem value="OTHER_INCOME">Other Income</SelectItem>
-                      </>
-                    ) : (
-                      <>
-                        <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                        <SelectItem value="REPAIRS">Repairs</SelectItem>
-                        <SelectItem value="UTILITIES">Utilities</SelectItem>
-                        <SelectItem value="INSURANCE">Insurance</SelectItem>
-                        <SelectItem value="TAXES">Taxes</SelectItem>
-                        <SelectItem value="PROPERTY_MANAGEMENT">Property Management</SelectItem>
-                        <SelectItem value="LISTING_ADVERTISING">Listing Advertising</SelectItem>
-                        <SelectItem value="OTHER_EXPENSE">Other Expense</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
+
+            {/* Category */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700">Category</Label>
+              <Select
+                value={transactionForm.category || (transactionForm.type === 'INCOME' ? 'RENT' : 'MAINTENANCE')}
+                onValueChange={(value) => setTransactionForm({ ...transactionForm, category: value })}
+              >
+                <SelectTrigger className="h-11 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent className="z-[100]">
+                  {transactionForm.type === 'INCOME' ? (
+                    <>
+                      <SelectItem value="RENT">Rent</SelectItem>
+                      <SelectItem value="LATE_FEE">Late Fee</SelectItem>
+                      <SelectItem value="DEPOSIT">Deposit</SelectItem>
+                      <SelectItem value="OTHER_INCOME">Other Income</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+                      <SelectItem value="REPAIRS">Repairs</SelectItem>
+                      <SelectItem value="UTILITIES">Utilities</SelectItem>
+                      <SelectItem value="INSURANCE">Insurance</SelectItem>
+                      <SelectItem value="TAXES">Taxes</SelectItem>
+                      <SelectItem value="PROPERTY_MANAGEMENT">Property Management</SelectItem>
+                      <SelectItem value="LISTING_ADVERTISING">Listing Advertising</SelectItem>
+                      <SelectItem value="OTHER_EXPENSE">Other Expense</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Description */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Description *</Label>
-                <span className={`text-xs ${getWordCount(transactionForm.description) > 15 ? 'text-red-600' : 'text-gray-500'}`}>
+                <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <span className="text-red-500">*</span>
+                  Description
+                </Label>
+                <span className={`text-xs font-medium ${
+                  getWordCount(transactionForm.description) > 15 
+                    ? 'text-red-600' 
+                    : getWordCount(transactionForm.description) > 12
+                    ? 'text-amber-600'
+                    : 'text-slate-500'
+                }`}>
                   {getWordCount(transactionForm.description)} / 15 words
                 </span>
               </div>
@@ -2328,18 +1789,27 @@ const Financials = () => {
                 onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })}
                 placeholder={transactionForm.type === 'INCOME' ? 'e.g., Rent payment, Late fee' : 'e.g., Maintenance, Utilities'}
                 maxLength={200}
+                className="h-11 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
               />
               {getWordCount(transactionForm.description) > 15 && (
-                <p className="text-xs text-red-600">Description must not exceed 15 words</p>
+                <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                  <X className="h-3 w-3" />
+                  Description must not exceed 15 words
+                </p>
               )}
             </div>
+
+            {/* Recurring Interval */}
             <div className="space-y-2">
-              <Label>Recurring Interval</Label>
+              <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Repeat className="h-4 w-4 text-slate-500" />
+                Recurring Interval
+              </Label>
               <Select
                 value={transactionForm.recurringInterval || 'NONE'}
                 onValueChange={(value) => setTransactionForm({ ...transactionForm, recurringInterval: value === 'NONE' ? '' : value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500">
                   <SelectValue placeholder="Select interval (optional)" />
                 </SelectTrigger>
                 <SelectContent className="z-[100]">
@@ -2352,46 +1822,59 @@ const Financials = () => {
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowTransactionModal(false);
-              resetTransactionForm();
-            }}>Cancel</Button>
+
+          {/* Footer */}
+          <DialogFooter className="px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-lg">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowTransactionModal(false);
+                resetTransactionForm();
+              }}
+              className="h-11 px-6"
+            >
+              Cancel
+            </Button>
             <Button 
               onClick={editingTransaction ? handleUpdateTransaction : handleCreateTransaction} 
               disabled={submittingTransaction || getWordCount(transactionForm.description) > 15}
+              className="h-11 px-6 bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 text-white hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {submittingTransaction ? (editingTransaction ? 'Updating...' : 'Creating...') : (editingTransaction ? 'Update Transaction' : 'Create Transaction')}
+              {submittingTransaction ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {editingTransaction ? 'Updating...' : 'Creating...'}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  {editingTransaction ? (
+                    <>
+                      <Repeat className="h-4 w-4" />
+                      Update Transaction
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      Create Transaction
+                    </>
+                  )}
+                </span>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Download Report Modal (PDF/Excel) */}
+      {/* Download Report Modal (PDF) */}
       <Dialog open={showDownloadModal} onOpenChange={setShowDownloadModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Download Financial Report</DialogTitle>
             <DialogDescription>
-              Select the format and data range you want to include in the report.
+              Select the data range you want to include in the PDF report.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Report Format *</Label>
-              <Select
-                value={downloadType}
-                onValueChange={(value: 'PDF' | 'EXCEL') => setDownloadType(value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select format" />
-                </SelectTrigger>
-                <SelectContent className="z-[9999]">
-                  <SelectItem value="PDF">PDF Document</SelectItem>
-                  <SelectItem value="EXCEL">Excel Spreadsheet (.xlsx)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2">
               <Label>Report Type</Label>
               <Select
@@ -2439,7 +1922,7 @@ const Financials = () => {
               <Label>Date Range</Label>
               <Select
                 value={pdfDateFilter}
-                onValueChange={(value: 'ALL_TIME' | 'SPECIFIC_MONTH' | 'SPECIFIC_YEAR' | 'MONTH_RANGE') => {
+                onValueChange={(value: DateFilterType) => {
                   setPdfDateFilter(value);
                 }}
               >
@@ -2448,99 +1931,30 @@ const Financials = () => {
                 </SelectTrigger>
                 <SelectContent className="z-[9999]">
                   <SelectItem value="ALL_TIME">All Time</SelectItem>
-                  <SelectItem value="SPECIFIC_MONTH">Specific Month</SelectItem>
-                  <SelectItem value="SPECIFIC_YEAR">Specific Year</SelectItem>
-                  <SelectItem value="MONTH_RANGE">Month Range</SelectItem>
+                  <SelectItem value="THIS_MONTH">This Month</SelectItem>
+                  <SelectItem value="THIS_YEAR">This Year</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            {pdfDateFilter === 'SPECIFIC_MONTH' && (
-              <div className="space-y-2">
-                <Label>Month</Label>
-                <Input
-                  type="month"
-                  value={pdfCustomMonth}
-                  onChange={(e) => setPdfCustomMonth(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-            )}
-
-            {pdfDateFilter === 'SPECIFIC_YEAR' && (
-              <div className="space-y-2">
-                <Label>Year</Label>
-                <Input
-                  type="number"
-                  value={pdfCustomYear}
-                  onChange={(e) => setPdfCustomYear(e.target.value)}
-                  min="2000"
-                  max={new Date().getFullYear() + 10}
-                  placeholder="Year"
-                  className="w-full"
-                />
-              </div>
-            )}
-
-            {pdfDateFilter === 'MONTH_RANGE' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Start Month *</Label>
-                  <Input
-                    type="month"
-                    value={pdfStartMonth}
-                    onChange={(e) => setPdfStartMonth(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>End Month *</Label>
-                  <Input
-                    type="month"
-                    value={pdfEndMonth}
-                    onChange={(e) => setPdfEndMonth(e.target.value)}
-                    className="w-full"
-                    min={pdfStartMonth}
-                  />
-                </div>
-                {pdfStartMonth && pdfEndMonth && new Date(`${pdfEndMonth}-01`) < new Date(`${pdfStartMonth}-01`) && (
-                  <p className="col-span-2 text-xs text-red-600">
-                    End month must be after or equal to start month
-                  </p>
-                )}
-              </div>
-            )}
 
             <div className="bg-slate-50 p-3 rounded-lg space-y-1">
               <p className="text-sm font-semibold text-slate-700">Report will include:</p>
               <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
                 {pdfDateFilter === 'ALL_TIME' ? (
                   <li>All time transaction data</li>
-                ) : pdfDateFilter === 'SPECIFIC_MONTH' ? (
-                  <li>Transactions for selected month</li>
-                ) : pdfDateFilter === 'SPECIFIC_YEAR' ? (
-                  <li>Transactions for selected year</li>
-                ) : pdfDateFilter === 'MONTH_RANGE' ? (
-                  <li>Transactions from {pdfStartMonth ? format(new Date(`${pdfStartMonth}-01`), 'MMMM yyyy') : 'start'} to {pdfEndMonth ? format(new Date(`${pdfEndMonth}-01`), 'MMMM yyyy') : 'end'}</li>
+                ) : pdfDateFilter === 'THIS_MONTH' ? (
+                  <li>Transactions for this month</li>
+                ) : pdfDateFilter === 'THIS_YEAR' ? (
+                  <li>Transactions for this year</li>
                 ) : null}
                 {pdfFilterType === 'ALL_PROPERTIES' ? (
                   <li>All properties and units</li>
                 ) : (
                   <li>Selected property only (all units)</li>
                 )}
-                {downloadType === 'PDF' ? (
-                  <>
-                    <li>Summary statistics (Income, Expense, Net Profit, Margin)</li>
-                    <li>Detailed transaction table</li>
-                    <li>All amounts in Philippine Peso (₱)</li>
-                  </>
-                ) : (
-                  <>
-                    <li>Detailed transaction spreadsheet</li>
-                    <li>All amounts in Philippine Peso (PHP)</li>
-                    <li>Formatted columns for easy analysis</li>
-                  </>
-                )}
+                <li>Summary statistics (Income, Expense, Net Profit, Margin)</li>
+                <li>Detailed transaction table</li>
+                <li>All amounts in Philippine Peso (₱)</li>
               </ul>
             </div>
           </div>
@@ -2552,27 +1966,20 @@ const Financials = () => {
                 setPdfFilterType('ALL_PROPERTIES');
                 setPdfPropertyId('');
                 setPdfDateFilter('ALL_TIME');
-                setPdfCustomMonth(format(new Date(), 'yyyy-MM'));
-                setPdfCustomYear(new Date().getFullYear().toString());
-                setPdfStartMonth(format(new Date(), 'yyyy-MM'));
-                setPdfEndMonth(format(new Date(), 'yyyy-MM'));
               }}
-              disabled={generatingPdf || generatingExcel}
+              disabled={generatingPdf}
             >
               Cancel
             </Button>
             <Button 
-              onClick={downloadType === 'PDF' ? generatePDF : generateExcel}
+              onClick={generatePDF}
               disabled={
-                (downloadType === 'PDF' ? generatingPdf : generatingExcel) || 
-                (pdfFilterType === 'SPECIFIC_PROPERTY' && !pdfPropertyId) ||
-                (pdfDateFilter === 'SPECIFIC_MONTH' && !pdfCustomMonth) ||
-                (pdfDateFilter === 'SPECIFIC_YEAR' && !pdfCustomYear) ||
-                (pdfDateFilter === 'MONTH_RANGE' && (!pdfStartMonth || !pdfEndMonth || new Date(`${pdfEndMonth}-01`) < new Date(`${pdfStartMonth}-01`)))
+                generatingPdf || 
+                (pdfFilterType === 'SPECIFIC_PROPERTY' && !pdfPropertyId)
               }
               className="bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 text-white hover:brightness-110"
             >
-              {(downloadType === 'PDF' ? generatingPdf : generatingExcel) ? (
+              {generatingPdf ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Generating...
@@ -2580,7 +1987,7 @@ const Financials = () => {
               ) : (
                 <>
                   <Download className="w-4 h-4 mr-2" />
-                  Generate {downloadType === 'PDF' ? 'PDF' : 'Excel'}
+                  Generate PDF
                 </>
               )}
             </Button>

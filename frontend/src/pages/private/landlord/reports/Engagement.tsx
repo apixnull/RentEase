@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -15,21 +13,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, BarChart, Bar, AreaChart, Area } from 'recharts';
+import { CartesianGrid, XAxis, YAxis, BarChart, Bar, AreaChart, Area } from 'recharts';
 import { toast } from 'sonner';
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import {
   Eye,
   Star,
   Loader2,
-  RefreshCcw,
   BarChart3,
   Sparkles,
+  Calendar,
+  Filter,
+  X,
+  RotateCcw,
 } from 'lucide-react';
 import { getEngagementDataRequest } from '@/api/landlord/engagementApi';
 import { getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
@@ -58,7 +66,6 @@ interface EngagementData {
     reviewCount: number;
     averageRating: number;
     listingStatus: 'ACTIVE' | 'NOT_LISTED';
-    performanceScore: number;
   }>;
   rawViews: Array<{
     id: string;
@@ -73,17 +80,17 @@ interface EngagementData {
   }>;
 }
 
-type DateRangeType = 'MONTH' | 'YEAR' | 'RANGE';
-type ChartType = 'line' | 'bar' | 'area';
+type DateRangePreset = 'THIS_MONTH' | 'THIS_YEAR' | 'ALL_TIME';
+type ChartType = 'bar' | 'area';
 
 const chartConfig = {
   views: {
     label: "Views",
-    color: "#60a5fa", // Light Blue
+    color: "#60a5fa",
   },
   reviews: {
     label: "Reviews",
-    color: "#4ade80", // Light Green
+    color: "#4ade80",
   },
 } satisfies ChartConfig;
 
@@ -94,12 +101,15 @@ const Engagement = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('ALL');
   const [selectedUnitIdForChart, setSelectedUnitIdForChart] = useState<string>('ALL');
-  const [dateRangeType, setDateRangeType] = useState<DateRangeType>('MONTH');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [customMonthRange, setCustomMonthRange] = useState<number>(1);
-  const [chartType, setChartType] = useState<ChartType>('line');
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('ALL_TIME');
+  const [chartType, setChartType] = useState<ChartType>('bar');
   const [activeChart, setActiveChart] = useState<'views' | 'reviews' | 'both'>('both');
+  const [showFilters, setShowFilters] = useState(true);
+  const [selectedUnitForModal, setSelectedUnitForModal] = useState<{
+    unitId: string;
+    unitLabel: string;
+    propertyTitle: string;
+  } | null>(null);
 
   const fetchProperties = async (signal?: AbortSignal) => {
     try {
@@ -111,42 +121,48 @@ const Engagement = () => {
     }
   };
 
+  const getDateRange = (preset: DateRangePreset) => {
+    const now = new Date();
+    let start: Date;
+    let end: Date;
+
+    switch (preset) {
+      case 'THIS_MONTH':
+        start = startOfMonth(now);
+        end = endOfMonth(now);
+        break;
+      case 'THIS_YEAR':
+        start = startOfYear(now);
+        end = endOfYear(now);
+        break;
+      case 'ALL_TIME':
+        // Use a very old date for all time
+        start = new Date('1970-01-01');
+        end = now;
+        break;
+      default:
+        start = startOfMonth(now);
+        end = endOfMonth(now);
+    }
+
+    return { start, end };
+  };
+
   const fetchEngagementData = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       
-      let startDate: string | undefined;
-      let endDate: string | undefined;
-      let range: DateRangeType = dateRangeType;
-
-      if (dateRangeType === 'MONTH') {
-        const now = new Date();
-        startDate = startOfMonth(now).toISOString();
-        endDate = endOfMonth(now).toISOString();
-      } else if (dateRangeType === 'YEAR') {
-        const now = new Date();
-        startDate = startOfYear(now).toISOString();
-        endDate = endOfYear(now).toISOString();
-      } else if (dateRangeType === 'RANGE') {
-        if (customStartDate && customEndDate) {
-          startDate = new Date(customStartDate).toISOString();
-          endDate = new Date(customEndDate).toISOString();
-        } else if (customMonthRange) {
-          const end = new Date();
-          const start = subMonths(end, customMonthRange - 1);
-          startDate = startOfMonth(start).toISOString();
-          endDate = endOfMonth(end).toISOString();
-        }
-      }
+      const { start, end } = getDateRange(dateRangePreset);
+      const startDate = start.toISOString();
+      const endDate = end.toISOString();
 
       const params: any = {
         propertyId: selectedPropertyId !== 'ALL' ? selectedPropertyId : undefined,
-        range,
+        range: dateRangePreset === 'ALL_TIME' ? 'RANGE' : dateRangePreset === 'THIS_MONTH' ? 'MONTH' : 'YEAR',
+        startDate: dateRangePreset === 'ALL_TIME' ? startDate : undefined,
+        endDate: dateRangePreset === 'ALL_TIME' ? endDate : undefined,
         signal,
       };
-
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
 
       const res = await getEngagementDataRequest(params);
       setEngagementData(res.data || null);
@@ -170,7 +186,7 @@ const Engagement = () => {
     const controller = new AbortController();
     fetchEngagementData(controller.signal);
     return () => controller.abort();
-  }, [selectedPropertyId, dateRangeType, customStartDate, customEndDate, customMonthRange]);
+  }, [selectedPropertyId, dateRangePreset]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -182,91 +198,157 @@ const Engagement = () => {
     ? (properties || []).flatMap(p => (p?.Unit || []).map(u => ({ ...u, propertyTitle: p.title })))
     : (selectedProperty?.Unit || []).map(u => ({ ...u, propertyTitle: selectedProperty?.title || '' })) || [];
 
-  // Calculate filtered summary based on selected unit
-  const filteredSummary = useMemo(() => {
-    if (!engagementData) {
-      return {
-        totalViews: 0,
-        totalReviews: 0,
-        averageRating: 0,
-      };
-    }
 
-    // Filter views and reviews by selected unit
-    const rawViews = engagementData.rawViews || [];
-    const rawReviews = engagementData.rawReviews || [];
-    
-    const filteredViews = selectedUnitIdForChart !== 'ALL'
-      ? rawViews.filter(v => v.unitId === selectedUnitIdForChart)
-      : rawViews;
-    
-    const filteredReviews = selectedUnitIdForChart !== 'ALL'
-      ? rawReviews.filter(r => r.unitId === selectedUnitIdForChart)
-      : rawReviews;
-
-    const totalViews = filteredViews.length;
-    const totalReviews = filteredReviews.length;
-    const averageRating = filteredReviews.length > 0
-      ? filteredReviews.reduce((sum, r) => sum + r.rating, 0) / filteredReviews.length
-      : 0;
-
-    return {
-      totalViews,
-      totalReviews,
-      averageRating: Number(averageRating.toFixed(1)),
-    };
-  }, [engagementData, selectedUnitIdForChart]);
 
   // Format chart data with client-side unit filtering
   const chartData = useMemo(() => {
     if (!engagementData) return [];
     
-    const rawViews = engagementData.rawViews || [];
-    const rawReviews = engagementData.rawReviews || [];
+    const rawViews = Array.isArray(engagementData.rawViews) ? engagementData.rawViews : [];
+    const rawReviews = Array.isArray(engagementData.rawReviews) ? engagementData.rawReviews : [];
     
-    // Filter views and reviews by selected unit
     const filteredViews = selectedUnitIdForChart !== 'ALL'
-      ? rawViews.filter(v => v.unitId === selectedUnitIdForChart)
+      ? rawViews.filter(v => v && v.unitId === selectedUnitIdForChart)
       : rawViews;
     
     const filteredReviews = selectedUnitIdForChart !== 'ALL'
-      ? rawReviews.filter(r => r.unitId === selectedUnitIdForChart)
+      ? rawReviews.filter(r => r && r.unitId === selectedUnitIdForChart)
       : rawReviews;
 
-    // Calculate daily views and reviews
-    const dailyViewsMap = new Map();
-    const dailyReviewsMap = new Map();
-    
-    filteredViews.forEach((view) => {
-      const dateKey = new Date(view.viewedAt).toISOString().split("T")[0];
-      dailyViewsMap.set(dateKey, (dailyViewsMap.get(dateKey) || 0) + 1);
-    });
+    // Use the date range from filters
+    const { start, end } = getDateRange(dateRangePreset);
+    const now = new Date();
+    const currentYear = now.getFullYear();
 
-    filteredReviews.forEach((review) => {
-      const dateKey = new Date(review.createdAt).toISOString().split("T")[0];
-      dailyReviewsMap.set(dateKey, (dailyReviewsMap.get(dateKey) || 0) + 1);
-    });
+    if (dateRangePreset === 'THIS_YEAR') {
+      // Group by months (Jan, Feb, ..., Dec)
+      const monthlyViewsMap = new Map<string, number>();
+      const monthlyReviewsMap = new Map<string, number>();
+      
+      if (Array.isArray(filteredViews)) {
+        filteredViews.forEach((view) => {
+          if (view && view.viewedAt) {
+            const viewDate = new Date(view.viewedAt);
+            const monthKey = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
+            monthlyViewsMap.set(monthKey, (monthlyViewsMap.get(monthKey) || 0) + 1);
+          }
+        });
+      }
 
-    // Generate all dates in range for complete chart
-    if (!engagementData.summary?.dateRange?.start || !engagementData.summary?.dateRange?.end) return [];
-    
-    const dateStart = new Date(engagementData.summary.dateRange.start);
-    const dateEnd = new Date(engagementData.summary.dateRange.end);
-    const dailyData = [];
-    const currentDate = new Date(dateStart);
-    
-    while (currentDate <= dateEnd) {
-      const dateKey = currentDate.toISOString().split("T")[0];
-      dailyData.push({
-        date: dateKey,
-        views: dailyViewsMap.get(dateKey) || 0,
-        reviews: dailyReviewsMap.get(dateKey) || 0,
-      });
-      currentDate.setDate(currentDate.getDate() + 1);
+      if (Array.isArray(filteredReviews)) {
+        filteredReviews.forEach((review) => {
+          if (review && review.createdAt) {
+            const reviewDate = new Date(review.createdAt);
+            const monthKey = `${reviewDate.getFullYear()}-${String(reviewDate.getMonth() + 1).padStart(2, '0')}`;
+            monthlyReviewsMap.set(monthKey, (monthlyReviewsMap.get(monthKey) || 0) + 1);
+          }
+        });
+      }
+
+      // Generate data for all 12 months
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthlyData = [];
+      
+      for (let month = 0; month < 12; month++) {
+        const monthKey = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
+        monthlyData.push({
+          date: monthKey,
+          label: monthNames[month],
+          views: monthlyViewsMap.get(monthKey) || 0,
+          reviews: monthlyReviewsMap.get(monthKey) || 0,
+        });
+      }
+      
+      return monthlyData;
+    } else if (dateRangePreset === 'ALL_TIME') {
+      // Group by years, with current year last
+      const yearlyViewsMap = new Map<number, number>();
+      const yearlyReviewsMap = new Map<number, number>();
+      
+      if (Array.isArray(filteredViews)) {
+        filteredViews.forEach((view) => {
+          if (view && view.viewedAt) {
+            const viewDate = new Date(view.viewedAt);
+            const year = viewDate.getFullYear();
+            yearlyViewsMap.set(year, (yearlyViewsMap.get(year) || 0) + 1);
+          }
+        });
+      }
+
+      if (Array.isArray(filteredReviews)) {
+        filteredReviews.forEach((review) => {
+          if (review && review.createdAt) {
+            const reviewDate = new Date(review.createdAt);
+            const year = reviewDate.getFullYear();
+            yearlyReviewsMap.set(year, (yearlyReviewsMap.get(year) || 0) + 1);
+          }
+        });
+      }
+
+      // Always show years from 2022 to current year, even if no data exists
+      const startYear = 2022;
+      const allYears: number[] = [];
+      
+      // Generate all years from 2022 to current year
+      for (let year = startYear; year <= currentYear; year++) {
+        allYears.push(year);
+      }
+
+      const yearlyData = allYears.map(year => ({
+        date: `${year}`,
+        label: `${year}`,
+        views: yearlyViewsMap.get(year) || 0,
+        reviews: yearlyReviewsMap.get(year) || 0,
+      }));
+      
+      return yearlyData;
+    } else {
+      // THIS_MONTH - show daily data
+      const dailyViewsMap = new Map();
+      const dailyReviewsMap = new Map();
+      
+      if (Array.isArray(filteredViews)) {
+        filteredViews.forEach((view) => {
+          if (view && view.viewedAt) {
+            const dateKey = new Date(view.viewedAt).toISOString().split("T")[0];
+            dailyViewsMap.set(dateKey, (dailyViewsMap.get(dateKey) || 0) + 1);
+          }
+        });
+      }
+
+      if (Array.isArray(filteredReviews)) {
+        filteredReviews.forEach((review) => {
+          if (review && review.createdAt) {
+            const dateKey = new Date(review.createdAt).toISOString().split("T")[0];
+            dailyReviewsMap.set(dateKey, (dailyReviewsMap.get(dateKey) || 0) + 1);
+          }
+        });
+      }
+
+      const dailyData = [];
+      const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      const currentDate = new Date(startDate);
+      
+      while (currentDate <= endDate) {
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        const dateKey = `${year}-${month}-${day}`;
+        
+        dailyData.push({
+          date: dateKey,
+          label: format(currentDate, 'MMM d'), // Format as "Dec 1" instead of "12/01"
+          views: dailyViewsMap.get(dateKey) || 0,
+          reviews: dailyReviewsMap.get(dateKey) || 0,
+        });
+        
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      return dailyData;
     }
-    
-    return dailyData;
-  }, [engagementData, selectedUnitIdForChart]);
+  }, [engagementData, selectedUnitIdForChart, dateRangePreset]);
 
   const totalViews = useMemo(() => {
     return chartData.reduce((acc, curr) => acc + curr.views, 0);
@@ -276,9 +358,31 @@ const Engagement = () => {
     return chartData.reduce((acc, curr) => acc + curr.reviews, 0);
   }, [chartData]);
 
+
+  // Per-unit rating distribution
+  const unitRatingDistributions = useMemo(() => {
+    if (!engagementData || !Array.isArray(engagementData.rawReviews)) {
+      return new Map();
+    }
+    
+    const distributions = new Map<string, { 5: number; 4: number; 3: number; 2: number; 1: number }>();
+    
+    engagementData.rawReviews.forEach(review => {
+      if (review && review.unitId && review.rating >= 1 && review.rating <= 5) {
+        if (!distributions.has(review.unitId)) {
+          distributions.set(review.unitId, { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 });
+        }
+        const dist = distributions.get(review.unitId)!;
+        dist[review.rating as keyof typeof dist]++;
+      }
+    });
+    
+    return distributions;
+  }, [engagementData]);
+
   const getListingStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
-      ACTIVE: { label: "Active", variant: "default", className: "bg-green-50 text-green-700 border-green-200" },
+      ACTIVE: { label: "Active", variant: "default", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
       NOT_LISTED: { label: "Not Listed", variant: "outline", className: "bg-slate-50 text-slate-600 border-slate-200" },
     };
     const config = statusConfig[status] || statusConfig.NOT_LISTED;
@@ -288,6 +392,9 @@ const Engagement = () => {
       </Badge>
     );
   };
+
+
+  const { start, end } = getDateRange(dateRangePreset);
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -363,6 +470,14 @@ const Engagement = () => {
               <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
                 <Button
                   variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="h-11 rounded-xl border-slate-200 bg-white/80 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white"
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  {showFilters ? 'Hide' : 'Show'} Filters
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={handleRefresh}
                   disabled={refreshing}
                   className="h-11 rounded-xl border-slate-200 bg-white/80 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white disabled:opacity-70"
@@ -374,8 +489,8 @@ const Engagement = () => {
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <RefreshCcw className="h-4 w-4" />
-                      Refresh Data
+                      <RotateCcw className="h-4 w-4" />
+                      Refresh
                     </span>
                   )}
                 </Button>
@@ -401,86 +516,92 @@ const Engagement = () => {
       </motion.div>
 
       {/* Filters */}
-      <Card className="border border-slate-200 shadow-sm">
-        <CardContent className="flex flex-col gap-4 p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Property</label>
-              <Select value={selectedPropertyId} onValueChange={(value) => {
-                setSelectedPropertyId(value);
-                setSelectedUnitIdForChart('ALL'); // Reset unit filter when property changes
-              }}>
-                <SelectTrigger className="w-full text-sm">
-                  <SelectValue placeholder="All Properties" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Properties</SelectItem>
-                  {(properties || []).map(property => (
-                    <SelectItem key={property.id} value={property.id}>
-                      {property.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      {showFilters && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+        >
+          <Card className="border border-slate-200 shadow-sm">
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filters & Date Range
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPropertyId('ALL');
+                      setDateRangePreset('ALL_TIME');
+                    }}
+                    className="h-8 text-xs"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Reset
+                  </Button>
+                </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Date Range</label>
-              <Select value={dateRangeType} onValueChange={(value) => setDateRangeType(value as DateRangeType)}>
-                <SelectTrigger className="w-full text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MONTH">This Month</SelectItem>
-                  <SelectItem value="YEAR">This Year</SelectItem>
-                  <SelectItem value="RANGE">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Property Filter */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Property</label>
+                    <Select 
+                      value={selectedPropertyId} 
+                      onValueChange={(value) => {
+                        setSelectedPropertyId(value);
+                        setSelectedUnitIdForChart('ALL');
+                      }}
+                    >
+                      <SelectTrigger className="w-full h-10 text-sm border-slate-200">
+                        <SelectValue placeholder="All Properties" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All Properties</SelectItem>
+                        {(properties || []).map(property => (
+                          <SelectItem key={property.id} value={property.id}>
+                            {property.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            {dateRangeType === 'RANGE' && (
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Month Range</label>
-                <Select value={customMonthRange.toString()} onValueChange={(value) => setCustomMonthRange(parseInt(value))}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5].map(num => (
-                      <SelectItem key={num} value={num.toString()}>
-                        {num} {num === 1 ? 'Month' : 'Months'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
+                  {/* Date Range Preset */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Date Range</label>
+                    <Select 
+                      value={dateRangePreset} 
+                      onValueChange={(value) => setDateRangePreset(value as DateRangePreset)}
+                    >
+                      <SelectTrigger className="w-full h-10 text-sm border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="THIS_MONTH">This Month</SelectItem>
+                        <SelectItem value="THIS_YEAR">This Year</SelectItem>
+                        <SelectItem value="ALL_TIME">All Time</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-          {dateRangeType === 'RANGE' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Start Date</label>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
+                {/* Date Range Display */}
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+                  <Calendar className="h-4 w-4 text-slate-400" />
+                  <span className="text-xs text-slate-600">
+                    {dateRangePreset === 'ALL_TIME' 
+                      ? 'All Time' 
+                      : `${format(start, 'MMM dd, yyyy')} - ${format(end, 'MMM dd, yyyy')}`}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-slate-500">End Date</label>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {loading ? (
         <div className="grid gap-4 lg:grid-cols-3">
@@ -490,60 +611,6 @@ const Engagement = () => {
         </div>
       ) : engagementData ? (
         <>
-          {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="shadow-sm border border-slate-200">
-              <CardHeader className="pb-2">
-                <CardDescription>Total Views</CardDescription>
-                <CardTitle className="text-2xl">{filteredSummary.totalViews.toLocaleString()}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-slate-500">
-                <div className="flex items-center gap-2">
-                  <Eye className="h-4 w-4" />
-                  <span>
-                    {selectedUnitIdForChart !== 'ALL' 
-                      ? `${(availableUnits || []).find(u => u.id === selectedUnitIdForChart)?.label || 'Selected unit'} views`
-                      : 'Unit views in selected period'}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm border border-slate-200">
-              <CardHeader className="pb-2">
-                <CardDescription>Total Reviews</CardDescription>
-                <CardTitle className="text-2xl">{filteredSummary.totalReviews.toLocaleString()}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-slate-500">
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4" />
-                  <span>
-                    {selectedUnitIdForChart !== 'ALL' 
-                      ? `${(availableUnits || []).find(u => u.id === selectedUnitIdForChart)?.label || 'Selected unit'} reviews`
-                      : 'Reviews received'}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm border border-slate-200">
-              <CardHeader className="pb-2">
-                <CardDescription>Average Review Rating</CardDescription>
-                <CardTitle className="text-2xl">
-                  {filteredSummary.averageRating > 0 
-                    ? filteredSummary.averageRating.toFixed(1)
-                    : '—'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-slate-500">
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>Out of 5.0 stars</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Chart */}
           <Card className="shadow-sm border border-slate-200">
             <CardHeader className="flex flex-col items-stretch border-b !p-0 sm:flex-row">
@@ -551,11 +618,10 @@ const Engagement = () => {
                 <div className="flex items-center gap-3 flex-wrap">
                   <CardTitle>Engagement Trend</CardTitle>
                   <Select value={chartType} onValueChange={(value) => setChartType(value as ChartType)}>
-                    <SelectTrigger className="w-[120px] h-8 text-xs">
+                    <SelectTrigger className="w-[120px] h-8 text-xs border-slate-200">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="line">Line Chart</SelectItem>
                       <SelectItem value="bar">Bar Chart</SelectItem>
                       <SelectItem value="area">Area Chart</SelectItem>
                     </SelectContent>
@@ -565,7 +631,10 @@ const Engagement = () => {
                     onValueChange={setSelectedUnitIdForChart}
                     disabled={!availableUnits || availableUnits.length === 0}
                   >
-                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                    <SelectTrigger 
+                      className="w-[180px] h-8 text-xs border-slate-200"
+                      disabled={!availableUnits || availableUnits.length === 0}
+                    >
                       <SelectValue placeholder="All Units" />
                     </SelectTrigger>
                     <SelectContent>
@@ -579,23 +648,28 @@ const Engagement = () => {
                   </Select>
                 </div>
                 <CardDescription className="flex flex-wrap items-center gap-2">
-                  {engagementData.summary?.dateRange?.start && engagementData.summary?.dateRange?.end && (
-                    <>
-                      <span>
-                        {format(parseISO(engagementData.summary.dateRange.start), 'MMM dd, yyyy')} - {format(parseISO(engagementData.summary.dateRange.end), 'MMM dd, yyyy')}
-                      </span>
-                      {selectedPropertyId !== 'ALL' && (
-                        <span className="text-slate-500">
-                          • {(properties || []).find(p => p.id === selectedPropertyId)?.title || 'Property'}
+                  {(() => {
+                    const { start, end } = getDateRange(dateRangePreset);
+                    return (
+                      <>
+                        <span>
+                          {dateRangePreset === 'ALL_TIME' 
+                            ? 'All Time' 
+                            : `${format(start, 'MMM dd, yyyy')} - ${format(end, 'MMM dd, yyyy')}`}
                         </span>
-                      )}
-                      {selectedUnitIdForChart !== 'ALL' && (
-                        <span className="text-slate-500">
-                          • {(availableUnits || []).find(u => u.id === selectedUnitIdForChart)?.label || 'Unit'}
-                        </span>
-                      )}
-                    </>
-                  )}
+                        {selectedPropertyId !== 'ALL' && (
+                          <span className="text-slate-500">
+                            • {(properties || []).find(p => p.id === selectedPropertyId)?.title || 'Property'}
+                          </span>
+                        )}
+                        {selectedUnitIdForChart !== 'ALL' && (
+                          <span className="text-slate-500">
+                            • {(availableUnits || []).find(u => u.id === selectedUnitIdForChart)?.label || 'Unit'}
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
                 </CardDescription>
               </div>
               <div className="flex">
@@ -625,80 +699,34 @@ const Engagement = () => {
             <CardContent className="px-2 sm:p-6">
               <ChartContainer
                 config={chartConfig}
-                className="aspect-auto h-[250px] w-full"
+                className="aspect-auto h-[300px] w-full"
                 style={{
                   '--color-views': chartConfig.views.color,
                   '--color-reviews': chartConfig.reviews.color,
                 } as React.CSSProperties}
               >
-                {chartType === 'line' ? (
-                  <LineChart
-                    accessibilityLayer
-                    data={chartData}
-                    margin={{ left: 12, right: 12 }}
-                  >
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      minTickGap={32}
-                      tickFormatter={(value) => {
-                        const date = new Date(value);
-                        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                      }}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                    />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          className="w-[150px]"
-                          labelFormatter={(value) => {
-                            return new Date(value).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            });
-                          }}
-                        />
-                      }
-                    />
-                    {(activeChart === 'views' || activeChart === 'both') && (
-                      <Line
-                        dataKey="views"
-                        type="monotone"
-                        stroke={chartConfig.views.color}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    )}
-                    {(activeChart === 'reviews' || activeChart === 'both') && (
-                      <Line
-                        dataKey="reviews"
-                        type="monotone"
-                        stroke={chartConfig.reviews.color}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    )}
-                  </LineChart>
-                ) : chartType === 'bar' ? (
+                {chartType === 'bar' ? (
                   <BarChart data={chartData} margin={{ left: 12, right: 12 }}>
-                    <CartesianGrid vertical={false} />
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey="date"
                       tickLine={false}
                       axisLine={false}
                       tickMargin={8}
-                      minTickGap={32}
+                      minTickGap={dateRangePreset === 'ALL_TIME' ? 40 : dateRangePreset === 'THIS_YEAR' ? 20 : 32}
                       tickFormatter={(value) => {
-                        const date = new Date(value);
-                        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                        if (dateRangePreset === 'ALL_TIME') {
+                          // For years, just return the year
+                          return value;
+                        } else if (dateRangePreset === 'THIS_YEAR') {
+                          // For months, find the label from chartData
+                          const dataPoint = chartData.find(d => d.date === value);
+                          return dataPoint?.label || value;
+                        } else {
+                          // For THIS_MONTH, show date
+                          const dataPoint = chartData.find(d => d.date === value);
+                          return dataPoint?.label || value;
+                        }
                       }}
                     />
                     <YAxis
@@ -711,11 +739,15 @@ const Engagement = () => {
                         <ChartTooltipContent
                           className="w-[150px]"
                           labelFormatter={(value) => {
-                            return new Date(value).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            });
+                            if (dateRangePreset === 'ALL_TIME') {
+                              return `Year ${value}`;
+                            } else if (dateRangePreset === 'THIS_YEAR') {
+                              const dataPoint = chartData.find(d => d.date === value);
+                              return dataPoint?.label ? `${dataPoint.label} ${new Date().getFullYear()}` : value;
+                            } else {
+                              // value is the dateKey in YYYY-MM-DD format, format it properly
+                              return format(new Date(value), 'MMM d, yyyy');
+                            }
                           }}
                         />
                       }
@@ -729,16 +761,26 @@ const Engagement = () => {
                   </BarChart>
                 ) : (
                   <AreaChart data={chartData} margin={{ left: 12, right: 12 }}>
-                    <CartesianGrid vertical={false} />
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey="date"
                       tickLine={false}
                       axisLine={false}
                       tickMargin={8}
-                      minTickGap={32}
+                      minTickGap={dateRangePreset === 'ALL_TIME' ? 40 : dateRangePreset === 'THIS_YEAR' ? 20 : 32}
                       tickFormatter={(value) => {
-                        const date = new Date(value);
-                        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                        if (dateRangePreset === 'ALL_TIME') {
+                          // For years, just return the year
+                          return value;
+                        } else if (dateRangePreset === 'THIS_YEAR') {
+                          // For months, find the label from chartData
+                          const dataPoint = chartData.find(d => d.date === value);
+                          return dataPoint?.label || value;
+                        } else {
+                          // For THIS_MONTH, show date
+                          const dataPoint = chartData.find(d => d.date === value);
+                          return dataPoint?.label || value;
+                        }
                       }}
                     />
                     <YAxis
@@ -751,11 +793,15 @@ const Engagement = () => {
                         <ChartTooltipContent
                           className="w-[150px]"
                           labelFormatter={(value) => {
-                            return new Date(value).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            });
+                            if (dateRangePreset === 'ALL_TIME') {
+                              return `Year ${value}`;
+                            } else if (dateRangePreset === 'THIS_YEAR') {
+                              const dataPoint = chartData.find(d => d.date === value);
+                              return dataPoint?.label ? `${dataPoint.label} ${new Date().getFullYear()}` : value;
+                            } else {
+                              // value is the dateKey in YYYY-MM-DD format, format it properly
+                              return format(new Date(value), 'MMM d, yyyy');
+                            }
                           }}
                         />
                       }
@@ -789,9 +835,14 @@ const Engagement = () => {
           {/* Unit Performance */}
           <Card className="shadow-sm border border-slate-200">
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-slate-500" />
-                <CardTitle className="text-base">Unit Performance</CardTitle>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-slate-500" />
+                  <CardTitle className="text-base">Unit Performance</CardTitle>
+                </div>
+                <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                  {Array.isArray(engagementData.units) ? engagementData.units.length : 0} units
+                </Badge>
               </div>
               <CardDescription>All units sorted by engagement (highest to lowest)</CardDescription>
             </CardHeader>
@@ -801,50 +852,62 @@ const Engagement = () => {
                   No data available for selected filters.
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Listing Status</TableHead>
-                      <TableHead className="text-right">Views</TableHead>
-                      <TableHead className="text-right">Reviews</TableHead>
-                      <TableHead className="text-right">Rating</TableHead>
-                      <TableHead className="text-right">Score</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(engagementData.units || []).map((unit) => (
-                      <TableRow key={unit.unitId}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{unit.unitLabel}</div>
-                            <div className="text-xs text-slate-500">{unit.propertyTitle}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {getListingStatusBadge(unit.listingStatus)}
-                        </TableCell>
-                        <TableCell className="text-right">{unit.viewCount}</TableCell>
-                        <TableCell className="text-right">{unit.reviewCount}</TableCell>
-                        <TableCell className="text-right">
-                          {unit.averageRating > 0 ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                              <span>{unit.averageRating.toFixed(1)}</span>
-                            </div>
-                          ) : (
-                            '—'
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                            {unit.performanceScore.toFixed(0)}
-                          </Badge>
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="font-semibold">Unit</TableHead>
+                        <TableHead className="font-semibold">Listing Status</TableHead>
+                        <TableHead className="text-right font-semibold">Views</TableHead>
+                        <TableHead className="text-right font-semibold">Reviews</TableHead>
+                        <TableHead className="text-right font-semibold">Rating</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {(engagementData.units || []).map((unit) => {
+                        return (
+                          <TableRow 
+                            key={unit.unitId} 
+                            className="hover:bg-slate-50/50 cursor-pointer"
+                            onClick={() => {
+                              setSelectedUnitForModal({
+                                unitId: unit.unitId,
+                                unitLabel: unit.unitLabel,
+                                propertyTitle: unit.propertyTitle,
+                              });
+                            }}
+                          >
+                            <TableCell>
+                              <div>
+                                <div className="font-medium text-sm">{unit.unitLabel}</div>
+                                <div className="text-xs text-slate-500">{unit.propertyTitle}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {getListingStatusBadge(unit.listingStatus)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="font-medium">{unit.viewCount.toLocaleString()}</span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="font-medium">{unit.reviewCount.toLocaleString()}</span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {unit.averageRating > 0 ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                                  <span className="font-medium">{unit.averageRating.toFixed(1)}</span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -860,9 +923,75 @@ const Engagement = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Rating Distribution Modal */}
+      <Dialog open={!!selectedUnitForModal} onOpenChange={(open) => {
+        if (!open) setSelectedUnitForModal(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rating Distribution</DialogTitle>
+            <DialogDescription>
+              {selectedUnitForModal && (
+                <>
+                  {selectedUnitForModal.unitLabel} - {selectedUnitForModal.propertyTitle}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUnitForModal && (() => {
+            const unitDistribution = unitRatingDistributions.get(selectedUnitForModal.unitId) || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+            const totalUnitReviews: number = (Object.values(unitDistribution) as number[]).reduce((sum: number, count: number) => sum + count, 0);
+            
+            return (
+              <div className="space-y-4 py-4">
+                {totalUnitReviews === 0 ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <Star className="h-12 w-12 mx-auto mb-3 text-slate-300" />
+                    <p className="text-sm">No reviews yet for this unit.</p>
+                  </div>
+                ) : null}
+                <div className="space-y-3">
+                  {[5, 4, 3, 2, 1].map(rating => {
+                    const count = unitDistribution[rating as keyof typeof unitDistribution];
+                    const percentage = totalUnitReviews > 0 
+                      ? (count / totalUnitReviews) * 100 
+                      : 0;
+                    return (
+                      <div key={rating} className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                            <span className="font-medium text-gray-700">{rating} Star{rating !== 1 ? 's' : ''}</span>
+                          </div>
+                          <span className="text-gray-600">{count} ({percentage.toFixed(1)}%)</span>
+                        </div>
+                        <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-amber-400 to-yellow-400 transition-all duration-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {totalUnitReviews > 0 && (
+                  <div className="pt-4 border-t border-slate-200">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-700">Total Reviews</span>
+                      <span className="text-gray-600 font-semibold">{totalUnitReviews}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };
 
 export default Engagement;
-

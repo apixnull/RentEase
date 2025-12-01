@@ -1,6 +1,6 @@
 // file: authRoutes.js
 import { Router } from "express";
-import {  forgotPassword, getUserInfo, login, logout, onboarding, register, resendVerification, resetPassword, updateProfile, verifyEmail } from "../controllers/authController.js";
+import {  forgotPassword, getUserInfo, login, logout, onboarding, register, resendVerification, resetPassword, updateProfile, verifyEmail, deleteAccount } from "../controllers/authController.js";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 
 const router = Router();
@@ -18,6 +18,7 @@ router.post("/login", login);                                                   
 router.get("/me", requireAuthentication(["ANY_ROLE"]), getUserInfo);                // Get current user 
 router.put("/onboarding", requireAuthentication(["ANY_ROLE"]), onboarding)          // Onboarding User 
 router.put("/update-profile", requireAuthentication(["ANY_ROLE"]), updateProfile)   // Update User 
+router.delete("/delete-account", requireAuthentication(["ANY_ROLE"]), deleteAccount); // Delete account
 router.post("/logout", logout);                                                     // Logout, clear cookies
 
 export default router;

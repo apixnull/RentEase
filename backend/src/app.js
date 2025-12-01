@@ -10,17 +10,24 @@ import authRoutes from "./routes/authRoutes.js";
 import landlordRoutes from "./routes/landlordRoutes.js";
 import tenantRoutes from "./routes/tenantRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
-import webhookRoutes from "./routes/webhookRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
 import sessionMiddleware from "./middlewares/session.js";
-import {
-  ROUTE_PREFIXES,
-  LEGACY_ROUTE_PREFIXES,
-  getAllowedOrigins,
-} from "./config/constants.js";
+const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
+
+const buildAllowedOrigins = () => {
+  if (!FRONTEND_URL) {
+    console.warn(
+      "⚠️ FRONTEND_URL is not configured. CORS will only allow dev/no-origin requests."
+    );
+    return [];
+  }
+
+  const normalized = FRONTEND_URL.replace(/\/$/, "");
+  return [normalized, `${normalized}/`, FRONTEND_URL];
+};
 
 const app = express();
 
@@ -30,7 +37,7 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-const allowedOrigins = getAllowedOrigins();
+const allowedOrigins = buildAllowedOrigins();
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -66,25 +73,12 @@ app.use(sessionMiddleware);
 // ------------------------------
 // Routes
 // ------------------------------
-
-const routeEntries = [
-  { key: "auth", router: authRoutes },
-  { key: "landlord", router: landlordRoutes },
-  { key: "admin", router: adminRoutes },
-  { key: "tenant", router: tenantRoutes },
-  { key: "chat", router: chatRoutes },
-  { key: "webhook", router: webhookRoutes },
-  { key: "notification", router: notificationRoutes },
-];
-
-routeEntries.forEach(({ key, router }) => {
-  app.use(ROUTE_PREFIXES[key], router);
-
-  const legacyPrefix = LEGACY_ROUTE_PREFIXES[key];
-  if (legacyPrefix) {
-    app.use(legacyPrefix, router);
-  }
-});
+app.use("/api/auth", authRoutes);
+app.use("/api/landlord", landlordRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/tenant", tenantRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/notification", notificationRoutes);
 
 // Default route (health check / welcome route)
 app.get("/", (req, res) => {

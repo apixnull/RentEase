@@ -17,7 +17,7 @@ export const getUnitForListingReviewRequest = (
     signal: options?.signal,
   });
 
-// Create payment session (listing created after payment via webhook)
+// Create payment session (listing is created immediately; PayMongo is for UX confirmation)
 export const createPaymentSessionRequest = (
   unitId: string,
   payload: { isFeatured: boolean },
@@ -45,15 +45,6 @@ export const getListingByUnitIdForSuccessRequest = (
   options?: { signal?: AbortSignal }
 ) =>
   privateApi.get(`${apiRoutes.landlord("/listing/payment-success")}?unitId=${unitId}`, {
-    signal: options?.signal,
-  });
-
-// ✅ Get basic listing info when success (by listingId - kept for backward compatibility)
-export const getLandlordListingInfoSuccessRequest = (
-  listingId: string,
-  options?: { signal?: AbortSignal }
-) =>
-  privateApi.get(apiRoutes.landlord(`/listing/${listingId}/success`), {
     signal: options?.signal,
   });
 

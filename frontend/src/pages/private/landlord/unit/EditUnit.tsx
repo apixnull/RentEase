@@ -26,7 +26,7 @@ import {
   Camera,
   Star,
   Info,
-
+  ExternalLink,
   Save,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -34,6 +34,16 @@ import { getAmenitiesRequest } from "@/api/landlord/propertyApi";
 import { getUnitDetailsRequest, updateUnitRequest } from "@/api/landlord/unitApi";
 import { supabase } from "@/lib/supabaseClient";
 import { motion } from "framer-motion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Lease rule categories
 const leaseRuleCategories = [
@@ -79,6 +89,12 @@ interface Unit {
   unitLeaseRules: UnitLeaseRule[] | null;
   requiresScreening: boolean;
   amenities: Amenity[] | null;
+  willAffectListing?: boolean;
+  latestListing?: {
+    id: string;
+    lifecycleStatus: string;
+    flaggedReason?: string | null;
+  } | null;
 }
 
 const EditUnit = () => {
@@ -95,6 +111,9 @@ const EditUnit = () => {
   // Loading state for unit data
   const [loadingUnit, setLoadingUnit] = useState(true);
   const [unitError, setUnitError] = useState<string | null>(null);
+  const [unitData, setUnitData] = useState<Unit | null>(null);
+  const [willAffectListing, setWillAffectListing] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -133,6 +152,10 @@ const EditUnit = () => {
         setUnitError(null);
         const response = await getUnitDetailsRequest(unitId);
         const unit: Unit = response.data;
+
+        // Store unit data and willAffectListing flag
+        setUnitData(unit);
+        setWillAffectListing(unit.willAffectListing || false);
 
         // Populate form with existing unit data
         setFormData({
@@ -440,6 +463,22 @@ const EditUnit = () => {
     e.preventDefault();
 
     if (!validateForm()) return;
+    if (!propertyId || !unitId) {
+      toast.error("Invalid property or unit ID");
+      return;
+    }
+
+    // Show confirmation dialog if editing will affect listing status
+    if (willAffectListing) {
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    // Proceed with submission
+    await submitForm();
+  };
+
+  const submitForm = async () => {
     if (!propertyId || !unitId) {
       toast.error("Invalid property or unit ID");
       return;
@@ -1134,6 +1173,164 @@ const EditUnit = () => {
             </Button>
           </div>
         </form>
+
+        {/* Confirmation Dialog for Listing Status Change */}
+        <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <AlertDialogContent className="max-w-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                <Info className="h-5 w-5" />
+                {unitData?.latestListing?.lifecycleStatus === "FLAGGED"
+                  ? "Listing Flagged - Edit Required"
+                  : "Warning: Listing Status Will Change"}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="pt-4 space-y-4">
+                {unitData?.latestListing?.lifecycleStatus === "FLAGGED" ? (
+                  // FLAGGED Status - Less verbose, show flag reason
+                  <>
+                    <div className="space-y-3">
+                      <p className="text-base text-gray-700">
+                        Your listing has been <strong className="text-amber-700">FLAGGED</strong> and requires modification.
+                      </p>
+                      {unitData?.latestListing?.flaggedReason && (
+                        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+                          <p className="text-sm text-amber-800 font-semibold mb-2">
+                            Flag Reason:
+                          </p>
+                          <p className="text-sm text-amber-900">
+                            {unitData.latestListing.flaggedReason}
+                          </p>
+                        </div>
+                      )}
+                      <p className="text-base text-gray-700">
+                        By clicking <strong>"Save Changes"</strong>, your listing status will be
+                        reset to <strong className="text-purple-700">WAITING_REVIEW</strong>.
+                        Please address the flag reason above when making your edits.
+                      </p>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm text-blue-800 font-semibold mb-2">
+                            Need More Information?
+                          </p>
+                          <p className="text-sm text-blue-700 mb-3">
+                            Review our policy guidelines to understand what content is allowed.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              window.open("/privacy-policy", "_blank");
+                            }}
+                            className="bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Policy Guidelines
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // VISIBLE/HIDDEN Status - Detailed warning
+                  <>
+                    <div className="space-y-3">
+                      <p className="text-base text-gray-700">
+                        Your unit currently has a listing with status{" "}
+                        <strong className={
+                          unitData?.latestListing?.lifecycleStatus === "VISIBLE"
+                            ? "text-emerald-700"
+                            : "text-teal-700"
+                        }>
+                          {unitData?.latestListing?.lifecycleStatus === "VISIBLE"
+                            ? "VISIBLE (Active and visible to tenants)"
+                            : "HIDDEN (Active but hidden from public search)"}
+                        </strong>
+                        .
+                      </p>
+                      <p className="text-base text-gray-700">
+                        By clicking <strong>"Save Changes"</strong>, the listing status will be
+                        reset to <strong className="text-purple-700">WAITING_REVIEW</strong>.
+                        This means your listing will need to be reviewed by an admin
+                        again before it can be visible to tenants.
+                      </p>
+                    </div>
+
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
+                      <p className="text-sm text-red-800 font-semibold mb-2">
+                        ⚠️ Why This Happens:
+                      </p>
+                      <p className="text-sm text-red-700">
+                        This action ensures that all new information submitted complies with our
+                        website terms and community guidelines. Any changes to unit details,
+                        descriptions, images, or lease rules must be reviewed to prevent
+                        violations such as discriminatory content, fake information, or
+                        inappropriate material.
+                      </p>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm text-blue-800 font-semibold mb-2">
+                            Need More Information?
+                          </p>
+                          <p className="text-sm text-blue-700 mb-3">
+                            Review our policy guidelines to understand what content is allowed
+                            and ensure your listing complies with our terms of service.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              window.open("/privacy-policy", "_blank");
+                            }}
+                            className="bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Policy Guidelines
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-sm text-amber-800">
+                        <strong>Note:</strong> If your unit is already being leased
+                        and you set it to HIDDEN to avoid new inquiries, editing
+                        the unit will require admin review again. Your listing will
+                        go back from its current status to WAITING_REVIEW.
+                      </p>
+                    </div>
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                }}
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  submitForm();
+                }}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                Continue Editing
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

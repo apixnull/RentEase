@@ -4,9 +4,7 @@ import {
   LayoutDashboard,
   Users,
   FileText,
-  DollarSign,
   BarChart3,
-  Settings as SettingsIcon,
   LogOut,
   Bell,
   Menu,
@@ -41,32 +39,18 @@ const sidebarItems = [
     badge: null,
   },
   {
-    path: "/admin/analytics",
-    name: "Analytics",
-    icon: BarChart3,
-    description: "System analytics",
-    badge: "New",
-  },
-  {
     path: "/admin/users",
     name: "All Users",
     icon: Users,
     description: "User management",
-    badge: "45 Total",
+    badge: null,
   },
   {
     path: "/admin/listing",
     name: "Listings",
     icon: FileText,
     description: "Manage advertisements",
-    badge: "5",
-  },
-  {
-    path: "/admin/earnings",
-    name: "Earnings",
-    icon: DollarSign,
-    description: "Website Revenue",
-    badge: "2 Issues",
+    badge: null,
   },
   {
     path: "/admin/fraud-reports",
@@ -75,12 +59,22 @@ const sidebarItems = [
     description: "Tenant fraud reports",
     badge: null,
   },
+  {
+    path: "/admin/reports",
+    name: "Reports & Analytics",
+    icon: BarChart3,
+    description: "Platform insights and analytics",
+    badge: null,
+  },
 ];
 
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin": { name: "Dashboard" },
-  "/admin/analytics": { name: "Analytics" },
+  "/admin/reports": { name: "Reports & Analytics" },
+  "/admin/reports/user-analytics": { name: "User Analytics", parent: "/admin/reports" },
+  "/admin/reports/listing-analytics": { name: "Listing Analytics", parent: "/admin/reports" },
+  "/admin/reports/fraud-report-analytics": { name: "Fraud Reports Analytics", parent: "/admin/reports" },
   "/admin/users": { name: "All Users" },
   "/admin/users/:id": { name: "Details", parent: "/admin/users" },
   "/admin/verifications": { name: "Verifications" },
@@ -88,11 +82,9 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin/listing": { name: "Listing Management" },
   "/admin/listing/:id/details": { name: "Details", parent: "/admin/listing" },
   "/admin/payments": { name: "All Payments" },
-  "/admin/reports": { name: "Reports" },
   "/admin/logs": { name: "System Logs" },
   "/admin/alerts": { name: "Alerts" },
   "/admin/account": { name: "Account" },
-  "/admin/settings": { name: "Settings" },
 };
 
 // Custom hook for sidebar state management
@@ -201,28 +193,16 @@ const NavMain = ({
             />
           )}
           
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <item.icon
               className={cn(
-                "transition-colors flex-shrink-0",
+                "transition-colors",
                 location.pathname === item.path
                   ? "text-purple-600"
                   : "text-gray-400 group-hover:text-gray-600",
-                isMobile ? "h-4 w-4" : "h-5 w-5"
+                isMobile ? "h-4 w-4" : "h-4 w-4 sm:h-5 sm:w-5"
               )}
             />
-            {item.badge && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className={cn(
-                  "absolute -top-1 -right-1 rounded-full",
-                  item.badge.includes("Critical") || item.badge.includes("Issues") ? "bg-red-400" : 
-                  item.badge.includes("New") ? "bg-blue-400" : "bg-purple-400",
-                  isMobile ? "w-1.5 h-1.5" : "w-2 h-2"
-                )}
-              />
-            )}
           </div>
           
           <AnimatePresence>
@@ -250,23 +230,6 @@ const NavMain = ({
                       </p>
                     )}
                   </div>
-                  
-                  {/* Badge text for collapsed state */}
-                  {item.badge && (
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className={cn(
-                        "font-medium ml-2 flex-shrink-0 rounded-full",
-                        item.badge.includes("Critical") || item.badge.includes("Issues") ? "bg-red-100 text-red-700" : 
-                        item.badge.includes("New") ? "bg-blue-100 text-blue-700" : 
-                        "bg-purple-100 text-purple-700",
-                        isMobile ? "text-xs px-1.5 py-0.5" : "text-xs px-2 py-1"
-                      )}
-                    >
-                      {item.badge.split(' ')[0]}
-                    </motion.span>
-                  )}
                 </div>
               </motion.div>
             )}
@@ -401,25 +364,6 @@ const NavUser = ({
                     >
                       <Users className={isMobile ? "h-3 w-3 flex-shrink-0" : "h-4 w-4 flex-shrink-0"} />
                       <span className="font-medium">Account</span>
-                    </Link>
-
-                    {/* Settings Link */}
-                    <Link
-                      to="/admin/settings"
-                      onClick={() => {
-                        setShowMoreMenu(false);
-                        onClose?.();
-                      }}
-                      className={cn(
-                        "flex items-center gap-3 transition-all duration-200 border-b border-gray-100/60",
-                        location.pathname === "/admin/settings"
-                          ? "bg-gradient-to-r from-purple-50/80 to-blue-50/80 text-purple-700"
-                          : "text-gray-700 hover:bg-gray-50/80 hover:text-gray-900",
-                        isMobile ? "p-2 text-xs" : "p-3 text-sm"
-                      )}
-                    >
-                      <SettingsIcon className={isMobile ? "h-3 w-3 flex-shrink-0" : "h-4 w-4 flex-shrink-0"} />
-                      <span className="font-medium">Settings</span>
                     </Link>
 
                     {/* Logout Button */}
@@ -604,12 +548,8 @@ const Header = ({
         return "/admin/users";
       case "LISTING":
         return "/admin/listing";
-      case "EARNINGS":
-        return "/admin/earnings";
       case "FRAUD":
         return "/admin/fraud-reports";
-      case "ANALYTICS":
-        return "/admin/analytics";
       case "ALERT":
         return "/admin/alerts";
       default:

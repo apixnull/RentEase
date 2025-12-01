@@ -446,22 +446,6 @@ const Tenants = () => {
               </div>
 
               <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-                <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
-                  <div className="flex min-w-[160px] flex-1 items-center justify-between rounded-xl border border-slate-200/70 bg-white/85 px-4 py-2 shadow-sm">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Total Records</p>
-                      <p className="text-2xl font-bold text-slate-900">{leases.length}</p>
-                    </div>
-                    <Badge className="border-emerald-100 bg-emerald-50 text-emerald-700">All</Badge>
-                  </div>
-                  <div className="flex min-w-[160px] flex-1 items-center justify-between rounded-xl border border-slate-200/70 bg-white/85 px-4 py-2 shadow-sm">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Active</p>
-                      <p className="text-2xl font-bold text-emerald-600">{groupedLeases.ACTIVE.length}</p>
-                    </div>
-                    <Badge className="border-cyan-100 bg-cyan-50 text-cyan-700">Live</Badge>
-                  </div>
-                </div>
                 <Button
                   variant="outline"
                   onClick={handleRefresh}

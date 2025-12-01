@@ -1,23 +1,15 @@
 import prisma from "../libs/prismaClient.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// ============================================================================
-// File: src/controllers/webhookController.js
-// Description: Handles PayMongo webhook events (listing activation + AI analysis)
-// ============================================================================
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const geminiModel = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash", // ✅ Stable + supports JSON mode
+  model: "gemini-2.5-flash",
   generationConfig: {
     responseMimeType: "application/json",
     temperature: 0.7,
   },
 });
 
-// ============================================================================
-// Stage 1: Sanitization Service
-// ============================================================================
 async function sanitizeListingData({ property, unit }) {
   const sanitizePrompt = `
 You are a content sanitization AI for RentEase.
@@ -43,6 +35,7 @@ For "reason" field, use ONLY one of these exact values:
 IMPORTANT CASES:
 - "boys only" is NOT an offense (some landlords prefer male tenants - valid preference)
 - "Inviting 2-bedroom unit in central Cebu City. Features modern kitchen and AC. Close to shops and transport. PHP 2000/monthly. Contact us today!" is NOT scamming (normal listing description)
+- "Must pay 300 per hour in parking is not scamming see the context some landlord charge for parking"
 
 --- OUTPUT FORMAT (JSON ONLY) ---
 {
@@ -167,9 +160,8 @@ Return JSON only, no commentary.
     const propertySanitizeLogs = normalizeSanitizeLogs(rawPropertyLogs);
     const unitSanitizeLogs = normalizeSanitizeLogs(rawUnitLogs);
 
-    // Parse sanitized JSON arrays if they're strings
     let sanitizedNearInstitutions = parsed.sanitizedProperty?.nearInstitutions;
-    if (typeof sanitizedNearInstitutions === 'string') {
+    if (typeof sanitizedNearInstitutions === "string") {
       try {
         sanitizedNearInstitutions = JSON.parse(sanitizedNearInstitutions);
       } catch {
@@ -178,7 +170,7 @@ Return JSON only, no commentary.
     }
 
     let sanitizedOtherInformation = parsed.sanitizedProperty?.otherInformation;
-    if (typeof sanitizedOtherInformation === 'string') {
+    if (typeof sanitizedOtherInformation === "string") {
       try {
         sanitizedOtherInformation = JSON.parse(sanitizedOtherInformation);
       } catch {
@@ -187,7 +179,7 @@ Return JSON only, no commentary.
     }
 
     let sanitizedUnitLeaseRules = parsed.sanitizedUnit?.unitLeaseRules;
-    if (typeof sanitizedUnitLeaseRules === 'string') {
+    if (typeof sanitizedUnitLeaseRules === "string") {
       try {
         sanitizedUnitLeaseRules = JSON.parse(sanitizedUnitLeaseRules);
       } catch {
@@ -195,7 +187,6 @@ Return JSON only, no commentary.
       }
     }
 
-    // Ensure arrays are arrays, fallback to empty array if invalid
     if (!Array.isArray(sanitizedNearInstitutions)) {
       sanitizedNearInstitutions = Array.isArray(property.nearInstitutions) ? property.nearInstitutions : [];
     }
@@ -206,15 +197,9 @@ Return JSON only, no commentary.
       sanitizedUnitLeaseRules = Array.isArray(unit.unitLeaseRules) ? unit.unitLeaseRules : [];
     }
 
-    // Calculate scamming pattern presence
-    const allSanitizations = [
-      ...rawPropertyLogs,
-      ...rawUnitLogs,
-    ];
-
-    const scammingPatterns = allSanitizations.filter((s) =>
-      s.isScammingPattern === true ||
-      s.reason?.toLowerCase()?.trim() === "scam"
+    const allSanitizations = [...rawPropertyLogs, ...rawUnitLogs];
+    const scammingPatterns = allSanitizations.filter(
+      (s) => s.isScammingPattern === true || s.reason?.toLowerCase()?.trim() === "scam"
     );
 
     return {
@@ -229,12 +214,15 @@ Return JSON only, no commentary.
         otherInformation: sanitizedOtherInformation,
       },
       sanitizedUnit: {
-        description: parsed.sanitizedUnit?.description !== undefined ? parsed.sanitizedUnit.description : unit.description,
+        description:
+          parsed.sanitizedUnit?.description !== undefined
+            ? parsed.sanitizedUnit.description
+            : unit.description,
         unitLeaseRules: sanitizedUnitLeaseRules,
       },
       aiAnalysis: Array.isArray(parsed.aiAnalysis) ? parsed.aiAnalysis : [],
       scammingPatternCount: scammingPatterns.length,
-      shouldBlock: scammingPatterns.length > 3, // Block if more than 3 scamming patterns
+      shouldBlock: scammingPatterns.length > 3,
     };
   } catch (err) {
     console.error("⚠️ Sanitization failed:", err.message);
@@ -265,24 +253,32 @@ function buildBlockedResubmissionReason({ scammingSanitizations, aiAnalysis }) {
     const uniqueReasons = Array.from(
       new Set(
         scammingSanitizations
-          .map((entry) => (entry.reason || "scam").toString().replace(/_/g, " ").toLowerCase())
+          .map((entry) =>
+            (entry.reason || "scam").toString().replace(/_/g, " ").toLowerCase()
+          )
           .filter(Boolean)
       )
     )
       .map((reason) => reason.replace(/\b\w/g, (char) => char.toUpperCase()))
       .join(", ");
 
-    const patternSummary = scammingSanitizations.length > 1
-      ? `${scammingSanitizations.length} scamming patterns were detected`
-      : `a scamming pattern was detected`;
+    const patternSummary =
+      scammingSanitizations.length > 1
+        ? `${scammingSanitizations.length} scamming patterns were detected`
+        : `a scamming pattern was detected`;
 
-    return `AI: Your Listing was blocked because ${patternSummary}${uniqueReasons ? ` (${uniqueReasons})` : "."}`;
+    return `AI: Your Listing was blocked because ${patternSummary}${
+      uniqueReasons ? ` (${uniqueReasons})` : "."
+    }`;
   }
 
   if (Array.isArray(aiAnalysis) && aiAnalysis.length > 0) {
     const insights = aiAnalysis
       .slice(0, 3)
-      .map((entry) => `${entry.part || "content"}: ${entry.description || "policy issue detected"}`)
+      .map(
+        (entry) =>
+          `${entry.part || "content"}: ${entry.description || "policy issue detected"}`
+      )
       .join("; ");
 
     return `AI: Listing blocked due to policy concerns detected during analysis (${insights}).`;
@@ -291,16 +287,15 @@ function buildBlockedResubmissionReason({ scammingSanitizations, aiAnalysis }) {
   return "AI: Listing blocked because automated safeguards detected potential policy violations.";
 }
 
-// ============================================================================
-// Main Analysis Function (Sanitization + Risk Assessment)
-// ============================================================================
 export async function analyzeListingWithGemini({ property, unit }) {
   console.log("🧹 Sanitizing listing content and assessing risk...");
   const sanitizationResult = await sanitizeListingData({ property, unit });
 
   const shouldBlock = sanitizationResult.shouldBlock;
   if (shouldBlock) {
-    console.log(`🚨 Blocking listing: ${sanitizationResult.scammingPatternCount} scamming patterns detected (>3)`);
+    console.log(
+      `🚨 Blocking listing: ${sanitizationResult.scammingPatternCount} scamming patterns detected (>3)`
+    );
   }
 
   return {
@@ -315,22 +310,8 @@ export async function analyzeListingWithGemini({ property, unit }) {
   };
 }
 
-// ============================================================================
-// Listing Activation Service
-// ----------------------------------------------------------------------------
-// Purpose: After successful payment, run AI moderation (sanitization + risk),
-// then set the listing lifecycle state based on the new schema rules:
-//   - BLOCKED: More than 3 scamming patterns detected
-//   - WAITING_REVIEW: Payment done, pending admin review (default)
-// Notes:
-//   - We DO NOT make the listing VISIBLE here; admin review is required.
-//   - We update sanitized text/arrays for non-blocked listings.
-//   - We create individual LandlordOffense records per violation with severity.
-//   - If AI analysis fails, default to WAITING_REVIEW (graceful degradation)
-// ============================================================================
-async function activateListing({ listingId, unitId, paymentDetails }) {
+export async function activateListing({ listingId, unitId, paymentDetails }) {
   const now = new Date();
-  // Visibility and expiry are handled after admin review; compute upfront for later use
   const visibleExpiry = new Date(now);
   visibleExpiry.setDate(visibleExpiry.getDate() + 92);
 
@@ -340,6 +321,7 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
       id: true,
       landlordId: true,
       resubmissionHistory: true,
+      isFeatured: true,
       unit: {
         select: {
           id: true,
@@ -358,6 +340,7 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
               otherInformation: true,
               city: { select: { id: true, name: true } },
               municipality: { select: { id: true, name: true } },
+              ownerId: true,
             },
           },
         },
@@ -370,9 +353,6 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
 
   console.log("🤖 Running two-stage AI analysis for listing:", listingId);
 
-  // 🧠 Include the full property info for AI evaluation
-  // ✅ Safely handle nullable property - provide empty object fallback
-  // ✅ Wrap in try-catch to handle AI failures gracefully
   let aiResult;
   try {
     aiResult = await analyzeListingWithGemini({
@@ -381,7 +361,6 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
     });
   } catch (aiError) {
     console.error("⚠️ AI analysis failed, defaulting to WAITING_REVIEW:", aiError.message);
-    // Default to safe state if AI fails
     aiResult = {
       propertySanitizeLogs: [],
       unitSanitizeLogs: [],
@@ -403,8 +382,6 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
     };
   }
 
-  // Determine lifecycle status based on analysis results
-  // Default after payment: WAITING_REVIEW (admin must approve before visibility)
   let lifecycleStatus = "WAITING_REVIEW";
   let blockedAt = null;
   let blockedReason = null;
@@ -428,9 +405,7 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
 
   let updatedResubmissionHistory = existingResubmissionHistory;
 
-  // Block only if more than 3 scamming patterns detected
   if (scammingSanitizations.length > 3) {
-    // Auto-block: clear fraudulent content from being persisted, and prevent visibility
     lifecycleStatus = "BLOCKED";
     blockedAt = now;
     blockedReason = buildBlockedResubmissionReason({
@@ -446,23 +421,21 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
         resubmittedAt: now.toISOString(),
       },
     ];
-    console.log(`🚨 BLOCKING listing: ${scammingSanitizations.length} scamming patterns detected (>3)`);
+    console.log(
+      `🚨 BLOCKING listing: ${scammingSanitizations.length} scamming patterns detected (>3)`
+    );
   } else {
-    // All other cases go to WAITING_REVIEW
     lifecycleStatus = "WAITING_REVIEW";
   }
 
   return prisma.$transaction(async (tx) => {
-    // Update listing with analysis results
     const updatedListing = await tx.listing.update({
       where: { id: listingId },
       data: {
         lifecycleStatus,
-        // Visibility is not granted here; admin review required
         visibleAt: null,
         blockedAt,
         blockedReason,
-        // Expiry is set even for blocked listings (worst case scenario)
         expiresAt: visibleExpiry,
         flaggedAt: null,
         flaggedReason: null,
@@ -470,17 +443,14 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
         providerTxnId: paymentDetails.providerTxnId,
         paymentAmount: paymentDetails.paymentAmount,
         paymentDate: now,
-        propertySanitizeLogs: aiResult.propertySanitizeLogs.length > 0 
-          ? aiResult.propertySanitizeLogs 
-          : null,
-        unitSanitizeLogs: aiResult.unitSanitizeLogs.length > 0 
-          ? aiResult.unitSanitizeLogs 
-          : null,
+        propertySanitizeLogs:
+          aiResult.propertySanitizeLogs.length > 0 ? aiResult.propertySanitizeLogs : null,
+        unitSanitizeLogs:
+          aiResult.unitSanitizeLogs.length > 0 ? aiResult.unitSanitizeLogs : null,
         resubmissionHistory: updatedResubmissionHistory,
       },
     });
 
-    // Update property with sanitized data (ALWAYS apply sanitization, even for blocked listings)
     if (aiResult.sanitizedProperty && listing.unit.property) {
       await tx.property.update({
         where: { id: listing.unit.property.id },
@@ -491,7 +461,6 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
       });
     }
 
-    // Update unit with sanitized data (ALWAYS apply sanitization, even for blocked listings)
     await tx.unit.update({
       where: { id: unitId },
       data: {
@@ -500,13 +469,11 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
       },
     });
 
-    // Record listing payment as an EXPENSE transaction
-    // This represents the cost the landlord pays to list their property
     if (listing.unit.property && paymentDetails.paymentAmount > 0) {
-      const listingDescription = listing.isFeatured 
-        ? "Featured listing payment" 
+      const listingDescription = listing.isFeatured
+        ? "Featured listing payment"
         : "Listing payment";
-      
+
       await tx.transaction.create({
         data: {
           propertyId: listing.unit.property.id,
@@ -519,11 +486,11 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
           recurringInterval: null,
         },
       });
-      console.log(`💰 Recorded listing payment as expense transaction: ${paymentDetails.paymentAmount} for property ${listing.unit.property.id}`);
+      console.log(
+        `💰 Recorded listing payment as expense transaction: ${paymentDetails.paymentAmount} for property ${listing.unit.property.id}`
+      );
     }
 
-    // Record landlord offenses as individual rows linked to the listing (new schema)
-    // We create offenses for ALL sanitizations to build an audit trail
     if (detectionSanitizations.length > 0 && listing.landlordId) {
       const mapSeverity = (reason) => {
         switch ((reason || "").toLowerCase()) {
@@ -550,10 +517,11 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
         detectedAt: now,
       }));
 
-      // Use createMany for efficiency; ignoreDuplicates to avoid duplicates on retries
       if (offensesData.length > 0) {
         await tx.landlordOffense.createMany({ data: offensesData, skipDuplicates: true });
-        console.log(`⚠️ Recorded ${offensesData.length} landlord offense(s) for landlord ${listing.landlordId}`);
+        console.log(
+          `⚠️ Recorded ${offensesData.length} landlord offense(s) for landlord ${listing.landlordId}`
+        );
       }
     }
 
@@ -561,102 +529,4 @@ async function activateListing({ listingId, unitId, paymentDetails }) {
   });
 }
 
-// ============================================================================
-// 🎯 PayMongo Webhook Controller
-// ============================================================================
-// This webhook is triggered after successful payment.
-// It creates the listing record and then activates/analyzes it.
-// ============================================================================
-export const handlePaymongoWebhook = async (req, res) => {
-  try {
-    const payload = req.body?.data;
-    const eventType = payload?.attributes?.type;
-
-    console.log("🔔 PayMongo Webhook received:", eventType);
-
-    if (eventType !== "checkout_session.payment.paid") {
-      return res.status(200).send("Event ignored (non-payment event)");
-    }
-
-    // Extract metadata from checkout session (contains all data needed to create listing)
-    const metadata = payload?.attributes?.data?.attributes?.metadata || {};
-    const { unitId, propertyId, landlordId, isFeatured, paymentAmount } = metadata;
-
-    // Validate required metadata fields
-    if (!unitId || !propertyId || !landlordId) {
-      return res.status(400).send("Missing required metadata: unitId, propertyId, or landlordId");
-    }
-
-    // Extract payment details
-    const payment = payload?.attributes?.data?.attributes?.payments?.[0];
-    const paymentDetails = {
-      providerName:
-        payment?.attributes?.source?.type?.toUpperCase() || "UNKNOWN",
-      providerTxnId: payment?.id || null,
-      paymentAmount: (payment?.attributes?.amount || 0) / 100,
-    };
-
-    // Verify unit exists and belongs to the landlord
-    const unit = await prisma.unit.findUnique({
-      where: { id: unitId },
-      select: {
-        id: true,
-        propertyId: true,
-        property: {
-          select: {
-            ownerId: true,
-          },
-        },
-      },
-    });
-
-    if (!unit) {
-      console.error(`❌ Unit ${unitId} not found in webhook`);
-      return res.status(400).send("Unit not found");
-    }
-
-    if (unit.property.ownerId !== landlordId) {
-      console.error(`❌ Landlord ${landlordId} does not own unit ${unitId}`);
-      return res.status(403).send("Unauthorized: landlord does not own this unit");
-    }
-
-    // Create listing record (will be activated/analyzed next)
-    const listing = await prisma.listing.create({
-      data: {
-        propertyId: propertyId,
-        unitId: unitId,
-        landlordId: landlordId,
-        lifecycleStatus: "WAITING_REVIEW", // Temporary status, will be updated by activateListing
-        isFeatured: isFeatured === "true" || isFeatured === true,
-        paymentAmount: parseFloat(paymentAmount || "0"),
-        providerName: paymentDetails.providerName,
-        providerTxnId: paymentDetails.providerTxnId,
-        paymentDate: new Date(),
-        createdAt: new Date(),
-      },
-    });
-
-    console.log(`📝 Listing ${listing.id} created from payment session`);
-
-    // Now activate and analyze the listing
-    const updatedListing = await activateListing({
-      listingId: listing.id,
-      unitId: unitId,
-      paymentDetails,
-    });
-
-    if (updatedListing.lifecycleStatus === "BLOCKED") {
-      console.log(
-        `🚨 Listing ${updatedListing.id} BLOCKED automatically (scamming/fraud detected)`
-      );
-    } else {
-      console.log("✅ Listing created, activated & analyzed:", updatedListing.id);
-    }
-
-    res.status(200).send("Webhook processed successfully.");
-  } catch (error) {
-    console.error("❌ Webhook Error:", error.message || error);
-    res.status(500).send("Webhook processing failed.");
-  }
-};
 

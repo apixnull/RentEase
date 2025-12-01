@@ -17,7 +17,6 @@ import {
   Loader2,
   Sparkles,
   UserCog,
-  ShieldAlert,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -190,21 +189,23 @@ const renderInfoGrid = (
 
   if (loading) {
     return (
-      <div className="space-y-6 p-6">
-        <Skeleton className="h-10 w-64" />
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-40 mb-2" />
-            <Skeleton className="h-4 w-56" />
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[...Array(4)].map((_, idx) => (
-                <Skeleton key={idx} className="h-16 w-full" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen p-6">
+        <div className="space-y-6">
+          <Skeleton className="h-10 w-64" />
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-40 mb-2" />
+              <Skeleton className="h-4 w-56" />
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[...Array(4)].map((_, idx) => (
+                  <Skeleton key={idx} className="h-16 w-full" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -234,266 +235,357 @@ const renderInfoGrid = (
   const offenses: LandlordOffense[] = user.landlordOffenses ?? [];
 
   return (
-    <div className="space-y-6 p-6">
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="relative overflow-hidden rounded-2xl"
-      >
-        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-teal-200/70 opacity-95" />
-        <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-300/50 to-teal-400/40 blur-3xl"
-            initial={{ opacity: 0.4, scale: 0.85 }}
-            animate={{ opacity: 0.7, scale: 1.05 }}
-            transition={{ duration: 3, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
-          />
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-teal-200/40 to-cyan-200/35 blur-3xl"
-            initial={{ opacity: 0.3 }}
-            animate={{ opacity: 0.6 }}
-            transition={{ duration: 3.5, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
-          />
+    <div className="min-h-screen p-6">
+      <div className="space-y-6">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="relative overflow-hidden rounded-2xl"
+        >
+          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-purple-200/80 via-indigo-200/75 to-blue-200/70 opacity-95" />
+          <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-purple-300/50 to-indigo-400/40 blur-3xl"
+              initial={{ opacity: 0.4, scale: 0.85 }}
+              animate={{ opacity: 0.7, scale: 1.05 }}
+              transition={{ duration: 3, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
+            />
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-blue-200/40 to-indigo-200/35 blur-3xl"
+              initial={{ opacity: 0.3 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ duration: 3.5, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
+            />
 
-          <div className="px-4 sm:px-6 py-5 space-y-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-4 min-w-0">
-                <motion.div whileHover={{ scale: 1.05 }} className="relative flex-shrink-0">
-                  <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-cyan-600 via-teal-600 to-emerald-600 text-white grid place-items-center shadow-xl shadow-teal-500/30">
-                    <UserCog className="h-5 w-5 relative z-10" />
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
-                  </div>
+            <div className="px-4 sm:px-6 py-5 space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-4 min-w-0">
                   <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ delay: 0.2, type: 'spring', stiffness: 220 }}
-                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-teal-600 border border-teal-100 shadow-sm grid place-items-center"
+                    whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                    className="relative flex-shrink-0"
                   >
-                    <Sparkles className="h-3 w-3" />
-                  </motion.div>
-                </motion.div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
-                      User Insight Center
-                    </h1>
+                    <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white grid place-items-center shadow-xl shadow-indigo-500/30">
+                      <UserCog className="h-5 w-5 relative z-10" />
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                    </div>
                     <motion.div
-                      animate={{ rotate: [0, 10, -10, 0] }}
-                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ delay: 0.2, type: 'spring', stiffness: 220 }}
+                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-purple-600 border border-purple-100 shadow-sm grid place-items-center"
                     >
-                      <Sparkles className="h-4 w-4 text-teal-500" />
+                      <Shield className="h-3 w-3" />
                     </motion.div>
+                    <motion.div
+                      className="absolute inset-0 rounded-2xl border-2 border-indigo-400/30"
+                      animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                  </motion.div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                        User Details & Management
+                      </h1>
+                      <motion.div
+                        animate={{ rotate: [0, 8, -8, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                      >
+                        <Sparkles className="h-4 w-4 text-indigo-500" />
+                      </motion.div>
+                    </div>
+                    <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                      <Shield className="h-4 w-4 text-purple-500" />
+                      Review identity, security status, and manage account access
+                    </p>
                   </div>
-                  <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
-                    <Shield className="h-4 w-4 text-cyan-500" />
-                    Review identity, contact channels, and security posture
-                  </p>
+                </div>
+
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                  <Button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    className="h-11 rounded-xl bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 px-5 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 hover:brightness-110 disabled:opacity-70"
+                  >
+                    {refreshing ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Refreshing
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <RefreshCcw className="h-4 w-4" />
+                        Refresh
+                      </span>
+                    )}
+                  </Button>
                 </div>
               </div>
 
-              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.5, ease: 'easeOut', delay: 0.15 }}
+                style={{ originX: 0 }}
+                className="relative h-1 w-full rounded-full overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-400/80 via-indigo-400/80 to-blue-400/80" />
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                  animate={{ x: ['-100%', '100%'] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
+                />
+              </motion.div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Main Action Card - Block/Unblock */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+        >
+          <Card className={`border-2 shadow-xl overflow-hidden ${
+            user.isDisabled 
+              ? 'bg-gradient-to-br from-red-50/50 via-orange-50/30 to-red-50/50 border-red-200' 
+              : 'bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-emerald-50/50 border-emerald-200'
+          }`}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                    user.isDisabled 
+                      ? 'bg-gradient-to-br from-red-500 to-orange-500' 
+                      : 'bg-gradient-to-br from-emerald-500 to-green-500'
+                  } text-white shadow-lg`}>
+                    {user.isDisabled ? (
+                      <Ban className="h-6 w-6" />
+                    ) : (
+                      <ShieldCheck className="h-6 w-6" />
+                    )}
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold text-slate-900">
+                      Account Status: {user.isDisabled ? 'Blocked' : 'Active'}
+                    </CardTitle>
+                    <CardDescription className="text-sm mt-1">
+                      {user.isDisabled 
+                        ? 'This account is currently blocked and cannot access the platform'
+                        : 'This account is active and has full platform access'}
+                    </CardDescription>
+                  </div>
+                </div>
                 <Button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="h-11 rounded-xl bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-teal-500/30 hover:brightness-110 disabled:opacity-70"
+                  variant={user.isDisabled ? 'default' : 'destructive'}
+                  size="lg"
+                  className={`h-12 px-6 font-semibold shadow-lg ${
+                    user.isDisabled
+                      ? 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white'
+                      : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white'
+                  }`}
+                  onClick={() => openConfirm(user.isDisabled ? 'unblock' : 'block')}
+                  disabled={actionLoading}
                 >
-                  {refreshing ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Refreshing
-                    </span>
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : user.isDisabled ? (
+                    <>
+                      <ShieldCheck className="h-5 w-5 mr-2" />
+                      Unblock User
+                    </>
                   ) : (
-                    <span className="flex items-center gap-2">
-                      <RefreshCcw className="h-4 w-4" />
-                      Refresh
-                    </span>
+                    <>
+                      <Ban className="h-5 w-5 mr-2" />
+                      Block User
+                    </>
                   )}
                 </Button>
               </div>
-            </div>
+            </CardHeader>
+          </Card>
+        </motion.div>
 
-            <motion.div
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.5, ease: 'easeOut', delay: 0.15 }}
-              style={{ originX: 0 }}
-              className="relative h-1 w-full rounded-full overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/80 via-teal-400/80 to-emerald-400/80" />
-              <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
-                animate={{ x: ['-100%', '100%'] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
-              />
-            </motion.div>
-          </div>
-        </div>
-      </motion.div>
-
-      <div className="grid gap-4 lg:grid-cols-[0.4fr_0.6fr]">
-        <Card className="border-0 shadow-xl overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <UserCircle2 className="h-4 w-4 text-indigo-500" />
-              Profile & Contact
-            </CardTitle>
-            <CardDescription>Identity snapshot & reachability</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5 p-6 bg-gradient-to-br from-white via-slate-50 to-slate-100">
-            <div className="flex items-start gap-4">
-              <div className="relative">
-                <Avatar className="h-16 w-16 border-2 border-white shadow-lg">
-                  <AvatarImage src={user.avatarUrl || undefined} alt={user.email} />
-                  <AvatarFallback className="bg-gradient-to-br from-indigo-100 to-cyan-100 text-indigo-700 text-lg font-semibold">
-                    {user.firstName?.[0]?.toUpperCase() ||
-                      user.lastName?.[0]?.toUpperCase() ||
-                      user.email[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="absolute -bottom-1 -right-1 rounded-full border border-white bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                  {user.role}
-                </span>
-              </div>
-              <div className="space-y-2">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Full name</p>
-                  <p className="text-xl font-semibold text-slate-900">
-                    {user.firstName || user.lastName
-                      ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
-                      : 'No name provided'}
-                  </p>
+        {/* User Profile Section */}
+        <div className="grid gap-6 lg:grid-cols-[0.4fr_0.6fr]">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+          >
+            <Card className="border-0 shadow-xl overflow-hidden bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30">
+              <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 border-b">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <UserCircle2 className="h-5 w-5 text-purple-600" />
+                  Profile & Contact
+                </CardTitle>
+                <CardDescription>Identity snapshot & reachability</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 p-6">
+                <div className="flex items-start gap-4">
+                  <div className="relative">
+                    <Avatar className="h-20 w-20 border-4 border-white shadow-xl ring-2 ring-purple-200">
+                      <AvatarImage src={user.avatarUrl || undefined} alt={user.email} />
+                      <AvatarFallback className="bg-gradient-to-br from-purple-100 to-indigo-100 text-purple-700 text-xl font-bold">
+                        {user.firstName?.[0]?.toUpperCase() ||
+                          user.lastName?.[0]?.toUpperCase() ||
+                          user.email[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-1 -right-1 rounded-full border-2 border-white bg-white px-2.5 py-1 text-xs font-bold shadow-lg">
+                      <Badge className={roleThemes[user.role] ?? 'bg-slate-100 text-slate-800 border-0'}>
+                        {user.role}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Full name</p>
+                      <p className="text-xl font-bold text-slate-900 mt-1">
+                        {user.firstName || user.lastName
+                          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+                          : 'No name provided'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Mail className="h-4 w-4" />
+                      <span className="truncate">{user.email}</span>
+                    </div>
+                    {user.bio && (
+                      <div className="mt-2 p-2 bg-white/80 rounded-lg border border-purple-100">
+                        <p className="text-xs text-slate-600 line-clamp-2">{user.bio}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className={roleThemes[user.role] ?? 'bg-slate-100 text-slate-800 border'}>
-                    <Shield className="h-3.5 w-3.5 mr-1" />
-                    {user.role}
-                  </Badge>
-                  {user.bio && (
-                    <Badge variant="outline" className="text-xs text-slate-600 border-slate-200 bg-white/60">
-                      {user.bio.slice(0, 36)}
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-purple-100 bg-white/90 p-4 shadow-sm">
+                    <p className="text-xs uppercase tracking-wide text-purple-600 font-semibold mb-3 flex items-center gap-2">
+                      <UserCircle2 className="h-3.5 w-3.5" />
+                      Profile Details
+                    </p>
+                    {renderInfoGrid(profileFields)}
+                  </div>
+                  <div className="rounded-xl border border-indigo-100 bg-white/90 p-4 shadow-sm">
+                    <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold mb-3 flex items-center gap-2">
+                      <Mail className="h-3.5 w-3.5" />
+                      Contact Information
+                    </p>
+                    {renderInfoGrid(contactFields)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.3 }}
+          >
+            <Card className="border-0 shadow-xl overflow-hidden bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Lock className="h-5 w-5 text-blue-600" />
+                  Security & Audit
+                </CardTitle>
+                <CardDescription>Email verification, access guardrails, and audit trail</CardDescription>
+              </CardHeader>
+              <CardContent className="relative space-y-5 p-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  {user.isVerified ? (
+                    <Badge className="bg-emerald-100 text-emerald-700 border-2 border-emerald-200 px-3 py-1.5 text-sm font-semibold">
+                      <ShieldCheck className="h-4 w-4 mr-1.5" />
+                      Verified Account
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-amber-100 text-amber-700 border-2 border-amber-200 px-3 py-1.5 text-sm font-semibold">
+                      <AlertTriangle className="h-4 w-4 mr-1.5" />
+                      Pending Verification
                     </Badge>
                   )}
+                  <Badge
+                    className={`px-3 py-1.5 text-sm font-semibold border-2 ${
+                      user.isDisabled
+                        ? 'bg-rose-100 text-rose-700 border-rose-200'
+                        : 'bg-blue-100 text-blue-700 border-blue-200'
+                    }`}
+                  >
+                    <Ban className="h-4 w-4 mr-1.5" />
+                    {user.isDisabled ? 'Blocked' : 'Active'}
+                  </Badge>
                 </div>
+
+                <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
+                  <p className="text-xs uppercase text-blue-600 font-semibold mb-2 flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Primary Email Address
+                  </p>
+                  <p className="text-base font-bold flex items-center gap-2 mt-2 break-all text-slate-900">
+                    <Mail className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                    {user.email}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-blue-100 bg-white/90 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-3 flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Security Checkpoints
+                  </p>
+                  {renderInfoGrid(securityFields, 1)}
+                </div>
+
+                <div className="rounded-xl border border-indigo-100 bg-white/90 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold mb-3 flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4" />
+                    Audit Trail
+                  </p>
+                  {renderInfoGrid(auditFields, 1)}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Landlord Offenses Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.4 }}
+        >
+          <Card className="border-2 border-indigo-100 bg-white/90 backdrop-blur-sm shadow-xl">
+            <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ListChecks className="h-5 w-5 text-indigo-600" />
+                    Landlord Offenses
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Recorded misconduct linked to listings {(user.role !== 'LANDLORD' || offenses.length === 0) && '(if applicable)'}
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-4 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                >
+                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCcw className="h-4 w-4 mr-2" />}
+                  <span className="text-sm font-medium">Refresh</span>
+                </Button>
               </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-inner">
-              <p className="text-xs uppercase tracking-wide text-slate-500 mb-3">Profile details</p>
-              {renderInfoGrid(profileFields)}
-            </div>
-            <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-inner">
-              <p className="text-xs uppercase tracking-wide text-slate-500 mb-3">Contact links</p>
-              {renderInfoGrid(contactFields)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-xl overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-white via-slate-50 to-slate-200" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.15),_transparent_55%)]" />
-          <CardHeader className="relative text-slate-900">
-            <CardTitle className="flex items-center gap-2 text-base text-slate-900">
-              <Lock className="h-4 w-4 text-blue-500" />
-              Account status & security
-            </CardTitle>
-            <CardDescription className="text-slate-600">
-              Email verification, access guardrails, and audit trail
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="relative space-y-4 text-slate-900">
-            <div className="flex flex-wrap items-center gap-2">
-              {user.isVerified ? (
-                <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200">
-                  <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-                  Verified
-                </Badge>
-              ) : (
-                <Badge className="bg-amber-100 text-amber-700 border border-amber-200">
-                  Pending verification
-                </Badge>
-              )}
-              <Badge
-                className={
-                  user.isDisabled
-                    ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                    : 'bg-blue-100 text-blue-700 border border-blue-200'
-                }
-              >
-                <Ban className="h-3.5 w-3.5 mr-1" />
-                {user.isDisabled ? 'Blocked' : 'Active'}
-              </Badge>
-            </div>
-
-            <div className="rounded-xl border border-white/70 bg-white px-4 py-3 shadow-inner">
-              <p className="text-xs uppercase text-slate-500">Primary email</p>
-              <p className="text-sm font-semibold flex items-center gap-2 mt-1 break-all text-slate-900">
-                <Mail className="h-4 w-4 text-blue-500" />
-                {user.email}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs uppercase tracking-wide text-slate-500 mb-2">Security checkpoints</p>
-              {renderInfoGrid(securityFields, 1)}
-            </div>
-
-            <div>
-              <p className="text-xs uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-1.5">
-                <CalendarClock className="h-3.5 w-3.5 text-blue-500" />
-                Audit trail
-              </p>
-              {renderInfoGrid(auditFields, 1)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-indigo-100 bg-white/90 backdrop-blur-sm shadow-sm">
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ListChecks className="h-4 w-4 text-indigo-500" />
-              Landlord offenses
-            </CardTitle>
-            <CardDescription>
-              Recorded misconduct linked to listings {(user.role !== 'LANDLORD' || offenses.length === 0) && '(if applicable)'}
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-3"
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
-              <span className="ml-1 text-xs font-medium">Refresh</span>
-            </Button>
-            <Button
-              variant={user.isDisabled ? 'secondary' : 'destructive'}
-              size="sm"
-              className="h-8 px-3"
-              onClick={() => openConfirm(user.isDisabled ? 'unblock' : 'block')}
-              disabled={actionLoading}
-            >
-              {actionLoading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : user.isDisabled ? (
-                <ShieldCheck className="h-3.5 w-3.5" />
-              ) : (
-                <ShieldAlert className="h-3.5 w-3.5" />
-              )}
-              <span className="ml-1 text-xs font-semibold uppercase tracking-wide">
-                {user.isDisabled ? 'Unblock' : 'Block'}
-              </span>
-            </Button>
-          </div>
-        </CardHeader>
+            </CardHeader>
         <CardContent>
           {user.role !== 'LANDLORD' ? (
             <p className="text-sm text-slate-600">
@@ -573,10 +665,11 @@ const renderInfoGrid = (
             </div>
           )}
         </CardContent>
-      </Card>
+          </Card>
+        </motion.div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirmAction === 'block' ? 'Block user account?' : 'Unblock user account?'}
@@ -593,8 +686,9 @@ const renderInfoGrid = (
               {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm'}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 };

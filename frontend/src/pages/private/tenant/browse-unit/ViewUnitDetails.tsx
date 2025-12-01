@@ -3,8 +3,17 @@ import { useParams, Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import PageHeader from "@/components/PageHeader";
+import { Avatar as ShadcnAvatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { format, isToday, isYesterday } from "date-fns";
 import { 
   ArrowLeft, 
   MapPin, 
@@ -52,6 +61,11 @@ import {
   Edit,
   Trash2,
   User,
+  Check,
+  CheckCheck,
+  Send,
+  Loader2,
+  X,
 } from "lucide-react";
 import { getSpecificListingRequest, recordUnitViewRequest, createUnitReviewRequest, updateUnitReviewRequest, deleteUnitReviewRequest, reportFraudulentListingRequest } from "@/api/tenant/browseUnitApi";
 import { getUserChatChannelsRequest, getChannelMessagesRequest, sendMessageRequest, sendAndCreateChannelRequest, markMessagesAsReadRequest } from "@/api/chatApi";
@@ -182,8 +196,45 @@ type Message = {
   senderId: string;
 };
 
-// Chat Components
-const ChatPopup = ({ 
+type Participant = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  role: "TENANT" | "LANDLORD" | "ADMIN";
+  email: string;
+};
+
+type ChannelMessagesResponse = {
+  channel: {
+    id: string;
+    status: string;
+  };
+  participants: Participant[];
+  messages: Message[];
+};
+
+// Helper function to group messages by date
+const groupMessagesByDate = (messages: Message[]) => {
+  const groups: { [key: string]: Message[] } = {};
+
+  messages.forEach((message) => {
+    const date = new Date(message.createdAt).toDateString();
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(message);
+  });
+
+  return Object.entries(groups).map(([date, messages]) => ({
+    date,
+    messages: messages.sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    ),
+  }));
+};
+
+// Chat Modal Component (similar to TenantMessages MessageModal)
+const ChatModal = ({ 
   isOpen, 
   onClose, 
   landlord,
@@ -197,14 +248,36 @@ const ChatPopup = ({
   currentUserId: string;
 }) => {
   const { socket, isConnected } = useSocket();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
+  const [data, setData] = useState<ChannelMessagesResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const formatMessageTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return format(date, "h:mm a");
+  };
+
+  const formatDateHeader = (dateString: string) => {
+    const date = new Date(dateString);
+    if (isToday(date)) {
+      return "Today";
+    } else if (isYesterday(date)) {
+      return "Yesterday";
+    } else {
+      return format(date, "MMMM dd, yyyy");
+    }
+  };
+
+  const getOtherParticipant = () => {
+    if (!data || !currentUserId) return null;
+    return data.participants.find(participant => participant.id !== currentUserId);
   };
 
   const fetchMessages = useCallback(async () => {
@@ -212,11 +285,11 @@ const ChatPopup = ({
     try {
       setLoading(true);
       const response = await getChannelMessagesRequest(channelId);
-      const data = response.data;
-      setMessages(data.messages || []);
+      setData(response.data);
       await markMessagesAsReadRequest(channelId).catch(() => {});
     } catch (error) {
       console.error("Error fetching messages:", error);
+      toast.error("Failed to load messages");
     } finally {
       setLoading(false);
     }
@@ -225,48 +298,88 @@ const ChatPopup = ({
   useEffect(() => {
     if (isOpen && channelId) {
       fetchMessages();
+      
+      if (socket && isConnected) {
+        socket.emit("join:channel", channelId);
+      }
     } else if (isOpen && !channelId) {
-      setMessages([]);
+      setData(null);
     }
-  }, [isOpen, channelId, fetchMessages]);
 
-  useEffect(() => {
-    if (!socket || !channelId || !isOpen || !isConnected) return;
-    socket.emit("join:channel", channelId);
     return () => {
-      socket.emit("leave:channel", channelId);
+      if (socket && isConnected && channelId) {
+        socket.emit("leave:channel", channelId);
+      }
     };
-  }, [socket, isConnected, channelId, isOpen]);
+  }, [isOpen, channelId, socket, isConnected, fetchMessages]);
 
   useEffect(() => {
     if (!socket || !channelId || !isOpen || !isConnected) return;
 
-    const handleNewMessage = (messageData: Message & { channelId: string }) => {
+    const handleNewMessage = async (messageData: Message & { channelId: string }) => {
       if (messageData.channelId !== channelId) return;
-      setMessages((prev) => {
-        const exists = prev.some((msg) => msg.id === messageData.id);
-        if (exists) return prev;
-        return [...prev, messageData];
+
+      setData((prevData) => {
+        if (!prevData) return prevData;
+
+        const messageExists = prevData.messages.some((msg) => msg.id === messageData.id);
+        if (messageExists) return prevData;
+
+        return {
+          ...prevData,
+          messages: [...prevData.messages, messageData],
+        };
       });
-      if (messageData.senderId !== currentUserId) {
+
+      setTimeout(() => scrollToBottom(), 100);
+
+      const isFromOtherParticipant = messageData.senderId !== currentUserId;
+      if (isFromOtherParticipant && channelId) {
         markMessagesAsReadRequest(channelId).catch(() => {});
       }
     };
 
+    const handleReadReceipt = (receiptData: { channelId: string; readAt: string }) => {
+      if (receiptData.channelId !== channelId) return;
+
+      setData((prevData) => {
+        if (!prevData) return prevData;
+
+        const updatedMessages = prevData.messages.map((msg) => {
+          if (msg.senderId !== currentUserId && !msg.readAt) {
+            return { ...msg, readAt: receiptData.readAt };
+          }
+          if (msg.senderId === currentUserId && !msg.readAt) {
+            return { ...msg, readAt: receiptData.readAt };
+          }
+          return msg;
+        });
+
+        return {
+          ...prevData,
+          messages: updatedMessages,
+        };
+      });
+    };
+
     socket.on("chat:message:new", handleNewMessage);
+    socket.on("chat:message:read", handleReadReceipt);
 
     return () => {
       socket.off("chat:message:new", handleNewMessage);
+      socket.off("chat:message:read", handleReadReceipt);
     };
   }, [socket, isConnected, channelId, currentUserId, isOpen]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (data?.messages) {
+      scrollToBottom();
+    }
+  }, [data?.messages]);
 
   const sendMessage = async () => {
     const content = newMessage.trim();
-    if (!content || !channelId) return;
+    if (!content || !channelId || sending) return;
 
     try {
       setSending(true);
@@ -274,108 +387,224 @@ const ChatPopup = ({
       setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);
+      toast.error("Failed to send message");
     } finally {
       setSending(false);
     }
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
+
+  const otherParticipant = getOtherParticipant();
+  const participantInitials = otherParticipant?.name
+    ? otherParticipant.name
+        .split(" ")
+        .map((part) => part.charAt(0))
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : landlord.fullName
+        .split(" ")
+        .map((part) => part.charAt(0))
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+  const groupedMessages = data ? groupMessagesByDate(data.messages) : [];
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <Card className="w-full max-w-md h-[600px] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="p-4 border-b bg-gradient-to-r from-emerald-600 to-sky-600 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar
-                src={landlord.avatarUrl}
-                alt={landlord.fullName}
-                className="border-2 border-white"
-                size="md"
-                name={landlord.fullName}
-              />
-              <div>
-                <h3 className="font-semibold truncate max-w-[180px] sm:max-w-[220px]">{landlord.fullName}</h3>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" onClick={onClose} className="text-white hover:bg-white/20">
-              <XCircle className="h-5 w-5" />
-            </Button>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0" showCloseButton={false}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>Chat with {landlord.fullName}</DialogTitle>
+          <DialogDescription>Conversation with {landlord.fullName}</DialogDescription>
+        </DialogHeader>
+        {loading ? (
+          <div className="p-6 flex items-center justify-center min-h-[400px]">
+            <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
           </div>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-gray-50">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-gray-500">Loading messages...</p>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-gray-500">No messages yet. Start the conversation!</p>
-            </div>
-          ) : (
-            messages.map((message) => {
-              const isUser = message.senderId === currentUserId;
-              return (
-                <div
-                  key={message.id}
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      isUser
-                        ? "bg-emerald-500 text-white rounded-br-none"
-                        : "bg-white border border-gray-200 rounded-bl-none"
-                    }`}
-                  >
-                    <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                    <p className={`text-xs mt-1 ${
-                      isUser ? "text-emerald-100" : "text-gray-500"
-                    }`}>
-                      {formatTime(message.createdAt)}
-                    </p>
+        ) : data ? (
+          <>
+            {/* Header */}
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-sky-50 to-emerald-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <ShadcnAvatar className="h-10 w-10 border-2 border-white shadow-sm flex-shrink-0">
+                    <AvatarImage src={landlord.avatarUrl || undefined} />
+                    <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-xs">
+                      {participantInitials || "LD"}
+                    </AvatarFallback>
+                  </ShadcnAvatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-semibold text-slate-900 truncate">
+                        {landlord.fullName}
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+                      <span className="truncate">{landlord.email || "Landlord"}</span>
+                      {otherParticipant?.role && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs border-slate-200 bg-slate-50 text-slate-700 rounded-full px-2"
+                        >
+                          {otherParticipant.role === "TENANT" ? "Tenant" : otherParticipant.role === "LANDLORD" ? "Landlord" : "Admin"}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
-              );
-            })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClose}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
 
-        {/* Input */}
-        <div className="p-4 border-t bg-white">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !sending && sendMessage()}
-              placeholder="Type your message..."
-              disabled={!channelId || sending}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm disabled:opacity-50"
-            />
-            <Button 
-              onClick={sendMessage} 
-              disabled={!channelId || sending || !newMessage.trim()}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+            {/* Messages Container */}
+            <div 
+              ref={messagesContainerRef}
+              className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-slate-50/50 min-h-[300px] max-h-[50vh] sm:max-h-[60vh]"
             >
-              {sending ? (
-                <div className="h-4 w-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-              ) : (
-                <MessageCircle className="h-4 w-4" />
-              )}
-            </Button>
+              <div className="space-y-6">
+                {groupedMessages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-sky-100 to-emerald-100 rounded-full flex items-center justify-center mb-4">
+                      <MessageCircle className="w-8 h-8 text-slate-500" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">No messages yet</h3>
+                    <p className="text-slate-600 text-sm max-w-sm">
+                      Start the conversation by sending a message
+                    </p>
+                  </div>
+                ) : (
+                  groupedMessages.map((group) => (
+                    <div key={group.date} className="space-y-4">
+                      <div className="flex justify-center">
+                        <div className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs text-slate-600 shadow-sm">
+                          {formatDateHeader(group.date)}
+                        </div>
+                      </div>
+
+                      {group.messages.map((message) => {
+                        const sender = data.participants.find(p => p.id === message.senderId);
+                        const isCurrentUser = currentUserId === message.senderId;
+                        const isOtherParticipant = !isCurrentUser;
+                        const showAvatar = isOtherParticipant;
+
+                        return (
+                          <div
+                            key={message.id}
+                            className={`flex items-end gap-3 ${
+                              isCurrentUser ? "flex-row-reverse" : ""
+                            }`}
+                          >
+                            {showAvatar && sender && (
+                              <ShadcnAvatar className="h-8 w-8 border-2 border-white shadow-sm flex-shrink-0">
+                                <AvatarImage src={sender.avatarUrl || undefined} />
+                                <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white text-xs">
+                                  {sender.name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </ShadcnAvatar>
+                            )}
+
+                            {!showAvatar && <div className="w-8 flex-shrink-0"></div>}
+
+                            <div
+                              className={`max-w-[75%] sm:max-w-[70%] ${
+                                isCurrentUser ? "text-right" : ""
+                              }`}
+                            >
+                              {showAvatar && sender && (
+                                <div className={`text-xs text-slate-600 mb-1 ${isCurrentUser ? 'text-right mr-2' : 'ml-2'}`}>
+                                  {sender.name}
+                                </div>
+                              )}
+                              <div
+                                className={`px-4 py-2.5 rounded-2xl shadow-sm ${
+                                  isCurrentUser
+                                    ? "bg-gradient-to-r from-sky-500 to-emerald-500 text-white rounded-br-md"
+                                    : "bg-white border border-slate-200 rounded-bl-md"
+                                }`}
+                              >
+                                <p className="text-sm whitespace-pre-wrap leading-relaxed text-left">{message.content}</p>
+                              </div>
+                              <div
+                                className={`text-xs mt-1.5 flex items-center gap-1 ${
+                                  isCurrentUser ? "justify-end text-slate-500" : "text-slate-500"
+                                }`}
+                              >
+                                <span>{formatMessageTime(message.createdAt)}</span>
+                                {message.readAt && isCurrentUser && (
+                                  <CheckCheck className="h-3 w-3 text-sky-500" />
+                                )}
+                                {!message.readAt && isCurrentUser && (
+                                  <Check className="h-3 w-3 text-slate-400" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+
+            {/* Input Area */}
+            <div className="border-t border-slate-200 bg-white px-4 sm:px-6 py-4">
+              <div className="flex items-end gap-3">
+                <div className="flex-1 border border-slate-200 rounded-lg px-4 py-2.5 bg-slate-50 focus-within:bg-white focus-within:border-sky-300 transition-colors">
+                  <textarea
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Type your message..."
+                    className="w-full outline-none resize-none bg-transparent text-sm max-h-32 text-slate-900 placeholder:text-slate-400"
+                    rows={1}
+                    disabled={sending || !channelId}
+                  />
+                </div>
+                <Button
+                  onClick={sendMessage}
+                  disabled={!newMessage.trim() || sending || !channelId}
+                  className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white px-4 sm:px-6 gap-2 h-11"
+                >
+                  <Send className="h-4 w-4" />
+                  <span className="hidden sm:inline">{sending ? "Sending..." : "Send"}</span>
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : channelId ? (
+          <div className="p-6 flex items-center justify-center min-h-[400px]">
+            <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
           </div>
-        </div>
-      </Card>
-    </div>
+        ) : (
+          <div className="p-6 flex flex-col items-center justify-center min-h-[400px] text-center">
+            <MessageCircle className="w-12 h-12 text-slate-400 mb-4" />
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">No conversation yet</h3>
+            <p className="text-slate-600 text-sm max-w-sm">
+              Send an inquiry to start a conversation with the landlord
+            </p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -983,6 +1212,32 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+// Get time ago string
+const getTimeAgo = (date: Date) => {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60);
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+  }
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600);
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  }
+  if (diffInSeconds < 2592000) {
+    const days = Math.floor(diffInSeconds / 86400);
+    return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+  }
+  if (diffInSeconds < 31536000) {
+    const months = Math.floor(diffInSeconds / 2592000);
+    return `${months} ${months === 1 ? 'month' : 'months'} ago`;
+  }
+  const years = Math.floor(diffInSeconds / 31536000);
+  return `${years} ${years === 1 ? 'year' : 'years'} ago`;
+};
+
 // Institution Icon Mapping
 const getInstitutionIcon = (type: string) => {
   const iconMap: { [key: string]: any } = {
@@ -1393,68 +1648,65 @@ I'd like to schedule a viewing. Please let me know about availability!`;
     <div className="min-h-screen">
       {/* Page Header styled via shared PageHeader */}
       <div className="bg-transparent border-b">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-2">
-          <PageHeader
-            title={
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 min-w-0">
-                <Link to="/tenant/browse-unit" className="flex-shrink-0">
-                  <div
-                    className="group inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/90 px-2 sm:px-3 py-1 shadow-sm hover:bg-gray-50 transition-colors"
-                    role="button"
-                    aria-label="Back to Browse"
-                  >
-                    <div className="grid h-6 w-6 sm:h-7 sm:w-7 place-items-center rounded-full text-white transition-colors bg-gradient-to-br from-emerald-400 to-sky-400 group-hover:from-emerald-500 group-hover:to-sky-500">
-                      <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-                    </div>
-                    <span className="text-xs sm:text-sm font-medium text-gray-800 hidden sm:inline">Back</span>
-                  </div>
-                </Link>
-                <span className="text-sm sm:text-base truncate max-w-full">{property.title} • {unit.label}</span>
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
+          {/* Mobile: Stack everything vertically, Desktop: Use PageHeader layout */}
+          <div className="flex flex-col sm:block gap-3 sm:gap-0">
+            {/* Top Row: Icon, Title, Description */}
+            <div className="flex items-start gap-3 sm:gap-4">
+              <Link to="/tenant/browse-unit" className="flex-shrink-0 mt-0.5">
+                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-sky-500 text-white grid place-items-center shadow-md hover:from-emerald-600 hover:to-sky-600 transition-colors">
+                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
+              </Link>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 truncate mb-1">
+                  {property.title} • {unit.label}
+                </h1>
+                <p className="text-xs sm:text-sm text-gray-600 break-words leading-relaxed">
+                  {formatAddress(property)} • {property.type} • Floor {unit.floorNumber}{unit.requiresScreening ? " • Screening required" : ""}
+                </p>
               </div>
-            }
-            description={
-              <span className="text-xs sm:text-sm">
-                {formatAddress(property)} • {property.type} • Floor {unit.floorNumber}{unit.requiresScreening ? " • Screening required" : ""}
-              </span>
-            }
-            customIcon={
-              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-sky-500 text-white grid place-items-center shadow-md flex-shrink-0">
-                <Home className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-            }
-            actions={
-              <div className="text-right space-y-1 mt-2 sm:mt-0">
-                <div className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900">
+            </div>
+            
+            {/* Bottom Row: Price, Views, Reviews - Full width on mobile, right-aligned on desktop */}
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-end gap-2 sm:gap-3 sm:mt-2">
+              {/* Price Block */}
+              <div className="bg-gradient-to-br from-emerald-500 to-sky-500 text-white px-3 sm:px-4 py-2 rounded-lg shadow-md sm:shadow-sm w-full sm:w-auto">
+                <div className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-center sm:text-left">
                   {formatCurrency(unit.targetPrice)}
-                  <span className="text-xs sm:text-sm font-normal text-gray-500">/month</span>
-                </div>
-                <div className="flex items-center justify-end gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600 flex-wrap">
-                  <div className="flex items-center gap-1">
-                    <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="whitespace-nowrap">{unit.viewCount} views</span>
-                  </div>
-                  <span className="text-gray-300 hidden sm:inline">•</span>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-400" />
-                    <span className="whitespace-nowrap">{totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}</span>
-                  </div>
+                  <span className="text-xs sm:text-sm font-normal opacity-90">/month</span>
                 </div>
               </div>
-            }
-            className="bg-transparent"
-          />
+              
+              {/* Views Block */}
+              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-3 sm:px-4 py-2 rounded-lg sm:shadow-sm w-full sm:w-auto">
+                <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
+                  <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="whitespace-nowrap">{unit.viewCount} views</span>
+                </div>
+              </div>
+              
+              {/* Reviews Block */}
+              <div className="bg-amber-50 border border-amber-200 text-amber-700 px-3 sm:px-4 py-2 rounded-lg sm:shadow-sm w-full sm:w-auto">
+                <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
+                  <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-amber-500" />
+                  <span className="whitespace-nowrap">{totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* 1. Location and Landlord Info Section (60/40 split) */}
-        <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-4 sm:gap-6 items-start">
           {/* Left: Location Section (60%) */}
-          <Card className="lg:col-span-6 p-6">
-            <h3 className="text-lg font-semibold mb-4">Location</h3>
+          <Card className="lg:col-span-6 p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Location</h3>
             
             {/* Leaflet Map */}
-            <div className="mb-6 rounded-lg overflow-hidden border border-gray-200" style={{ height: '300px', position: 'relative', zIndex: 0, isolation: 'isolate' }}>
+            <div className="mb-4 sm:mb-6 rounded-lg overflow-hidden border border-gray-200" style={{ height: '250px', position: 'relative', zIndex: 0, isolation: 'isolate' }}>
               <MapContainer
                 center={[property.latitude, property.longitude]}
                 zoom={15}
@@ -1473,9 +1725,9 @@ I'd like to schedule a viewing. Please let me know about availability!`;
             </div>
 
             {/* Address */}
-            <div className="mb-6">
+            <div className="mb-4 sm:mb-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                <h4 className="font-medium text-sm sm:text-base">Full Address</h4>
+                <h4 className="font-medium text-xs sm:text-sm md:text-base">Full Address</h4>
                 <a
                   href={getGoogleMapsUrl(property.latitude, property.longitude)}
                   target="_blank"
@@ -1486,8 +1738,8 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                   <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" />
                 </a>
               </div>
-              <p className="text-sm sm:text-base text-gray-600 flex items-start gap-2 break-words">
-                <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <p className="text-xs sm:text-sm md:text-base text-gray-600 flex items-start gap-2 break-words">
+                <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 mt-0.5 flex-shrink-0" />
                 <span>{formatAddress(property)}</span>
               </p>
             </div>
@@ -1495,18 +1747,35 @@ I'd like to schedule a viewing. Please let me know about availability!`;
             {/* Nearby Institutions */}
             {nearInstitutions.length > 0 && (
               <div>
-                <h4 className="font-medium mb-3">Nearby Institutions</h4>
+                <h4 className="font-semibold text-sm sm:text-base mb-3 sm:mb-4 flex items-center gap-2">
+                  <div className="p-1.5 bg-emerald-100 rounded-lg">
+                    <Building2 className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  Nearby Institutions
+                </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {nearInstitutions.map((institution: any, index: number) => {
                     const InstitutionIcon = getInstitutionIcon(institution.type);
+                    const iconColors: { [key: string]: string } = {
+                      'Education': 'bg-blue-50 text-blue-600',
+                      'Healthcare': 'bg-red-50 text-red-600',
+                      'Commerce': 'bg-green-50 text-green-600',
+                      'Government': 'bg-purple-50 text-purple-600',
+                      'Finance': 'bg-yellow-50 text-yellow-600',
+                      'Transport': 'bg-indigo-50 text-indigo-600',
+                      'Leisure': 'bg-pink-50 text-pink-600',
+                      'Religion': 'bg-gray-50 text-gray-600',
+                    };
+                    const colorClass = iconColors[institution.type] || 'bg-gray-50 text-gray-600';
+                    
                     return (
-                      <div key={index} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50">
-                        <div className="p-1.5 bg-white rounded-lg border">
-                          <InstitutionIcon className="h-3 w-3 text-gray-600" />
+                      <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-200 hover:border-emerald-300 hover:shadow-sm transition-all">
+                        <div className={`p-2.5 rounded-lg ${colorClass} flex-shrink-0`}>
+                          <InstitutionIcon className="h-5 w-5" />
                         </div>
-                        <div>
-                          <div className="text-sm font-medium">{institution.name}</div>
-                          <div className="text-xs text-gray-500 capitalize">{institution.type}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold text-gray-900 truncate">{institution.name}</div>
+                          <div className="text-xs text-gray-500 capitalize mt-0.5">{institution.type}</div>
                         </div>
                       </div>
                     );
@@ -1517,16 +1786,25 @@ I'd like to schedule a viewing. Please let me know about availability!`;
           </Card>
 
           {/* Right: Landlord Info and Reminder Section (40%) */}
-          <Card className="lg:col-span-4 p-4 sm:p-6 space-y-4 sm:space-y-5 self-start">
-            {/* Anti-scam reminder (expanded) */}
-            <div className="p-3 sm:p-4 rounded-lg border bg-amber-50 border-amber-200">
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-2">
-                  <h4 className="font-semibold text-amber-900 text-sm sm:text-base">Reminder: Avoid Rental Scams</h4>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link to="/privacy-policy" className="flex-shrink-0">
-                      <Button variant="outline" size="sm" className="whitespace-nowrap text-xs h-7 px-2 sm:px-3 flex items-center gap-1.5">
-                        <Info className="h-3 w-3" />
+          <Card className="lg:col-span-4 p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-5 self-start">
+            {/* Anti-scam reminder (compact) */}
+            <div className="p-3 rounded-lg border-2 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300 shadow-sm">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-100 rounded-lg">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-700" />
+                    </div>
+                    <h4 className="font-semibold text-amber-900 text-xs sm:text-sm">Avoid Rental Scams</h4>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Link to="/terms-privacy#avoid-rental-scams" className="flex-shrink-0">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 px-2.5 text-xs font-medium bg-white/80 hover:bg-white border-amber-300 text-amber-700 hover:text-amber-800 hover:border-amber-400 shadow-sm transition-all"
+                      >
+                        <Info className="h-3 w-3 mr-1" />
                         <span className="hidden sm:inline">Read more</span>
                         <span className="sm:hidden">Info</span>
                       </Button>
@@ -1535,30 +1813,23 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                       onClick={() => setFraudReportFormOpen(true)}
                       variant="outline"
                       size="sm"
-                      className="whitespace-nowrap text-xs h-7 px-2 sm:px-3 flex items-center gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 flex-shrink-0"
+                      className="h-7 px-2.5 text-xs font-medium bg-white/80 hover:bg-red-50 border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 shadow-sm transition-all"
                     >
-                      <Flag className="h-3 w-3" />
+                      <Flag className="h-3 w-3 mr-1" />
                       <span className="hidden sm:inline">Report</span>
                       <span className="sm:hidden">Flag</span>
                     </Button>
                   </div>
                 </div>
-                <ul className="text-sm text-amber-800 space-y-1.5 list-disc pl-5">
-                  <li>Do not send deposits or payments before an in-person viewing and signed agreement.</li>
-                  <li>Verify ownership/authority to rent. Ask for valid ID and property documents.</li>
-                  <li>Meet at the property location; be cautious of excuses for not meeting in person.</li>
-                  <li>Use secure, traceable payment methods. Avoid wire transfers or gift cards.</li>
-                  <li>Be wary of prices that are too good to be true or pressure to "pay now."</li>
-                  <li>Never share personal financial information or send money to unverified accounts.</li>
-                  <li>Research the landlord and property online before committing.</li>
-                  <li>Trust your instincts - if something feels off, it probably is.</li>
-                </ul>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Never send money before viewing. Verify ownership. Meet in person. Use secure payment methods.
+                </p>
               </div>
             </div>
 
             {/* Landlord info (larger) */}
             <div>
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <Avatar
                   src={landlord.avatarUrl}
                   alt={landlord.fullName}
@@ -1567,10 +1838,10 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                   name={landlord.fullName}
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-gray-900 truncate text-base">{landlord.fullName}</h3>
-                  <p className="text-sm text-gray-600">Property Owner</p>
+                  <h3 className="font-semibold text-gray-900 truncate text-sm sm:text-base">{landlord.fullName}</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">Property Owner</p>
                   {landlord.email && (
-                    <span className="text-sm text-gray-700 break-all">{landlord.email}</span>
+                    <span className="text-xs sm:text-sm text-gray-700 break-all">{landlord.email}</span>
                   )}
                 </div>
               </div>
@@ -1623,7 +1894,7 @@ I'd like to schedule a viewing. Please let me know about availability!`;
         </div>
 
         {/* 3. Unit Images, Description and Other Information Section */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left: Unit Images (50%) */}
             {unitImages.length > 0 && (
@@ -1632,10 +1903,10 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                   <img
                     src={unitImages[activeImageIndex]}
                     alt={`${unit.label} - Image ${activeImageIndex + 1}`}
-                    className="w-full h-96 object-cover"
+                    className="w-full h-64 sm:h-80 md:h-96 object-cover"
                   />
                 </div>
-                <p className="text-sm text-gray-600 italic mt-2 mb-3">This is what the unit looks like</p>
+                <p className="text-xs sm:text-sm text-gray-600 italic mt-2 mb-2 sm:mb-3">This is what the unit looks like</p>
                 {unitImages.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
                     {unitImages.map((image, index) => (
@@ -1662,8 +1933,8 @@ I'd like to schedule a viewing. Please let me know about availability!`;
 
             {/* Right: Unit Description (50%) */}
             <div>
-              <h3 className="text-lg font-semibold mb-3">About this unit</h3>
-              <p className="text-gray-700 mb-6">{unit.description}</p>
+              <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3">About this unit</h3>
+              <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-6 leading-relaxed">{unit.description}</p>
               
               {/* Other Information (JSON) */}
               {Array.isArray(property.otherInformation) && property.otherInformation.length > 0 && (
@@ -1684,8 +1955,8 @@ I'd like to schedule a viewing. Please let me know about availability!`;
         </Card>
 
         {/* 4. Amenities Section */}
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Amenities this unit have</h3>
+        <Card className="p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Amenities this unit have</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(categorizedAmenities).map(([category, amenities]) => {
               const CategoryIcon = getCategoryIcon(category);
@@ -1717,8 +1988,8 @@ I'd like to schedule a viewing. Please let me know about availability!`;
         </Card>
 
         {/* 5. Lease Rules Section */}
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Lease Rules</h3>
+        <Card className="p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Lease Rules</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Object.entries(categorizedRules).map(([category, rules]) => {
               const CategoryIcon = getLeaseRuleCategoryIcon(category);
@@ -1746,43 +2017,49 @@ I'd like to schedule a viewing. Please let me know about availability!`;
 
         {/* 6. My Review Section (if user is logged in) */}
         {currentUser && (
-          <Card className="p-4 sm:p-6 border border-gray-200">
+          <Card className="p-4 sm:p-6 border-2 border-emerald-100 bg-gradient-to-br from-white to-emerald-50/30 shadow-md">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Star className="h-5 w-5 text-gray-700" />
-                My Review
-              </h3>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <Star className="h-5 w-5 text-emerald-600 fill-emerald-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">My Review</h3>
+              </div>
             </div>
             
             {userReview ? (
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-3 flex-1">
+              <div className="p-4 sm:p-5 border-2 border-emerald-200 rounded-xl bg-white shadow-sm">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     <Avatar
                       src={currentUser.avatarUrl}
                       alt={currentUser.firstName || "You"}
-                      className="border border-gray-300"
+                      className="border-2 border-emerald-200 flex-shrink-0"
                       size="md"
                       name={currentUser.firstName ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim() : undefined}
                     />
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">Your Review</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-gray-900">Your Review</div>
                       <div className="text-xs text-gray-500">
-                        {new Date(userReview.createdAt).toLocaleDateString()}
+                        {new Date(userReview.createdAt).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 text-yellow-500">
-                      <Star className="h-4 w-4 fill-yellow-400" />
-                      <span className="text-sm font-medium text-gray-800">{userReview.rating}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="text-sm font-bold text-gray-900">{userReview.rating}</span>
                     </div>
-                    <div className="flex items-center gap-1 ml-2">
+                    <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleEditReview(userReview)}
-                        className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -1790,7 +2067,7 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteReview(userReview.id)}
-                        className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -1798,21 +2075,27 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                   </div>
                 </div>
                 {userReview.comment && (
-                  <p className="text-sm text-gray-700 break-words mt-2">{userReview.comment}</p>
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-700 break-words leading-relaxed">{userReview.comment}</p>
+                  </div>
                 )}
               </div>
             ) : (
-              <div className="text-center py-6">
-                <p className="text-sm text-gray-600 mb-4">You haven't reviewed this unit yet.</p>
+              <div className="text-center py-8 px-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 mb-4">
+                  <Star className="h-8 w-8 text-emerald-600" />
+                </div>
+                <p className="text-sm font-medium text-gray-700 mb-1">You haven't reviewed this unit yet.</p>
+                <p className="text-xs text-gray-500 mb-6">Share your experience with other tenants</p>
                 <Button
                   onClick={() => {
                     setEditingReview(null);
                     setReviewFormOpen(true);
                   }}
-                  className="bg-gray-900 hover:bg-gray-800 text-white"
+                  className="bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 text-white shadow-md hover:shadow-lg transition-all px-6"
                   disabled={submittingReview}
                 >
-                  <Star className="h-4 w-4 mr-2" />
+                  <Star className="h-4 w-4 mr-2 fill-white" />
                   Write Your Review
                 </Button>
               </div>
@@ -1820,30 +2103,94 @@ I'd like to schedule a viewing. Please let me know about availability!`;
           </Card>
         )}
 
-        {/* 7. All Reviews Section */}
-        <Card className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
-            <div className="flex items-center justify-between sm:justify-start gap-3">
-              <h3 className="text-lg font-semibold">All Reviews</h3>
-              {unit.avgRating && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                  <span>{unit.avgRating.toFixed(1)}</span>
-                </div>
-              )}
+        {/* 7. All Reviews Section - Google Play Style */}
+        <Card className="p-4 sm:p-6 border border-gray-200 shadow-sm bg-white">
+          {/* Header with Rating Summary */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <Star className="h-5 w-5 text-gray-700 fill-gray-700" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Reviews</h3>
+                {unit.avgRating && totalReviews > 0 && (
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <div className="flex items-center gap-1">
+                      <span className="text-2xl font-bold text-gray-900">{unit.avgRating.toFixed(1)}</span>
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`h-4 w-4 ${
+                              unit.avgRating !== null && star <= Math.round(unit.avgRating)
+                                ? "text-yellow-400 fill-yellow-400"
+                                : "text-gray-300"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-sm text-gray-500">({totalReviews} {totalReviews === 1 ? 'review' : 'reviews'})</span>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Rating Distribution Chart (Google Play Style) */}
+            {totalReviews > 0 && (() => {
+              const ratingCounts = [5, 4, 3, 2, 1].map(rating => ({
+                rating,
+                count: unit.reviews.filter((r: any) => r.rating === rating).length,
+                percentage: (unit.reviews.filter((r: any) => r.rating === rating).length / totalReviews) * 100
+              }));
+
+              return (
+                <div className="space-y-2 mb-6">
+                  {ratingCounts.map(({ rating, count, percentage }) => (
+                    <button
+                      key={rating}
+                      onClick={() => {
+                        if (selectedRatingFilter === rating) {
+                          setSelectedRatingFilter(null);
+                        } else {
+                          setSelectedRatingFilter(rating);
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-[60px]">
+                        <span className="text-sm font-medium text-gray-700">{rating}</span>
+                        <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                      </div>
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            selectedRatingFilter === rating
+                              ? "bg-yellow-500"
+                              : "bg-yellow-400"
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-gray-600 min-w-[40px] text-right">
+                        {count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
-          {/* Star Rating Filter */}
+          {/* Filter Buttons */}
           {totalReviews > 0 && (
-            <div className="mb-4 pb-4 border-b">
+            <div className="mb-6 pb-4 border-b border-gray-200">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Filter by rating:</span>
                 <button
                   onClick={() => setSelectedRatingFilter(null)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                     selectedRatingFilter === null
-                      ? "bg-emerald-600 text-white"
+                      ? "bg-gray-800 text-white"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
@@ -1851,19 +2198,26 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                 </button>
                 {[5, 4, 3, 2, 1].map((rating) => {
                   const count = unit.reviews.filter((r: any) => r.rating === rating).length;
+                  if (count === 0) return null;
                   return (
                     <button
                       key={rating}
-                      onClick={() => setSelectedRatingFilter(rating)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                      onClick={() => {
+                        if (selectedRatingFilter === rating) {
+                          setSelectedRatingFilter(null);
+                        } else {
+                          setSelectedRatingFilter(rating);
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
                         selectedRatingFilter === rating
-                          ? "bg-yellow-100 text-yellow-700 border-2 border-yellow-400"
+                          ? "bg-gray-200 text-gray-800 border border-gray-300"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
                     >
-                      <Star className={`h-4 w-4 ${selectedRatingFilter === rating ? "fill-yellow-500" : ""}`} />
-                      <span>{rating}</span>
-                      <span className="text-xs text-gray-500">({count})</span>
+                      <Star className={`h-4 w-4 ${selectedRatingFilter === rating ? "fill-yellow-500 text-yellow-500" : "text-gray-400"}`} />
+                      <span>{rating} star{rating !== 1 ? 's' : ''}</span>
+                      <span className="text-xs opacity-75">({count})</span>
                     </button>
                   );
                 })}
@@ -1892,76 +2246,95 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                   {displayedReviews.map((r: any) => {
                     const tenantFullName = r.tenant?.fullName || "Anonymous";
                     const isOwnReview = currentUser?.id && r.tenant?.id === currentUser.id;
+                    const reviewDate = new Date(r.createdAt);
+                    const timeAgo = getTimeAgo(reviewDate);
                     
                     return (
-                      <div key={r.id} className="p-3 sm:p-4 border rounded-lg bg-gray-50">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                            <Avatar
-                              src={r.tenant?.avatarUrl}
-                              alt={tenantFullName}
-                              className="flex-shrink-0"
-                              size="sm"
-                              name={tenantFullName !== "Anonymous" ? tenantFullName : undefined}
-                            />
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate">{tenantFullName}</div>
-                              <div className="text-xs text-gray-500">
-                                {new Date(r.createdAt).toLocaleDateString()}
+                      <div key={r.id} className="pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+                        <div className="flex items-start gap-3">
+                          <Avatar
+                            src={r.tenant?.avatarUrl}
+                            alt={tenantFullName}
+                            className="flex-shrink-0 border-2 border-gray-200"
+                            size="md"
+                            name={tenantFullName !== "Anonymous" ? tenantFullName : undefined}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-semibold text-gray-900 text-sm">{tenantFullName}</span>
+                                  {isOwnReview && (
+                                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">
+                                      You
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="flex items-center gap-0.5">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <Star
+                                        key={star}
+                                        className={`h-4 w-4 ${
+                                          star <= r.rating
+                                            ? "text-yellow-400 fill-yellow-400"
+                                            : "text-gray-300"
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="text-xs text-gray-500">{timeAgo}</span>
+                                </div>
                               </div>
+                              {isOwnReview && (
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditReview(r)}
+                                    className="h-7 w-7 p-0 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteReview(r.id)}
+                                    className="h-7 w-7 p-0 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="ml-2 inline-flex items-center gap-1 text-yellow-500 flex-shrink-0">
-                              <Star className="h-4 w-4 fill-yellow-400" />
-                              <span className="text-sm font-medium text-gray-800">{r.rating}</span>
-                            </div>
-                            {isOwnReview && (
-                              <div className="flex items-center gap-1 ml-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditReview(r)}
-                                  className="h-7 w-7 p-0 text-gray-600 hover:text-emerald-600"
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteReview(r.id)}
-                                  className="h-7 w-7 p-0 text-gray-600 hover:text-red-600"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
+                            {r.comment && (
+                              <p className="text-sm text-gray-800 leading-relaxed break-words mt-2">
+                                {r.comment}
+                              </p>
                             )}
                           </div>
                         </div>
-                        {r.comment && (
-                          <p className="mt-3 text-sm text-gray-700 break-words">{r.comment}</p>
-                        )}
                       </div>
                     );
                   })}
                 </div>
                 {!showAllReviews && filteredReviews.length > 6 && (
-                  <div className="mt-4 text-center">
+                  <div className="mt-6 text-center">
                     <Button
                       variant="outline"
                       onClick={() => setShowAllReviews(true)}
-                      className="text-sm"
+                      className="text-sm font-semibold border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm px-6"
                     >
                       Show All Reviews ({filteredReviews.length})
                     </Button>
                   </div>
                 )}
                 {showAllReviews && filteredReviews.length > 6 && (
-                  <div className="mt-4 text-center">
+                  <div className="mt-6 text-center">
                     <Button
                       variant="outline"
                       onClick={() => setShowAllReviews(false)}
-                      className="text-sm"
+                      className="text-sm font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm px-6"
                     >
                       Show Less
                     </Button>
@@ -1970,14 +2343,17 @@ I'd like to schedule a viewing. Please let me know about availability!`;
               </>
             );
           })() : (
-            <div className="text-center py-8">
-              <div className="text-sm text-gray-600 mb-4">
+            <div className="text-center py-12 px-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                <Star className="h-8 w-8 text-gray-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-700 mb-1">
                 {currentUser && userReview 
                   ? "No other reviews yet for this unit." 
                   : "No reviews yet for this unit."}
-              </div>
+              </p>
               {!currentUser && (
-                <p className="text-xs text-gray-500">Sign in to write a review</p>
+                <p className="text-xs text-gray-500 mt-2">Sign in to write a review</p>
               )}
             </div>
           )}
@@ -2043,8 +2419,8 @@ I'd like to schedule a viewing. Please let me know about availability!`;
         unitLabel={unit.label}
       />
 
-      {/* Chat Popup */}
-      <ChatPopup 
+      {/* Chat Modal */}
+      <ChatModal 
         isOpen={chatOpen} 
         onClose={() => {
           setChatOpen(false);

@@ -33,3 +33,7 @@ export const updateProfileRequest = (data: any, options?: { signal?: AbortSignal
 
 export const logoutRequest = () =>
   privateApi.post(apiRoutes.auth("/logout"), {}, { withCredentials: true });
+
+// Delete account (protected)
+export const deleteAccountRequest = (options?: { signal?: AbortSignal }) =>
+  privateApi.delete(apiRoutes.auth("/delete-account"), { signal: options?.signal });

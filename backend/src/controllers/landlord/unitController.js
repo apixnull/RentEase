@@ -61,6 +61,7 @@ export const getUnitDetails = async (req, res) => {
             lifecycleStatus: true,
             visibleAt: true,
             flaggedAt: true,
+            flaggedReason: true, // ⚠️ include flag reason for FLAGGED status
             hiddenAt: true,
             blockedAt: true,
             expiresAt: true,
@@ -116,6 +117,12 @@ export const getUnitDetails = async (req, res) => {
     // 🧩 Extract latest listing safely
     const latestListing = unit.listings[0] || null;
 
+    // ⚠️ Check if editing will affect listing status
+    // If listing is VISIBLE, HIDDEN, or FLAGGED, editing will reset it to WAITING_REVIEW
+    const willAffectListing =
+      latestListing &&
+      ["VISIBLE", "HIDDEN", "FLAGGED"].includes(latestListing.lifecycleStatus);
+
     // ✅ Structured response
     return res.json({
       id: unit.id,
@@ -154,12 +161,14 @@ export const getUnitDetails = async (req, res) => {
             isFeatured: latestListing.isFeatured,
             visibleAt: latestListing.visibleAt,
             flaggedAt: latestListing.flaggedAt,
+            flaggedReason: latestListing.flaggedReason, // ⚠️ include flag reason
             hiddenAt: latestListing.hiddenAt,
             blockedAt: latestListing.blockedAt,
             expiresAt: latestListing.expiresAt,
             createdAt: latestListing.createdAt,
           }
         : null,
+      willAffectListing: willAffectListing, // ⚠️ Flag indicating if editing will reset listing status
     });
   } catch (error) {
     console.error("Error fetching unit details:", error);
@@ -375,6 +384,30 @@ export const updateUnit = async (req, res) => {
       include: { amenities: true },
     });
 
+    // ⚠️ If unit has an active listing (VISIBLE, HIDDEN, or FLAGGED), reset it to WAITING_REVIEW
+    // This requires admin review again after unit information changes
+    const latestListing = await prisma.listing.findFirst({
+      where: { unitId: unitId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, lifecycleStatus: true },
+    });
+
+    if (
+      latestListing &&
+      ["VISIBLE", "HIDDEN", "FLAGGED"].includes(latestListing.lifecycleStatus)
+    ) {
+      await prisma.listing.update({
+        where: { id: latestListing.id },
+        data: {
+          lifecycleStatus: "WAITING_REVIEW",
+          visibleAt: null,
+          hiddenAt: null,
+          flaggedAt: null,
+          reviewedAt: null,
+        },
+      });
+    }
+
     return res.status(200).json({
       message: "Unit updated successfully",
       unit: updatedUnit,
@@ -384,6 +417,59 @@ export const updateUnit = async (req, res) => {
     return res.status(500).json({
       message: "Failed to update unit",
       error: error.message,
+    });
+  }
+};
+
+// ---------------------------------------------- DELETE UNIT ----------------------------------------------
+export const deleteUnit = async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    const ownerId = req.user?.id;
+
+    if (!unitId) {
+      return res.status(400).json({ message: "Unit ID is required" });
+    }
+
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Verify unit exists and belongs to the landlord
+    const existingUnit = await prisma.unit.findFirst({
+      where: {
+        id: unitId,
+        property: { ownerId },
+      },
+      select: {
+        id: true,
+        label: true,
+        mainImageUrl: true,
+        property: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!existingUnit) {
+      return res.status(404).json({ message: "Unit not found" });
+    }
+
+    // Delete unit (cascade will handle related data: listings, leases, reviews, etc.)
+    await prisma.unit.delete({
+      where: { id: unitId },
+    });
+
+    return res.status(200).json({
+      message: "Unit deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting unit:", error);
+    return res.status(500).json({
+      message: "Failed to delete unit.",
+      details: error.message,
     });
   }
 };

@@ -14,10 +14,10 @@ import {
   ChevronRight,
   Building2,
   TrendingUp,
-  BarChart3,
   MoreHorizontal,
   Zap,
   CreditCard,
+  FileBarChart,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -50,28 +50,28 @@ const sidebarItems = [
     name: "Properties",
     icon: Building2,
     description: "Manage properties",
-    badge: "12 Units",
+    badge: null,
   },
   {
     path: "/landlord/listing",
     name: "Listing",
     icon: Home,
     description: "Advertise Unit",
-    badge: "3 Active",
+    badge: null,
   },
   {
     path: "/landlord/screening",
     name: "Screening",
     icon: FileText,
     description: "Review Potential Tenant",
-    badge: "1",
+    badge: null,
   },
   {
     path: "/landlord/leases",
     name: "Leases",
     icon: FileText,
     description: "Rental agreements",
-    badge: "2 Renewals",
+    badge: null,
   },
   {
     path: "/landlord/payments",
@@ -85,21 +85,21 @@ const sidebarItems = [
     name: "Maintenance",
     icon: Wrench,
     description: "Repair requests",
-    badge: "5 Pending",
+    badge: null,
   },
   {
     path: "/landlord/tenants",
     name: "Tenants",
     icon: Users,
     description: "Tenant management",
-    badge: "8 Active",
+    badge: null,
   },
   {
     path: "/landlord/messages",
     name: "Messages",
     icon: MessageSquare,
     description: "Communications",
-    badge: "7 New",
+    badge: null,
   },
   {
     path: "/landlord/financials",
@@ -109,10 +109,10 @@ const sidebarItems = [
     badge: null,
   },
   {
-    path: "/landlord/engagement",
-    name: "Engagement",
-    icon: BarChart3,
-    description: "Analytics & insights",
+    path: "/landlord/reports",
+    name: "Reports & Analytics",
+    icon: FileBarChart,
+    description: "Reports & analytics",
     badge: null,
   },
 ];
@@ -180,63 +180,82 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
 
   "/landlord/tenants": { name: "Tenants" },
   "/landlord/payments": { name: "Rent Payments" },
-  "/landlord/engagement": { name: "Engagement" },
+  "/landlord/reports": { name: "Reports & Analytics" },
+  "/landlord/engagement": { name: "Engagement Analytics", parent: "/landlord/reports" },
+  "/landlord/lease-analytics": { name: "Lease & Rent Analytics", parent: "/landlord/reports" },
   "/landlord/account": { name: "Account" },
   "/landlord/settings": { name: "Settings" },
 };
 
-// Custom hook for sidebar state management
+// Custom hook for sidebar state management with responsive behavior
 const useSidebarState = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const savedState = sessionStorage.getItem('landlord-sidebar-collapsed');
     if (savedState) {
       setCollapsed(JSON.parse(savedState));
     }
+
+    // Check if mobile on mount and resize
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 1024; // lg breakpoint
+      setIsMobile(mobile);
+      // Auto-collapse on mobile
+      if (mobile) {
+        setCollapsed(true);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   const toggleCollapsed = () => {
     setCollapsed(prev => {
       const newState = !prev;
-      sessionStorage.setItem('landlord-sidebar-collapsed', JSON.stringify(newState));
+      if (!isMobile) {
+        sessionStorage.setItem('landlord-sidebar-collapsed', JSON.stringify(newState));
+      }
       return newState;
     });
   };
 
-  return { collapsed, toggleCollapsed };
+  return { collapsed, toggleCollapsed, isMobile };
 };
 
 // Sidebar Components Structure
 const SidebarHeader = ({ collapsed, isMobile }: { collapsed: boolean; isMobile?: boolean }) => (
   <div className={cn(
     "transition-all duration-300 border-b border-gray-200/60 flex-shrink-0",
-    collapsed ? "p-3" : "p-4",
-    isMobile ? "p-3" : "p-4"
+    collapsed && !isMobile ? "p-3" : "p-3 sm:p-4",
+    isMobile && "p-3"
   )}>
     <div className={cn(
-      "flex items-center gap-3 transition-all duration-300",
-      collapsed ? "justify-center" : "justify-start"
+      "flex items-center gap-2 sm:gap-3 transition-all duration-300",
+      collapsed && !isMobile ? "justify-center" : "justify-start"
     )}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <Zap 
           className={cn(
-            "text-green-500",
-            isMobile ? "w-5 h-5" : "w-6 h-6"
+            "text-green-500 flex-shrink-0",
+            isMobile ? "w-5 h-5" : "w-5 h-5 sm:w-6 sm:h-6"
           )} 
           fill="currentColor"
         />
-        {!collapsed && (
-          <div className="flex items-center gap-2 overflow-hidden">
+        {(!collapsed || isMobile) && (
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-hidden min-w-0">
             <span className={cn(
-              "font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent",
-              isMobile ? "text-base" : "text-lg"
+              "font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent whitespace-nowrap",
+              isMobile ? "text-sm sm:text-base" : "text-base sm:text-lg"
             )}>
               RentEase
             </span>
             <span className={cn(
-              "bg-green-100 text-green-700 font-medium rounded-full border border-green-200",
-              isMobile ? "text-xs px-1.5 py-0.5" : "text-xs px-2 py-1"
+              "bg-green-100 text-green-700 font-medium rounded-full border border-green-200 whitespace-nowrap flex-shrink-0",
+              isMobile ? "text-[10px] px-1.5 py-0.5" : "text-xs px-1.5 sm:px-2 py-0.5 sm:py-1"
             )}>
               Landlord
             </span>
@@ -262,8 +281,8 @@ const NavMain = ({
 
   return (
     <nav className={cn(
-      "flex-1 overflow-y-auto",
-      isMobile ? "px-2 py-2 space-y-1" : "px-3 py-4 space-y-2"
+      "flex-1 overflow-y-auto overscroll-contain",
+      isMobile ? "px-2 py-2 space-y-1" : "px-2 sm:px-3 py-3 sm:py-4 space-y-1.5 sm:space-y-2"
     )}>
       {items.map((item) => (
         <Link
@@ -272,11 +291,12 @@ const NavMain = ({
           onClick={onClose}
           className={cn(
             "group flex items-center transition-all duration-200 rounded-lg relative",
+            "touch-manipulation", // Better touch handling
             location.pathname === item.path
               ? "bg-gradient-to-r from-green-50/80 to-blue-50/80 text-green-700 border border-green-200/50"
-              : "text-gray-600 hover:bg-gray-50/80 hover:text-gray-900",
-            collapsed && !isMobile ? "px-3 justify-center" : "px-3 justify-start gap-3",
-            isMobile ? "py-2" : "py-3"
+              : "text-gray-600 hover:bg-gray-50/80 active:bg-gray-100/80 hover:text-gray-900",
+            collapsed && !isMobile ? "px-2 sm:px-3 justify-center" : "px-2 sm:px-3 justify-start gap-2 sm:gap-3",
+            isMobile ? "py-2.5 min-h-[44px]" : "py-2.5 sm:py-3 min-h-[40px] sm:min-h-[44px]"
           )}
         >
           {/* Active indicator */}
@@ -291,28 +311,16 @@ const NavMain = ({
             />
           )}
           
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <item.icon
               className={cn(
-                "transition-colors flex-shrink-0",
+                "transition-colors",
                 location.pathname === item.path
                   ? "text-green-600"
                   : "text-gray-400 group-hover:text-gray-600",
-                isMobile ? "h-4 w-4" : "h-5 w-5"
+                isMobile ? "h-4 w-4" : "h-4 w-4 sm:h-5 sm:w-5"
               )}
             />
-            {item.badge && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className={cn(
-                  "absolute -top-1 -right-1 rounded-full",
-                  item.badge.includes("Due") ? "bg-red-400" : 
-                  item.badge.includes("New") ? "bg-blue-400" : "bg-green-400",
-                  isMobile ? "w-1.5 h-1.5" : "w-2 h-2"
-                )}
-              />
-            )}
           </div>
           
           <AnimatePresence>
@@ -323,40 +331,22 @@ const NavMain = ({
                 transition={{ duration: 0.2 }}
                 className="flex-1 min-w-0 overflow-hidden"
               >
-                <div className="flex items-center justify-between w-full">
+                <div className="flex items-center justify-between w-full min-w-0">
                   <div className="flex-1 min-w-0">
                     <span className={cn(
                       "font-medium block truncate",
-                      isMobile ? "text-xs" : "text-sm"
+                      isMobile ? "text-xs sm:text-sm" : "text-sm"
                     )}>
                       {item.name}
                     </span>
-                    {item.description && (
+                    {item.description && !isMobile && (
                       <p className={cn(
-                        "text-gray-500 mt-0.5 truncate",
-                        isMobile ? "text-xs" : "text-xs"
+                        "text-gray-500 mt-0.5 truncate text-xs hidden sm:block"
                       )}>
                         {item.description}
                       </p>
                     )}
                   </div>
-                  
-                  {/* Badge text for collapsed state */}
-                  {item.badge && (
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className={cn(
-                        "font-medium ml-2 flex-shrink-0 rounded-full",
-                        item.badge.includes("Due") ? "bg-red-100 text-red-700" : 
-                        item.badge.includes("New") ? "bg-blue-100 text-blue-700" : 
-                        "bg-green-100 text-green-700",
-                        isMobile ? "text-xs px-1.5 py-0.5" : "text-xs px-2 py-1"
-                      )}
-                    >
-                      {item.badge.split(' ')[0]}
-                    </motion.span>
-                  )}
                 </div>
               </motion.div>
             )}
@@ -423,31 +413,31 @@ const NavUser = ({
           transition={{ duration: 0.3 }}
           className={cn(
             "bg-gray-50 rounded-lg border border-gray-200/60 flex-shrink-0",
-            isMobile ? "mx-2 mb-2 p-2" : "mx-3 mb-3 p-3"
+            isMobile ? "mx-2 mb-2 p-2" : "mx-2 sm:mx-3 mb-2 sm:mb-3 p-2 sm:p-3"
           )}
         >
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
             {/* User Info */}
-            <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
               <Avatar className={cn(
-                "border border-white shadow-sm",
-                isMobile ? "h-8 w-8" : "h-10 w-10"
+                "border border-white shadow-sm flex-shrink-0",
+                isMobile ? "h-8 w-8" : "h-9 w-9 sm:h-10 sm:w-10"
               )}>
                 <AvatarImage src={user?.avatarUrl} alt={user?.firstName || "User"} />
-                <AvatarFallback className="bg-gradient-to-r from-green-100 to-blue-100 text-green-700 text-sm">
+                <AvatarFallback className="bg-gradient-to-r from-green-100 to-blue-100 text-green-700 text-xs sm:text-sm">
                   {user?.firstName?.[0]?.toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className={cn(
                   "font-semibold text-gray-900 truncate",
-                  isMobile ? "text-xs" : "text-sm"
+                  isMobile ? "text-xs sm:text-sm" : "text-sm"
                 )}>
                   {user?.firstName} {user?.lastName}
                 </p>
                 <p className={cn(
-                  "text-gray-500 truncate",
-                  isMobile ? "text-xs" : "text-xs"
+                  "text-gray-500 truncate hidden sm:block",
+                  "text-xs"
                 )}>
                   {user?.email || "landlord@gmail.com"}
                 </p>
@@ -577,8 +567,9 @@ const Sidebar = ({
     <div
       className={cn(
         "flex flex-col h-full bg-white/95 backdrop-blur-sm transition-all duration-300 border-r border-gray-200/60",
-        collapsed && !isMobile ? "w-0 opacity-0" : "w-64 opacity-100",
-        isMobile && "w-64"
+        "overflow-hidden", // Prevent overflow
+        collapsed && !isMobile ? "w-0 opacity-0 pointer-events-none" : "opacity-100",
+        isMobile ? "w-[280px] sm:w-64" : "w-64"
       )}
     >
       <SidebarHeader collapsed={collapsed && !isMobile} isMobile={isMobile} />
@@ -779,22 +770,23 @@ const Header = ({
   }, [location.pathname]);
 
   return (
-    <header className="relative z-[200] bg-white/80 backdrop-blur-sm px-4 py-3 shadow-sm border-b border-gray-200/60">
-      <div className="flex items-center justify-between w-full gap-3">
+    <header className="relative z-[200] bg-white/80 backdrop-blur-sm px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm border-b border-gray-200/60">
+      <div className="flex items-center justify-between w-full gap-2 sm:gap-3">
         {/* Left Section - Menu & Breadcrumbs */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
           {/* Desktop Sidebar Toggle */}
           <Button
             variant="ghost"
             size="icon"
-            className="hidden lg:flex flex-shrink-0 hover:bg-gray-50/80 rounded-lg transition-all duration-200 h-9 w-9"
+            className="hidden lg:flex flex-shrink-0 hover:bg-gray-50/80 active:bg-gray-100/80 rounded-lg transition-all duration-200 h-8 w-8 sm:h-9 sm:w-9 touch-manipulation"
             onClick={onToggleSidebar}
+            aria-label="Toggle sidebar"
           >
             <motion.div
               animate={{ rotate: sidebarCollapsed ? 0 : 180 }}
               transition={{ duration: 0.3 }}
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
             </motion.div>
           </Button>
 
@@ -802,56 +794,62 @@ const Header = ({
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden flex-shrink-0 hover:bg-gray-50/80 rounded-lg transition-all duration-200 h-9 w-9"
+            className="lg:hidden flex-shrink-0 hover:bg-gray-50/80 active:bg-gray-100/80 rounded-lg transition-all duration-200 h-8 w-8 sm:h-9 sm:w-9 touch-manipulation min-h-[44px] min-w-[44px]"
             onClick={onMobileMenuClick}
+            aria-label="Open menu"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
 
           {/* Breadcrumbs */}
-          <nav className="flex items-center text-sm flex-1 min-w-0 overflow-hidden">
-            <div className="flex items-center min-w-0 flex-1 gap-1">
-              {breadcrumbs.map((crumb, index) => (
-                <div key={index} className="flex items-center min-w-0 flex-shrink-0">
-                  {index > 0 && (
-                    <ChevronRight className="mx-1 h-4 w-4 text-gray-400 flex-shrink-0" />
-                  )}
-                  {crumb.path ? (
-                    <Link
-                      to={crumb.path}
-                      className="text-gray-600 hover:text-green-600 transition-all duration-200 font-medium hover:underline truncate max-w-[100px] sm:max-w-none"
-                    >
-                      {crumb.name}
-                    </Link>
-                  ) : (
-                    <span className="font-semibold text-green-600 truncate max-w-[100px] sm:max-w-none">
-                      {crumb.name}
-                    </span>
-                  )}
-                </div>
-              ))}
+          <nav className="flex items-center text-xs sm:text-sm flex-1 min-w-0 overflow-hidden">
+            <div className="flex items-center min-w-0 flex-1 gap-0.5 sm:gap-1">
+              {breadcrumbs.length > 0 ? (
+                breadcrumbs.map((crumb, index) => (
+                  <div key={index} className="flex items-center min-w-0 flex-shrink-0">
+                    {index > 0 && (
+                      <ChevronRight className="mx-0.5 sm:mx-1 h-3 w-3 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
+                    )}
+                    {crumb.path ? (
+                      <Link
+                        to={crumb.path}
+                        className="text-gray-600 hover:text-green-600 transition-all duration-200 font-medium hover:underline truncate max-w-[80px] xs:max-w-[120px] sm:max-w-[150px] md:max-w-none"
+                      >
+                        {crumb.name}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold text-green-600 truncate max-w-[80px] xs:max-w-[120px] sm:max-w-[150px] md:max-w-none">
+                        {crumb.name}
+                      </span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <span className="text-gray-400 text-xs sm:text-sm">Loading...</span>
+              )}
             </div>
           </nav>
         </div>
 
         {/* Right Section - Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {/* Notifications */}
           <div className="relative notification-dropdown" ref={notifRef}>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setNotifsOpen(!notifsOpen)}
-              className="relative hover:bg-gray-50/80 h-9 w-9 rounded-lg transition-all duration-200"
+              className="relative hover:bg-gray-50/80 active:bg-gray-100/80 h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-all duration-200 touch-manipulation min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+              aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
             >
-              <Bell className="h-4 w-4" />
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               {unreadCount > 0 && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center shadow-sm"
+                  className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] sm:text-xs rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center shadow-sm font-semibold"
                 >
-                  {unreadCount}
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </motion.span>
               )}
             </Button>
@@ -862,32 +860,35 @@ const Header = ({
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-2xl z-[9999] overflow-hidden"
+                  className={cn(
+                    "absolute right-0 mt-2 bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-2xl z-[9999] overflow-hidden",
+                    "w-[calc(100vw-2rem)] sm:w-80 max-w-[calc(100vw-1rem)]"
+                  )}
                 >
-                    <div className="p-3 border-b border-gray-100/60 bg-gradient-to-r from-white to-gray-50/50">
-                      <div className="flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                          <Bell className="h-4 w-4" />
-                          Notifications
+                    <div className="p-2.5 sm:p-3 border-b border-gray-100/60 bg-gradient-to-r from-white to-gray-50/50">
+                      <div className="flex justify-between items-center gap-2">
+                        <h3 className="font-semibold text-gray-900 text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
+                          <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                          <span className="truncate">Notifications</span>
                         </h3>
                         {unreadCount > 0 && (
                           <button
                             onClick={handleMarkAllAsRead}
-                            className="text-sm text-green-600 hover:underline font-medium"
+                            className="text-xs sm:text-sm text-green-600 hover:underline font-medium whitespace-nowrap flex-shrink-0 touch-manipulation"
                           >
-                            Mark all as read
+                            Mark all read
                           </button>
                         )}
                       </div>
                     </div>
 
-                    <div className="max-h-64 overflow-y-auto">
+                    <div className="max-h-[60vh] sm:max-h-64 overflow-y-auto overscroll-contain">
                       {loading ? (
-                        <div className="p-4 text-center text-sm text-gray-500">
+                        <div className="p-3 sm:p-4 text-center text-xs sm:text-sm text-gray-500">
                           Loading notifications...
                         </div>
                       ) : notifications.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-gray-500">
+                        <div className="p-3 sm:p-4 text-center text-xs sm:text-sm text-gray-500">
                           No notifications yet
                         </div>
                       ) : (
@@ -901,19 +902,20 @@ const Header = ({
                               }
                               setNotifsOpen(false);
                             }}
+                            className="touch-manipulation"
                           >
                             <motion.div
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
                               className={cn(
-                                "p-3 hover:bg-gray-50/50 transition-all duration-200 border-b border-gray-100/50 last:border-b-0 group text-sm cursor-pointer",
+                                "p-2.5 sm:p-3 hover:bg-gray-50/50 active:bg-gray-100/50 transition-all duration-200 border-b border-gray-100/50 last:border-b-0 group text-xs sm:text-sm cursor-pointer",
                                 !notification.read && "bg-green-50/30"
                               )}
                             >
-                              <div className="flex gap-3">
+                              <div className="flex gap-2 sm:gap-3">
                                 <div
                                   className={cn(
-                                    "w-2 h-2 rounded-full mt-2 flex-shrink-0",
+                                    "w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mt-1.5 sm:mt-2 flex-shrink-0",
                                     !notification.read
                                       ? "bg-green-500"
                                       : "bg-gray-300"
@@ -922,7 +924,7 @@ const Header = ({
                                 <div className="flex-1 min-w-0">
                                   <p
                                     className={cn(
-                                      "font-medium group-hover:text-green-700 transition-colors",
+                                      "font-medium group-hover:text-green-700 transition-colors line-clamp-2",
                                       !notification.read
                                         ? "text-gray-900"
                                         : "text-gray-700"
@@ -930,8 +932,8 @@ const Header = ({
                                   >
                                     {notification.message}
                                   </p>
-                                  <div className="flex items-center justify-between mt-1">
-                                    <p className="text-xs text-gray-500">
+                                  <div className="flex items-center justify-between mt-1 gap-2">
+                                    <p className="text-[10px] sm:text-xs text-gray-500 flex-shrink-0">
                                       {formatDistanceToNow(
                                         new Date(notification.createdAt),
                                         { addSuffix: true }
@@ -939,7 +941,7 @@ const Header = ({
                                     </p>
                                     <motion.div
                                       whileHover={{ x: 2 }}
-                                      className="text-green-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      className="text-green-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                                     >
                                       <ChevronRight className="h-3 w-3" />
                                     </motion.div>
@@ -952,15 +954,15 @@ const Header = ({
                       )}
                     </div>
 
-                    <div className="p-3 border-t border-gray-100/60 bg-gray-50/30 flex flex-col gap-2">
+                    <div className="p-2.5 sm:p-3 border-t border-gray-100/60 bg-gray-50/30 flex flex-col gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full"
+                        className="w-full text-xs sm:text-sm touch-manipulation"
                         asChild
                         onClick={() => setNotifsOpen(false)}
                       >
-                        <Link to="/landlord/notifications">View notifications</Link>
+                        <Link to="/landlord/notifications">View all notifications</Link>
                       </Button>
                     </div>
                 </motion.div>
@@ -983,19 +985,32 @@ const LandlordLayout = () => {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
   return (
-    <div className="flex h-screen bg-gradient-to-br from-green-50/30 via-white to-blue-50/30 relative overflow-x-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-green-50/30 via-white to-blue-50/30 relative overflow-hidden">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-8 -left-8 w-16 h-16 bg-green-200/20 rounded-full blur-xl"></div>
-        <div className="absolute top-1/4 -right-8 w-12 h-12 bg-blue-200/20 rounded-full blur-xl"></div>
-        <div className="absolute bottom-8 left-1/4 w-20 h-20 bg-teal-200/20 rounded-full blur-xl"></div>
+        <div className="absolute -top-8 -left-8 w-16 h-16 bg-green-200/20 rounded-full blur-xl hidden sm:block"></div>
+        <div className="absolute top-1/4 -right-8 w-12 h-12 bg-blue-200/20 rounded-full blur-xl hidden sm:block"></div>
+        <div className="absolute bottom-8 left-1/4 w-20 h-20 bg-teal-200/20 rounded-full blur-xl hidden sm:block"></div>
       </div>
 
       {/* Desktop Sidebar - Now completely hidden when collapsed */}
       <aside className={cn(
         "hidden lg:block h-full transition-all duration-300 bg-white/95 backdrop-blur-sm shadow-sm border-r border-gray-200/60 z-30 relative",
-        collapsed ? "w-0 opacity-0" : "w-64 opacity-100"
+        "overflow-hidden",
+        collapsed ? "w-0 opacity-0 pointer-events-none" : "w-64 opacity-100"
       )}>
         <Sidebar collapsed={collapsed} />
       </aside>
@@ -1010,12 +1025,13 @@ const LandlordLayout = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
+              transition={{ duration: 0.2 }}
             />
             <motion.aside
               className="fixed left-0 top-0 z-50 h-screen lg:hidden bg-white/95 backdrop-blur-sm shadow-xl flex flex-col"
-              initial={{ x: -300 }}
+              initial={{ x: '-100%' }}
               animate={{ x: 0 }}
-              exit={{ x: -300 }}
+              exit={{ x: '-100%' }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
             >
               <Sidebar isMobile onClose={() => setMobileOpen(false)} />
@@ -1027,6 +1043,7 @@ const LandlordLayout = () => {
       {/* Main Content Area */}
       <div className={cn(
         "flex flex-col flex-1 min-w-0 min-h-0 transition-all duration-300 relative z-10",
+        "overflow-hidden", // Prevent horizontal scroll
         // Adjust main content width based on sidebar state
         collapsed ? "w-full" : "lg:w-[calc(100vw-16rem)]"
       )}>
@@ -1035,8 +1052,8 @@ const LandlordLayout = () => {
           sidebarCollapsed={collapsed}
           onToggleSidebar={toggleCollapsed}
         />
-        <main className="flex-1 overflow-y-auto bg-transparent min-h-0">
-          <div className="p-4 sm:p-6 h-full">
+        <main className="flex-1 overflow-y-auto bg-transparent min-h-0 overscroll-contain">
+          <div className="p-3 sm:p-4 md:p-6 h-full max-w-full">
             <Outlet />
           </div>
         </main>

@@ -1,7 +1,7 @@
 // file: emailSender.js
 
 // services/email/emailSender.js
-import resend from "../../libs/resendClient.js";
+import transporter from "../../libs/nodemailerClient.js";
 
 export const sendEmail = async ({ to, subject, html }) => {
   if (!to || !subject || !html) {
@@ -9,8 +9,8 @@ export const sendEmail = async ({ to, subject, html }) => {
   }
 
   try {
-    await resend.emails.send({
-      from: "RentEase <onboarding@resend.dev>",
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || "RentEase <noreply@rentease.com>",
       to,
       subject,
       html,

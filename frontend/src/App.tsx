@@ -29,6 +29,8 @@ const BrowseUnitLayout = lazy(
 const Landing = lazy(() => import("./pages/public/Landing"));
 const About = lazy(() => import("./pages/public/About"));
 const Features = lazy(() => import("./pages/public/Features"));
+const Pricing = lazy(() => import("./pages/public/Pricing"));
+const TermsAndPrivacy = lazy(() => import("./pages/public/TermsAndPrivacy"));
 
 // Authentication pages
 const Register = lazy(() => import("./pages/authentication/Register"));
@@ -83,9 +85,7 @@ const ListingPaymentSuccess = lazy(
 const LandlordMessages = lazy(
   () => import("./pages/private/landlord/messages/LandlordMessages.tsx")
 );
-const ViewChannelMessagesLandlord = lazy(
-  () => import("./pages/private/landlord/messages/ViewChannelMessagesLandlord.tsx")
-);
+
 const TenantScreeningLandlord = lazy(
   () => import("./pages/private/landlord/screening/TenantScreeningLandlord.tsx")
 );
@@ -112,6 +112,12 @@ const Financials = lazy(
 );
 const Engagement = lazy(
   () => import("./pages/private/landlord/reports/Engagement.tsx")
+);
+const Reports = lazy(
+  () => import("./pages/private/landlord/reports/Reports.tsx")
+);
+const LeaseAnalytics = lazy(
+  () => import("./pages/private/landlord/reports/LeaseAnalytics.tsx")
 );
 const RentPayments = lazy(
   () => import("./pages/private/landlord/payments/RentPayments.tsx")
@@ -147,6 +153,9 @@ const ViewSpecificScreeningTenant = lazy(
   () =>
     import("./pages/private/tenant/screening/ViewSpecificScreeningTenant.tsx")
 );
+const TenantSettings = lazy(
+  () => import("./pages/private/tenant/settings/TenantSettings.tsx")
+);
 
 // Private pages - Admin
 const AdminDashboard = lazy(
@@ -165,18 +174,27 @@ const AllUsers = lazy(() => import("./pages/private/admin/users/AllUsers.tsx"));
 const UserDetailsPage = lazy(
   () => import("./pages/private/admin/users/UserDetails.tsx")
 );
-const AdminEarnings = lazy(
-  () => import("./pages/private/admin/earnings/AdminEarnings.tsx")
-);
 const AdminFraudReports = lazy(
-  () => import("./pages/private/admin/reports/AdminFraudReports.tsx")
+  () => import("./pages/private/admin/fraud-reports/AdminFraudReports.tsx")
 );
-const AdminAnalytics = lazy(
-  () => import("./pages/private/admin/analytics/AdminAnalytics.tsx")
+const AdminReportsAndAnalytics = lazy(
+  () => import("./pages/private/admin/reports-analytics/AdminReportsAndAnalytics.tsx")
+);
+const UserAnalytics = lazy(
+  () => import("./pages/private/admin/reports-analytics/UserAnalytics.tsx")
+);
+const ListingAnalytics = lazy(
+  () => import("./pages/private/admin/reports-analytics/ListingAnalytics.tsx")
+);
+const FraudReportAnalytics = lazy(
+  () => import("./pages/private/admin/reports-analytics/FraudReportAnalytics.tsx")
 );
 
 // Shared private pages
 const AccountProfile = lazy(() => import("./pages/private/AccountProfile"));
+const LandlordSettings = lazy(
+  () => import("./pages/private/landlord/settings/LandlordSettings.tsx")
+);
 
 // Fallbacks
 const NotFound = lazy(() => import("./pages/fallbacks/NotFound"));
@@ -202,8 +220,12 @@ const router = createBrowserRouter([
       { index: true, element: <Suspense fallback={<Loader />}><Landing /></Suspense> },
       { path: "about", element: <Suspense fallback={<Loader />}><About /></Suspense> },
       { path: "features", element: <Suspense fallback={<Loader />}><Features /></Suspense> },
+      { path: "pricing", element: <Suspense fallback={<Loader />}><Pricing /></Suspense> },
     ],
   },
+
+  // standalone routes
+  { path: "terms-privacy", element: <Suspense fallback={<Loader />}><TermsAndPrivacy /></Suspense> },
 
   // auth routes
   {
@@ -244,9 +266,11 @@ const router = createBrowserRouter([
       // account
       { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },                                                              // display all account profile
       
+      // settings
+      { path: "settings", element: <Suspense fallback={<Loader />}><LandlordSettings /></Suspense> },
+
       // messages
-      { path: "messages", element: <Suspense fallback={<Loader />}><LandlordMessages /></Suspense> },                                                           // display all channel of the landlord
-      { path: "messages/:channelId", element: <Suspense fallback={<Loader />}><ViewChannelMessagesLandlord /></Suspense> },                                     // view specific specific channel
+      { path: "messages", element: <Suspense fallback={<Loader />}><LandlordMessages /></Suspense> },                                                           // display all channel of the landlord                                // view specific specific channel
 
       // screening  
       { path: "screening", element: <Suspense fallback={<Loader />}><TenantScreeningLandlord /></Suspense>},                                                      // display all tenant screening report
@@ -267,6 +291,10 @@ const router = createBrowserRouter([
 
       // engagement
       { path: "engagement", element: <Suspense fallback={<Loader />}><Engagement /></Suspense>},
+      // reports
+      { path: "reports", element: <Suspense fallback={<Loader />}><Reports /></Suspense>},
+      // lease analytics
+      { path: "lease-analytics", element: <Suspense fallback={<Loader />}><LeaseAnalytics /></Suspense>},
 
       // payments
       { path: "payments", element: <Suspense fallback={<Loader />}><RentPayments /></Suspense>},
@@ -294,6 +322,9 @@ const router = createBrowserRouter([
 
       // account account
       { path: "account", element: <Suspense fallback={<Loader />}><AccountProfile /></Suspense> },
+
+      // settings
+      { path: "settings", element: <Suspense fallback={<Loader />}><TenantSettings /></Suspense> },
 
       // messages
       { path: "messages", element: <Suspense fallback={<Loader />}><TenantMessages /></Suspense> },
@@ -332,8 +363,10 @@ const router = createBrowserRouter([
       // users
       { path: "users", element: <Suspense fallback={<Loader />}><AllUsers /></Suspense> },
       { path: "users/:userId", element: <Suspense fallback={<Loader />}><UserDetailsPage /></Suspense> },
-      { path: "earnings", element: <Suspense fallback={<Loader />}><AdminEarnings /></Suspense> },
-      { path: "analytics", element: <Suspense fallback={<Loader />}><AdminAnalytics /></Suspense> },
+      { path: "reports", element: <Suspense fallback={<Loader />}><AdminReportsAndAnalytics /></Suspense> },
+      { path: "reports/user-analytics", element: <Suspense fallback={<Loader />}><UserAnalytics /></Suspense> },
+      { path: "reports/listing-analytics", element: <Suspense fallback={<Loader />}><ListingAnalytics /></Suspense> },
+      { path: "reports/fraud-report-analytics", element: <Suspense fallback={<Loader />}><FraudReportAnalytics /></Suspense> },
       // listing
       { path: "listing", element: <Suspense fallback={<Loader />}><AdminListing /></Suspense> },
       { path: "listing/:listingId/details", element: <Suspense fallback={<Loader />}><AdminListingDetails/></Suspense> },

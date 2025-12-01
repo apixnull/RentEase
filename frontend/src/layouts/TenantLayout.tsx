@@ -45,21 +45,21 @@ const sidebarItems = [
     name: "Screening",
     icon: FileText,
     description: "Identity Confirmation",
-    badge: "Active",
+    badge: null,
   },
   {
     path: "/tenant/my-lease",
     name: "My Lease",
     icon: FileText,
     description: "Current agreement",
-    badge: "Active",
+    badge: null,
   },
   {
     path: "/tenant/messages",
     name: "Messages",
     icon: MessageSquare,
     description: "Contact landlords",
-    badge: "3 New",
+    badge: null,
   },
 ];
 
@@ -169,26 +169,15 @@ const NavMain = ({
             />
           )}
           
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <item.icon
               className={cn(
-                "h-5 w-5 transition-colors flex-shrink-0",
+                "h-4 w-4 sm:h-5 sm:w-5 transition-colors",
                 location.pathname === item.path
                   ? "text-emerald-600"
                   : "text-gray-400 group-hover:text-gray-600"
               )}
             />
-            {item.badge && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className={cn(
-                  "absolute -top-1 -right-1 w-2 h-2 rounded-full",
-                  item.badge.includes("Due") ? "bg-red-400" : 
-                  item.badge.includes("New") ? "bg-blue-400" : "bg-emerald-400"
-                )}
-              />
-            )}
           </div>
           
           <AnimatePresence>
@@ -210,22 +199,6 @@ const NavMain = ({
                       </p>
                     )}
                   </div>
-                  
-                  {/* Badge text for collapsed state */}
-                  {item.badge && (
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className={cn(
-                        "text-xs px-2 py-1 rounded-full font-medium ml-2 flex-shrink-0",
-                        item.badge.includes("Due") ? "bg-red-100 text-red-700" : 
-                        item.badge.includes("New") ? "bg-blue-100 text-blue-700" : 
-                        "bg-emerald-100 text-emerald-700"
-                      )}
-                    >
-                      {item.badge.split(' ')[0]}
-                    </motion.span>
-                  )}
                 </div>
               </motion.div>
             )}
@@ -663,8 +636,8 @@ const Header = ({
   }, [location.pathname]);
 
   return (
-    <header className="relative z-[200] bg-white/80 backdrop-blur-sm px-4 py-3 shadow-sm border-b border-gray-200/60">
-      <div className="flex items-center justify-between w-full gap-3">
+    <header className="relative z-[200] bg-white/80 backdrop-blur-sm px-3 sm:px-4 py-2 sm:py-3 shadow-sm border-b border-gray-200/60">
+      <div className="flex items-center justify-between w-full gap-2 sm:gap-3">
         {/* Left Section - Menu & Breadcrumbs */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* Desktop Sidebar Toggle */}
@@ -693,22 +666,22 @@ const Header = ({
           </Button>
 
           {/* Simplified Breadcrumbs (removed icons) */}
-          <nav className="flex items-center text-sm flex-1 min-w-0 overflow-hidden">
+          <nav className="flex items-center text-xs sm:text-sm flex-1 min-w-0 overflow-hidden">
             <div className="flex items-center min-w-0 flex-1 gap-1">
               {breadcrumbs.map((crumb, index) => (
                 <div key={index} className="flex items-center min-w-0 flex-shrink-0">
                   {index > 0 && (
-                    <ChevronRight className="mx-1 h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <ChevronRight className="mx-1 h-3 w-3 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
                   )}
                   {crumb.path ? (
                     <Link
                       to={crumb.path}
-                      className="text-gray-600 hover:text-emerald-600 transition-all duration-200 font-medium hover:underline truncate max-w-[100px] sm:max-w-none"
+                      className="text-gray-600 hover:text-emerald-600 transition-all duration-200 font-medium hover:underline truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none"
                     >
                       {crumb.name}
                     </Link>
                   ) : (
-                    <span className="font-semibold text-emerald-600 truncate max-w-[100px] sm:max-w-none">
+                    <span className="font-semibold text-emerald-600 truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none">
                       {crumb.name}
                     </span>
                   )}
@@ -719,7 +692,7 @@ const Header = ({
         </div>
 
         {/* Right Section - Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {/* Browse Properties Button */}
           <Button
             asChild
@@ -775,7 +748,7 @@ const Header = ({
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-2xl z-[9999] overflow-hidden"
+                  className="absolute right-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-2xl z-[9999] overflow-hidden"
                 >
                   <div className="p-3 border-b border-gray-100/60 bg-gradient-to-r from-white to-gray-50/50">
                     <div className="flex justify-between items-center">
@@ -949,7 +922,7 @@ const TenantLayout = () => {
           onToggleSidebar={toggleCollapsed}
         />
         <main className="flex-1 overflow-y-auto bg-transparent min-h-0">
-          <div className="p-4 sm:p-6 h-full">
+          <div className="p-3 sm:p-4 md:p-6 h-full max-w-7xl mx-auto w-full">
             <Outlet />
           </div>
         </main>

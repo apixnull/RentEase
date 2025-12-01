@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Zap, Mail, Lock, Eye, EyeOff, User, Check, Key, AlertCircle } from "lucide-react";
+import { Zap, Mail, Lock, Eye, EyeOff, User, Check, Key, AlertCircle, Home, Building2, MapPin, Loader2 } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
 import { registerRequest } from "@/api/authApi"; 
 import { toast } from "sonner";
@@ -19,53 +19,15 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-teal-50 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated Background Elements */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-100/40 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Static Background Blobs */}
       <div className="absolute inset-0 overflow-hidden z-0">
-        {/* Floating particles */}
-        {[...Array(15)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-full bg-gradient-to-r from-teal-300/20 to-blue-300/20"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              width: `${Math.random() * 40 + 10}px`,
-              height: `${Math.random() * 40 + 10}px`,
-            }}
-            animate={{
-              y: [0, (Math.random() - 0.5) * 60, 0],
-              x: [0, (Math.random() - 0.5) * 60, 0],
-              rotate: [0, 360],
-              scale: [1, 1.1, 1],
-            }}
-            transition={{
-              duration: Math.random() * 10 + 10,
-              repeat: Infinity,
-              delay: Math.random() * 2,
-            }}
-          />
-        ))}
-
-        {/* Animated grid */}
-        <div className="absolute inset-0 opacity-[3%]">
-          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-            <pattern
-              id="grid"
-              width="80"
-              height="80"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M 80 0 L 0 0 0 80"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-              />
-            </pattern>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
-        </div>
+        {/* Static blobs - more visible, less blurred */}
+        <div className="absolute top-20 left-10 w-72 h-72 bg-sky-300/70 rounded-full blur-2xl"></div>
+        <div className="absolute top-40 right-20 w-96 h-96 bg-emerald-300/70 rounded-full blur-2xl"></div>
+        <div className="absolute bottom-20 left-1/4 w-80 h-80 bg-sky-400/65 rounded-full blur-2xl"></div>
+        <div className="absolute bottom-40 right-1/3 w-64 h-64 bg-emerald-400/65 rounded-full blur-2xl"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-sky-200/55 rounded-full blur-2xl"></div>
       </div>
 
       <motion.div
@@ -75,18 +37,24 @@ const Register = () => {
         animate="visible"
       >
         {/* Left Panel - Visual Design */}
-        <div className="hidden md:flex md:w-[45%] bg-gradient-to-br from-teal-600 to-blue-700 p-8 text-white flex-col justify-center relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full bg-white"></div>
-            <div className="absolute bottom-1/3 right-1/4 w-32 h-32 bg-white rotate-45"></div>
+        <div className="hidden md:flex md:w-[45%] bg-gradient-to-br from-emerald-600 via-sky-500 to-emerald-600 p-8 text-white flex-col justify-center relative overflow-hidden">
+          {/* Static background elements */}
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-48 h-48 bg-white/5 rounded-full blur-3xl"></div>
           </div>
+
+          {/* Decorative geometric shapes */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full blur-3xl"></div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
             className="relative z-10"
           >
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center justify-center gap-2 mb-8">
               <motion.div
                 animate={{
                   rotate: [0, 10, -10, 5, 0],
@@ -98,30 +66,61 @@ const Register = () => {
                   },
                 }}
               >
-                <Zap className="h-8 w-8 text-teal-200" fill="currentColor" />
+                <Zap
+                  className="h-12 w-12 text-emerald-200"
+                  fill="currentColor"
+                />
               </motion.div>
-              <span className="text-2xl font-bold">RentEase</span>
+              <span className="text-3xl font-extrabold text-white drop-shadow-lg">
+                RentEase
+              </span>
             </div>
 
-            <h2 className="text-xl font-semibold mb-4">
-              Join Thousands of Happy Renters
-            </h2>
-            <p className="text-teal-100 mb-6 text-sm">
-              Simplify your rental experience with our platform
-            </p>
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold mb-3">
+                Get Started Today!
+              </h2>
+              <p className="text-emerald-50 text-base leading-relaxed max-w-sm mx-auto">
+                Join RentEase and start your journey to find or manage rentals in Cebu Province
+              </p>
+            </div>
 
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-3">
-                <Check className="h-6 w-6 text-teal-200" />
-                <span>Instant property listings</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Check className="h-6 w-6 text-teal-200" />
-                <span>Secure transactions</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Check className="h-6 w-6 text-teal-200" />
-                <span>Verified users & properties</span>
+            <div className="space-y-4 max-w-xs mx-auto">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/20 transition-all"
+              >
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <Home className="h-6 w-6 text-yellow-300" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">For Tenants</p>
+                  <p className="text-xs text-emerald-100">Everything is free - browse and find your perfect rental</p>
+                </div>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 }}
+                className="flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/20 transition-all"
+              >
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <Building2 className="h-6 w-6 text-yellow-300" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">For Landlords</p>
+                  <p className="text-xs text-emerald-100">Manage properties and tenants with powerful tools</p>
+                </div>
+              </motion.div>
+            </div>
+
+            <div className="mt-8 text-center">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
+                <MapPin className="h-4 w-4 text-yellow-300" />
+                <span className="text-xs text-emerald-50">Cebu Province Focus</span>
               </div>
             </div>
           </motion.div>
@@ -132,7 +131,7 @@ const Register = () => {
           <div className="flex justify-between items-center mb-6">
             <Link
               to="/"
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-teal-600 transition-colors"
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-emerald-600 transition-colors"
             >
               <motion.div
                 whileHover={{
@@ -140,7 +139,7 @@ const Register = () => {
                   transition: { duration: 0.4 },
                 }}
               >
-                <Zap className="h-5 w-5 text-teal-500" fill="currentColor" />
+                <Zap className="h-5 w-5 text-emerald-500" fill="currentColor" />
               </motion.div>
               Back to home
             </Link>
@@ -153,8 +152,8 @@ const Register = () => {
             className="flex-1 flex flex-col justify-center"
           >
             <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-teal-100 to-blue-100 rounded-2xl mb-4 shadow-md">
-                <div className="bg-gradient-to-br from-teal-600 to-blue-700 p-3 rounded-xl">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-100 to-sky-100 rounded-2xl mb-5 shadow-md">
+                <div className="bg-gradient-to-br from-emerald-600 to-sky-600 p-3 rounded-xl">
                   <User className="h-6 w-6 text-white" />
                 </div>
               </div>
@@ -239,8 +238,8 @@ const RegisterForm = () => {
               whileTap={{ scale: 0.98 }}
               className={`flex-1 py-2 px-3 rounded-lg border transition-colors flex items-center justify-center gap-2 text-sm ${
                 userRole === "tenant"
-                  ? "border-teal-500 bg-teal-50 text-teal-700"
-                  : "border-gray-300 text-gray-500 hover:border-teal-300"
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                  : "border-gray-300 text-gray-500 hover:border-emerald-300"
               }`}
             >
               <User className="h-4 w-4" />
@@ -253,8 +252,8 @@ const RegisterForm = () => {
               whileTap={{ scale: 0.98 }}
               className={`flex-1 py-2 px-3 rounded-lg border transition-colors flex items-center justify-center gap-2 text-sm ${
                 userRole === "landlord"
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : "border-gray-300 text-gray-500 hover:border-blue-300"
+                  ? "border-sky-500 bg-sky-50 text-sky-700"
+                  : "border-gray-300 text-gray-500 hover:border-sky-300"
               }`}
             >
               <Key className="h-4 w-4" />
@@ -283,7 +282,7 @@ const RegisterForm = () => {
               placeholder="email@example.com"
               required
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
-              focus:outline-none focus:border-teal-400 focus:ring-0 
+              focus:outline-none focus:border-emerald-400 focus:ring-0 
               transition-colors text-sm"
             />
           </div>
@@ -309,7 +308,7 @@ const RegisterForm = () => {
               placeholder="••••••••"
               required
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
-              focus:outline-none focus:border-teal-400 focus:ring-0 
+              focus:outline-none focus:border-emerald-400 focus:ring-0 
               transition-colors text-sm"
             />
           </div>
@@ -338,7 +337,7 @@ const RegisterForm = () => {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
-              focus:outline-none focus:border-teal-400 focus:ring-0 
+              focus:outline-none focus:border-emerald-400 focus:ring-0 
               transition-colors text-sm"
             />
             <button
@@ -363,7 +362,7 @@ const RegisterForm = () => {
             whileTap={{ scale: 0.9 }}
             className={`mt-0.5 flex h-4 w-4 items-center justify-center rounded border transition-colors ${
               acceptedTerms
-                ? "bg-teal-500 border-teal-500 text-white"
+                ? "bg-emerald-500 border-emerald-500 text-white"
                 : "border-gray-300"
             }`}
           >
@@ -371,13 +370,12 @@ const RegisterForm = () => {
           </motion.button>
           <label htmlFor="terms" className="text-xs text-gray-600">
             I agree to the{" "}
-            <a href="#" className="text-teal-600 hover:text-teal-800 font-medium">
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a href="#" className="text-teal-600 hover:text-teal-800 font-medium">
-              Privacy Policy
-            </a>{" "}
+            <Link
+              to="/terms-privacy"
+              className="text-emerald-600 hover:text-emerald-800 font-medium underline"
+            >
+              Terms of Service and Privacy Policy
+            </Link>{" "}
             <span className="text-red-500">*</span>
           </label>
         </div>
@@ -396,18 +394,37 @@ const RegisterForm = () => {
         <motion.button
           type="submit"
           disabled={!acceptedTerms || loading}
-          whileHover={{ scale: acceptedTerms && !loading ? 1.02 : 1 }}
-          whileTap={{ scale: acceptedTerms && !loading ? 0.98 : 1 }}
-          className="w-full bg-gradient-to-r from-teal-600 to-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:from-teal-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg text-sm"
+          whileHover={acceptedTerms && !loading ? { scale: 1.02 } : {}}
+          whileTap={acceptedTerms && !loading ? { scale: 0.98 } : {}}
+          className="w-full bg-gradient-to-r from-emerald-600 to-sky-600 text-white py-3.5 px-4 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:shadow-md flex items-center justify-center gap-2 relative overflow-hidden"
         >
-          {loading ? "Creating Account..." : "Create Account"}
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute inset-0 bg-gradient-to-r from-emerald-700 to-sky-700"
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-2">
+            {loading ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Creating Account...</span>
+              </>
+            ) : (
+              <>
+                <User className="h-4 w-4" />
+                <span>Create Account</span>
+              </>
+            )}
+          </span>
         </motion.button>
 
         <div className="text-center text-xs text-gray-500 pt-3">
           Already have an account?{" "}
           <Link
             to="/auth/login"
-            className="text-teal-600 hover:text-teal-800 font-medium"
+            className="text-emerald-600 hover:text-emerald-800 font-medium"
           >
             Sign in
           </Link>

@@ -1,5 +1,6 @@
 import prisma from "../../libs/prismaClient.js";
 import axios from "axios";
+import { activateListing } from "../../services/listingActivationService.js";
 
 // -----------------------------------------------------------------------------
 // GET LANDLORD LISTINGS (with Property + Unit details)
@@ -141,6 +142,8 @@ export const createPaymentSession = async (req, res) => {
   const { unitId } = req.params;
   const { isFeatured = false } = req.body;
 
+  let listingRecord = null;
+
   try {
     // 1️⃣ Verify unit exists & belongs to landlord
     const unit = await prisma.unit.findUnique({
@@ -168,7 +171,35 @@ export const createPaymentSession = async (req, res) => {
     const FEATURED_ADDON = 50.0;
     const totalPrice = BASE_PRICE + (isFeatured ? FEATURED_ADDON : 0.0);
 
-    // 3️⃣ Prepare PayMongo checkout session (NO LISTING CREATED YET)
+    // 3️⃣ Immediately create listing + run AI activation (no webhook)
+    listingRecord = await prisma.listing.create({
+      data: {
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+        landlordId,
+        lifecycleStatus: "WAITING_REVIEW",
+        isFeatured,
+        paymentAmount: totalPrice,
+        providerName: "GCASH",
+        providerTxnId: null,
+        paymentDate: new Date(),
+        createdAt: new Date(),
+      },
+    });
+
+    const paymentDetails = {
+      providerName: "GCASH",
+      providerTxnId: listingRecord.providerTxnId,
+      paymentAmount: totalPrice,
+    };
+
+    const activatedListing = await activateListing({
+      listingId: listingRecord.id,
+      unitId: unit.id,
+      paymentDetails,
+    });
+
+    // 4️⃣ Prepare PayMongo checkout session (for UX confirmation only)
     const lineItems = [
       {
         name: `Listing Fee`,
@@ -193,7 +224,7 @@ export const createPaymentSession = async (req, res) => {
       data: {
         attributes: {
           line_items: lineItems,
-          payment_method_types: ["gcash", "paymaya"],
+          payment_method_types: ["gcash"],
           description: `Listing Fee for Unit: ${unit.label} - Property: ${
             unit.property.title
           } ${isFeatured ? " (Featured)" : ""}`,
@@ -208,6 +239,7 @@ export const createPaymentSession = async (req, res) => {
             landlordId: landlordId,
             isFeatured: isFeatured.toString(),
             paymentAmount: totalPrice.toString(),
+            listingId: listingRecord.id,
           },
         },
       },
@@ -229,13 +261,17 @@ export const createPaymentSession = async (req, res) => {
     const checkoutUrl = response.data.data.attributes.checkout_url;
     const checkoutSessionId = response.data.data.id;
 
-    // 4️⃣ Respond with checkout URL (NO listingId since no listing exists yet)
+    // 5️⃣ Respond with checkout URL + newly created listing info
     return res.status(201).json({
-      message: `Payment session created${
-        isFeatured ? " (Featured)" : ""
-      }. Proceed to payment.`,
+      message: `Listing created and marked as paid via GCASH. Proceed to PayMongo checkout to showcase payment flow.`,
       checkoutUrl,
       checkoutSessionId, // Optional: for tracking/debugging
+      listing: {
+        id: activatedListing.id,
+        lifecycleStatus: activatedListing.lifecycleStatus,
+        paymentProvider: paymentDetails.providerName,
+        paymentAmount: paymentDetails.paymentAmount,
+      },
     });
   } catch (err) {
     console.error(
@@ -469,6 +505,7 @@ export const getEligibleUnitsForListing = async (req, res) => {
 // Finds the most recent listing for a unit that was paid within the last 10 minutes
 // ----------------------------------------------------------------------------
 export const getListingByUnitIdForSuccess = async (req, res) => {
+  console.log("🔍 getListingByUnitIdForSuccess called with query:", req.query);
   try {
     const { unitId } = req.query;
     const landlordId = req.user.id;
@@ -477,15 +514,20 @@ export const getListingByUnitIdForSuccess = async (req, res) => {
       return res.status(400).json({ error: "unitId is required" });
     }
 
-    // Find the most recent listing for this unit that was paid within the last 10 minutes
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    // Find the most recent listing for this unit
+    // Use a longer time window (30 minutes) to account for webhook delays
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     
-    const listing = await prisma.listing.findFirst({
+    console.log("🔍 Searching for listing with unitId:", unitId, "landlordId:", landlordId);
+    console.log("🔍 Time window:", thirtyMinutesAgo, "to now");
+    
+    // First, try to find listing with paymentDate within last 30 minutes
+    let listing = await prisma.listing.findFirst({
       where: {
         unitId: unitId,
         landlordId: landlordId,
         paymentDate: {
-          gte: tenMinutesAgo,
+          gte: thirtyMinutesAgo,
         },
       },
       orderBy: {
@@ -517,11 +559,88 @@ export const getListingByUnitIdForSuccess = async (req, res) => {
       },
     });
 
+    // If no listing found with paymentDate, check for recently created listings
+    // (webhook might still be processing the payment)
     if (!listing) {
+      console.log("🔍 No listing with paymentDate found, checking recently created listings...");
+      listing = await prisma.listing.findFirst({
+        where: {
+          unitId: unitId,
+          landlordId: landlordId,
+          createdAt: {
+            gte: thirtyMinutesAgo,
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        select: {
+          id: true,
+          isFeatured: true,
+          paymentAmount: true,
+          paymentDate: true,
+          providerName: true,
+          unit: {
+            select: {
+              id: true,
+              label: true,
+              property: {
+                select: {
+                  id: true,
+                  title: true,
+                  street: true,
+                  barangay: true,
+                  zipCode: true,
+                  city: { select: { name: true } },
+                  municipality: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // Last resort: find the most recent listing for this unit regardless of time
+    // (in case webhook took longer than expected)
+    if (!listing) {
+      console.log("🔍 No listing found within time window, checking for most recent listing...");
+      
+      // Check if ANY listing exists for this unit
+      const anyListing = await prisma.listing.findFirst({
+        where: {
+          unitId: unitId,
+          landlordId: landlordId,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          paymentDate: true,
+          lifecycleStatus: true,
+        },
+      });
+
+      if (anyListing) {
+        console.log("⚠️ Found listing but outside time window:", {
+          id: anyListing.id,
+          createdAt: anyListing.createdAt,
+          paymentDate: anyListing.paymentDate,
+          status: anyListing.lifecycleStatus,
+          ageMinutes: Math.round((Date.now() - new Date(anyListing.createdAt).getTime()) / 60000),
+        });
+      } else {
+        console.log("❌ No listing found at all for unitId:", unitId, "and landlordId:", landlordId);
+      }
+
       return res.status(404).json({
         error: "Listing not found. Payment may still be processing. Please wait a moment and refresh.",
       });
     }
+
+    console.log("✅ Found listing:", listing.id, "paymentDate:", listing.paymentDate);
 
     return res.status(200).json({
       listingId: listing.id,
@@ -554,69 +673,6 @@ export const getListingByUnitIdForSuccess = async (req, res) => {
 // ----------------------------------------------------------------------------
 // GET LISTING BASIC INFO IF SUCCESS (by listingId - kept for backward compatibility)
 // ----------------------------------------------------------------------------
-export const getLandlordListingInfoSuccess = async (req, res) => {
-  try {
-    const { listingId } = req.params;
-
-    const listing = await prisma.listing.findFirst({
-      where: {
-        id: listingId,
-        landlordId: req.user.id,
-      },
-      select: {
-        id: true,
-        isFeatured: true,
-        unit: {
-          select: {
-            id: true,
-            label: true,
-            property: {
-              select: {
-                id: true,
-                title: true,
-                street: true,
-                barangay: true,
-                zipCode: true,
-                city: { select: { name: true } },
-                municipality: { select: { name: true } },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!listing) {
-      return res.status(404).json({
-        message: "Listing not found or not owned by you.",
-      });
-    }
-
-    return res.status(200).json({
-      listingId: listing.id,
-      isFeatured: listing.isFeatured,
-      unit: {
-        id: listing.unit.id,
-        label: listing.unit.label,
-      },
-      property: {
-        id: listing.unit.property.id,
-        title: listing.unit.property.title,
-        address: {
-          street: listing.unit.property.street,
-          barangay: listing.unit.property.barangay,
-          zipCode: listing.unit.property.zipCode,
-          city: listing.unit.property.city?.name,
-          municipality: listing.unit.property.municipality?.name,
-        },
-      },
-    });
-  } catch (error) {
-    console.error("❌ Error in getLandlordListingInfoSuccess:", error);
-    return res.status(500).json({ error: "Failed to fetch listing details." });
-  }
-};
-
 // -----------------------------------------------------------------------------
 // TOGGLE LISTING VISIBILITY (VISIBLE ↔ HIDDEN)
 // -----------------------------------------------------------------------------

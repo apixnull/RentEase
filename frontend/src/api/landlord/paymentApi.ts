@@ -28,10 +28,25 @@ export const markPaymentAsPaidRequest = (
     type: string;
     timingStatus: string;
     amount?: number;
+    note?: string;
   },
   options?: { signal?: AbortSignal }
 ) =>
   privateApi.patch(apiRoutes.landlord(`/payments/${paymentId}/mark-paid`), data, {
+    signal: options?.signal,
+  });
+
+export const updatePaymentRequest = (
+  paymentId: string,
+  data: {
+    amount: number;
+    dueDate: string;
+    type: string;
+    note?: string;
+  },
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.patch(apiRoutes.landlord(`/payments/${paymentId}/update`), data, {
     signal: options?.signal,
   });
 
@@ -41,5 +56,13 @@ export const getLandlordPaymentsRequest = (
 ) =>
   privateApi.get(apiRoutes.landlord("/payments/list"), {
     params,
+    signal: options?.signal,
+  });
+
+export const deletePaymentRequest = (
+  paymentId: string,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.delete(apiRoutes.landlord(`/payments/${paymentId}`), {
     signal: options?.signal,
   });

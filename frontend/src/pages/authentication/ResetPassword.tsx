@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { Lock, Sparkles, Eye, EyeOff, Check, Zap, CheckCircle } from "lucide-react";
+import { Lock, Eye, EyeOff, Check, Zap, CheckCircle, Loader2 } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
 import { resetPasswordRequest } from "@/api/authApi";
 import { toast } from "sonner";
@@ -15,64 +15,104 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-emerald-50 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Subtle floating blobs to match Forgot Password but inverted gradient */}
-      <div className="absolute inset-0 pointer-events-none">
-        {[...Array(12)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-full bg-gradient-to-br from-sky-300/20 to-emerald-300/20"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              width: `${Math.random() * 36 + 12}px`,
-              height: `${Math.random() * 36 + 12}px`,
-              filter: "blur(4px)",
-            }}
-            animate={{
-              y: [0, (Math.random() - 0.5) * 50, 0],
-              x: [0, (Math.random() - 0.5) * 50, 0],
-              scale: [1, 1.08, 1],
-            }}
-            transition={{ duration: Math.random() * 8 + 8, repeat: Infinity }}
-          />
-        ))}
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-100/40 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Static Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden z-0">
+        {/* Static blobs - more visible, less blurred */}
+        <div className="absolute top-20 left-10 w-72 h-72 bg-sky-300/70 rounded-full blur-2xl"></div>
+        <div className="absolute top-40 right-20 w-96 h-96 bg-emerald-300/70 rounded-full blur-2xl"></div>
+        <div className="absolute bottom-20 left-1/4 w-80 h-80 bg-sky-400/65 rounded-full blur-2xl"></div>
+        <div className="absolute bottom-40 right-1/3 w-64 h-64 bg-emerald-400/65 rounded-full blur-2xl"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-sky-200/55 rounded-full blur-2xl"></div>
       </div>
 
       <motion.div
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden z-10 flex flex-col md:flex-row"
+        className="max-w-5xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row items-stretch z-10"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
-        {/* Left decorative rail to match Forgot Password */}
-        <div className="hidden md:flex md:w-[40%] bg-gradient-to-b from-sky-600 to-emerald-600 text-white p-8 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10">
-            <Sparkles className="w-full h-full" />
+        {/* Left Panel - Visual Design */}
+        <div className="hidden md:flex md:w-[45%] bg-gradient-to-br from-emerald-600 via-sky-500 to-emerald-600 p-8 text-white flex-col justify-center relative overflow-hidden">
+          {/* Static background elements */}
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-48 h-48 bg-white/5 rounded-full blur-3xl"></div>
           </div>
-          <div className="relative z-10 self-center">
-            <h2 className="text-xl font-semibold mb-2">Reset Password</h2>
-            <p className="text-sky-100 text-sm">Choose a strong new password</p>
-          </div>
+
+          {/* Decorative geometric shapes */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full blur-3xl"></div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="relative z-10 text-center"
+          >
+            <div className="flex items-center justify-center gap-2 mb-8">
+              <motion.div
+                animate={{
+                  rotate: [0, 10, -10, 5, 0],
+                  scale: [1, 1.1, 1.05, 1.08, 1],
+                  transition: {
+                    duration: 1.5,
+                    repeat: Infinity,
+                    repeatType: "reverse" as const,
+                  },
+                }}
+              >
+                <Zap
+                  className="h-12 w-12 text-emerald-200"
+                  fill="currentColor"
+                />
+              </motion.div>
+              <span className="text-3xl font-extrabold text-white drop-shadow-lg">
+                RentEase
+              </span>
+            </div>
+
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl mb-5">
+                <Lock className="h-8 w-8 text-yellow-300" />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold mb-3">
+                Set New Password
+              </h2>
+              <p className="text-emerald-50 text-base leading-relaxed max-w-sm mx-auto">
+                Create a strong, secure password to protect your account. Make sure it's unique and memorable.
+              </p>
+            </div>
+          </motion.div>
         </div>
 
-        {/* Right content */}
-        <div className="md:w-[60%] p-6 md:p-8">
-          <div className="flex justify-between items-center mb-6">
+        {/* Right Panel - Form Section */}
+        <div className="md:w-[55%] p-6 md:p-8 flex flex-col justify-between">
+          <div className="flex justify-between items-center mb-8">
             <Link
               to="/"
               className="flex items-center gap-2 text-sm text-gray-500 hover:text-emerald-600 transition-colors"
             >
               <motion.div
-                whileHover={{ rotate: [0, -10, 10, 0], transition: { duration: 0.4 } }}
+                whileHover={{
+                  rotate: [0, -10, 10, 0],
+                  transition: { duration: 0.4 },
+                }}
               >
                 <Zap className="h-5 w-5 text-emerald-500" fill="currentColor" />
               </motion.div>
               Back to home
             </Link>
           </div>
-          
-          <ResetPasswordForm />
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            className="max-w-md mx-auto w-full"
+          >
+            <ResetPasswordForm />
+          </motion.div>
         </div>
       </motion.div>
     </div>
@@ -132,7 +172,7 @@ const ResetPasswordForm = () => {
         </p>
         <Link
           to="/auth/login"
-          className="inline-flex items-center justify-center w-full bg-gradient-to-r from-sky-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-medium transition-all shadow-md hover:shadow-lg"
+          className="inline-flex items-center justify-center w-full bg-gradient-to-r from-emerald-600 to-sky-600 text-white py-3.5 px-4 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg"
         >
           Sign In Now
         </Link>
@@ -142,12 +182,19 @@ const ResetPasswordForm = () => {
 
   return (
     <>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mb-6">
-        <p className="text-gray-800 text-lg font-medium">Choose a new password</p>
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-100 to-sky-100 rounded-2xl mb-5 shadow-md">
+          <div className="bg-gradient-to-br from-emerald-600 to-sky-600 p-3 rounded-xl">
+            <Lock className="h-6 w-6 text-white" />
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">
+          Set New Password
+        </h1>
         <p className="text-gray-500 text-sm">
-          Enter and confirm your new password below.
+          Enter and confirm your new password below
         </p>
-      </motion.div>
+      </div>
 
       <form onSubmit={onSubmit} className="space-y-5">
         <div>
@@ -166,12 +213,12 @@ const ResetPasswordForm = () => {
               value={newPassword}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all text-sm shadow-sm"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm shadow-sm"
             />
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
             <Check className={`h-3.5 w-3.5 ${passwordOk ? "text-green-600" : "text-gray-300"}`} />
-            At least 8 characters with uppercase, lowercase, digit and special numbers
+            At least 8 characters with uppercase, lowercase, digit and special character
           </div>
         </div>
 
@@ -191,7 +238,7 @@ const ResetPasswordForm = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all text-sm shadow-sm"
+              className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm shadow-sm"
             />
             <button
               type="button"
@@ -211,15 +258,34 @@ const ResetPasswordForm = () => {
         <motion.button
           type="submit"
           disabled={!passwordOk || !match || loading}
-          whileHover={{ scale: !passwordOk || !match || loading ? 1 : 1.02 }}
-          whileTap={{ scale: !passwordOk || !match || loading ? 1 : 0.98 }}
-          className="w-full bg-gradient-to-r from-sky-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-medium transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          whileHover={!passwordOk || !match || loading ? {} : { scale: 1.02 }}
+          whileTap={!passwordOk || !match || loading ? {} : { scale: 0.98 }}
+          className="w-full bg-gradient-to-r from-emerald-600 to-sky-600 text-white py-3.5 px-4 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:shadow-md flex items-center justify-center gap-2 relative overflow-hidden"
         >
-          {loading ? "Updating..." : "Set new password"}
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute inset-0 bg-gradient-to-r from-emerald-700 to-sky-700"
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-2">
+            {loading ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <Lock className="h-4 w-4" />
+                <span>Set New Password</span>
+              </>
+            )}
+          </span>
         </motion.button>
 
         <div className="text-center text-xs text-gray-500 pt-2">
-          Return to {""}
+          Return to{" "}
           <Link to="/auth/login" className="text-emerald-600 hover:text-emerald-800 font-medium">
             Sign in
           </Link>

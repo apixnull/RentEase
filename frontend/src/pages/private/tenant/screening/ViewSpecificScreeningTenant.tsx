@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ import {
   XCircle,
   Sparkles,
   MessageSquare,
+  RotateCcw,
+  Loader2,
 } from "lucide-react";
 import { getSpecificTenantScreeningRequest } from "@/api/tenant/screeningApi";
 import { cn } from "@/lib/utils";
@@ -236,17 +238,15 @@ const ViewSpecificScreeningTenant = () => {
   const navigate = useNavigate();
   const [screening, setScreening] = useState<ScreeningDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (screeningId) {
-      fetchScreeningDetails();
-    }
-  }, [screeningId]);
-
-  const fetchScreeningDetails = async () => {
+  const fetchScreeningDetails = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
+      setRefreshing(true);
       setError(null);
       const response = await getSpecificTenantScreeningRequest(screeningId!);
       setScreening(response.data.data);
@@ -254,7 +254,22 @@ const ViewSpecificScreeningTenant = () => {
       setError("Failed to fetch screening details");
       console.error("Error fetching screening details:", err);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
+      setRefreshing(false);
+    }
+  }, [screeningId]);
+
+  useEffect(() => {
+    if (screeningId) {
+      fetchScreeningDetails();
+    }
+  }, [screeningId, fetchScreeningDetails]);
+
+  const handleRefresh = () => {
+    if (!refreshing) {
+      fetchScreeningDetails({ silent: true });
     }
   };
 
@@ -444,8 +459,8 @@ const ViewSpecificScreeningTenant = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screepy-8 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl space-y-6">
+      <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+        <div className="space-y-6">
           {/* Header Skeleton */}
           <div className="relative overflow-hidden rounded-2xl">
             <Skeleton className="h-32 w-full rounded-2xl" />
@@ -643,8 +658,8 @@ const ViewSpecificScreeningTenant = () => {
   const headerClasses = getStatusHeaderClasses(screening.status);
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+    <div className="min-h-screen space-y-6 p-4 sm:p-6">
+      <div className="space-y-6">
         {/* Status-based Header - Vibrant Colorful Design */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
@@ -693,7 +708,7 @@ const ViewSpecificScreeningTenant = () => {
 
               {/* Content */}
               <div className="px-4 sm:px-6 py-5">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-center gap-4 min-w-0">
                     {/* Enhanced primary icon with gradient */}
                     <motion.div
@@ -750,10 +765,30 @@ const ViewSpecificScreeningTenant = () => {
                     </div>
                   </div>
                   
-                  {/* Status badge */}
-                  <Badge className={cn("text-xs font-semibold border", getStatusBadgeClasses(screening.status))}>
-                    {screening.status}
-                  </Badge>
+                  <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                    {/* Status badge */}
+                    <Badge className={cn("text-xs font-semibold border", getStatusBadgeClasses(screening.status))}>
+                      {screening.status}
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      onClick={handleRefresh}
+                      disabled={refreshing}
+                      className="h-11 rounded-xl border-slate-200 bg-white/85 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white disabled:opacity-70"
+                    >
+                      {refreshing ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Refreshing
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <RotateCcw className="h-4 w-4" />
+                          Refresh Data
+                        </span>
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Enhanced animated underline with gradient shimmer */}

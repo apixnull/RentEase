@@ -754,3 +754,93 @@ export const updateProperty = async (req, res) => {
     });
   }
 };
+
+// ------------------------------------------------------------------------------ 
+// DELETE PROPERTY
+
+export const deleteProperty = async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const ownerId = req.user?.id;
+
+    if (!propertyId) {
+      return res.status(400).json({ message: "Property ID is required" });
+    }
+
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Verify property exists and belongs to the landlord
+    const existingProperty = await prisma.property.findFirst({
+      where: { id: propertyId, ownerId },
+      select: {
+        id: true,
+        mainImageUrl: true,
+        title: true,
+      },
+    });
+
+    if (!existingProperty) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    // Fetch all units for this property to delete their images
+    const units = await prisma.unit.findMany({
+      where: { propertyId },
+      select: {
+        id: true,
+        mainImageUrl: true,
+        otherImages: true,
+      },
+    });
+
+    // Delete property image from Supabase if it exists
+    if (existingProperty.mainImageUrl) {
+      await deleteSupabaseImageIfExists(existingProperty.mainImageUrl);
+    }
+
+    // Delete all unit images from Supabase
+    for (const unit of units) {
+      // Delete unit main image
+      if (unit.mainImageUrl) {
+        await deleteSupabaseImageIfExists(unit.mainImageUrl);
+      }
+
+      // Delete unit other images (stored as JSON array)
+      if (unit.otherImages) {
+        try {
+          const otherImagesArray = Array.isArray(unit.otherImages) 
+            ? unit.otherImages 
+            : JSON.parse(unit.otherImages);
+          
+          if (Array.isArray(otherImagesArray)) {
+            for (const imageUrl of otherImagesArray) {
+              if (imageUrl && typeof imageUrl === 'string') {
+                await deleteSupabaseImageIfExists(imageUrl);
+              }
+            }
+          }
+        } catch (parseError) {
+          console.warn(`⚠️ Failed to parse otherImages for unit ${unit.id}:`, parseError.message);
+          // Continue even if parsing fails
+        }
+      }
+    }
+
+    // Delete property (cascade will handle related data: units, listings, leases, etc.)
+    await prisma.property.delete({
+      where: { id: propertyId },
+    });
+
+    return res.status(200).json({
+      message: "Property deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting property:", error);
+    return res.status(500).json({
+      message: "Failed to delete property.",
+      details: error.message,
+    });
+  }
+};

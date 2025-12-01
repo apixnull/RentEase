@@ -642,3 +642,59 @@ export const onboarding = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+// ---------------------------------------------- DELETE ACCOUNT ----------------------------------------------
+// Permanently deletes the user's account and all associated data
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id; // from requireAuthentication
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        id: true, 
+        avatarUrl: true,
+        role: true 
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Delete avatar from Supabase if exists
+    if (user.avatarUrl) {
+      try {
+        const baseUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/rentease-images/`;
+        if (user.avatarUrl.startsWith(baseUrl)) {
+          const oldPath = user.avatarUrl.replace(baseUrl, "");
+          if (oldPath) {
+            const { error } = await supabase.storage
+              .from("rentease-images")
+              .remove([oldPath]);
+            if (error) {
+              console.warn("⚠️ Supabase delete error:", error.message);
+            } else {
+              console.log(`✅ Avatar deleted: ${oldPath}`);
+            }
+          }
+        }
+      } catch (delErr) {
+        console.warn("⚠️ Failed to delete avatar:", delErr.message);
+      }
+    }
+
+    // Delete user (cascade will handle related data based on Prisma schema)
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    return res.status(200).json({
+      message: "Account deleted successfully",
+    });
+  } catch (err) {
+    console.error("❌ Delete account error:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};

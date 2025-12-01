@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, Star, TrendingUp, CheckCircle2, Flag, Info, ChevronDown, ChevronUp, FileSearch, RefreshCcw, Loader2, Sparkles } from 'lucide-react';
+import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, Star, TrendingUp, CheckCircle2, Flag, Info, ChevronDown, ChevronUp, FileSearch, RefreshCcw, Loader2, Sparkles, X, ArrowUpRight } from 'lucide-react';
 import { getLandlordListingsRequest, getEligibleUnitsForListingRequest } from '@/api/landlord/listingApi';
 import { getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,6 +81,7 @@ const LandlordListing = () => {
   const [isActiveExpanded, setIsActiveExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
   const [currentPage, setCurrentPage] = useState(1);
+  const [jumpToPage, setJumpToPage] = useState('');
   const itemsPerPage = 10;
 
   // Modal states
@@ -91,6 +92,15 @@ const LandlordListing = () => {
   const [loadingEligible, setLoadingEligible] = useState(false);
   const [eligibleError, setEligibleError] = useState<string | null>(null);
   const [isSearchExpanded, setIsSearchExpanded] = useState(true);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const statusConfig = {
     WAITING_REVIEW: {
@@ -219,7 +229,7 @@ const LandlordListing = () => {
       }
     }
 
-    // Filter by search query
+    // Filter by search query (use debounced query)
     if (query) {
       filtered = filtered.filter(listing => 
         listing.unit.label.toLowerCase().includes(query.toLowerCase()) ||
@@ -318,8 +328,25 @@ const LandlordListing = () => {
     setSelectedProperty('all');
     setSelectedStatus('all');
     setSearchQuery('');
+    setDebouncedSearchQuery('');
     setIsActiveExpanded(false);
     applyFilters('all', 'all', '');
+  };
+
+  const handleRemoveStatusFilter = () => {
+    setSelectedStatus('all');
+    applyFilters(selectedProperty, 'all', debouncedSearchQuery);
+  };
+
+  const handleRemovePropertyFilter = () => {
+    setSelectedProperty('all');
+    applyFilters('all', selectedStatus, debouncedSearchQuery);
+  };
+
+  const handleRemoveSearchFilter = () => {
+    setSearchQuery('');
+    setDebouncedSearchQuery('');
+    applyFilters(selectedProperty, selectedStatus, '');
   };
 
   const handleCreateListing = () => {
@@ -353,6 +380,14 @@ const LandlordListing = () => {
     navigate(`/landlord/listing/${listingId}/details`);
   };
 
+  const handleJumpToPage = () => {
+    const page = parseInt(jumpToPage);
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      setJumpToPage('');
+    }
+  };
+
 
   const getStatusBadge = (status: string) => {
     const config = statusConfig[status as keyof typeof statusConfig];
@@ -374,6 +409,26 @@ const LandlordListing = () => {
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  const formatRelativeDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInDays === 0) return 'Today';
+    if (diffInDays === 1) return 'Yesterday';
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)}w ago`;
+    if (diffInDays < 365) return `${Math.floor(diffInDays / 30)}mo ago`;
+    return formatDate(dateString);
   };
 
   const getPaymentStatus = (listing: Listing) => {
@@ -418,11 +473,11 @@ const LandlordListing = () => {
     fetchListings();
   }, [fetchListings]);
 
-  // Re-apply filters when tab changes
+  // Re-apply filters when tab changes or debounced search changes
   useEffect(() => {
-    applyFilters(selectedProperty, selectedStatus, searchQuery);
+    applyFilters(selectedProperty, selectedStatus, debouncedSearchQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [activeTab, debouncedSearchQuery]);
 
   if (loading) {
     return (
@@ -774,11 +829,14 @@ const LandlordListing = () => {
                             <div className="relative">
                               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                               <Input
-                                placeholder="Search..."
+                                placeholder="Search by unit or property..."
                                 value={searchQuery}
                                 onChange={(e) => handleSearchChange(e.target.value)}
-                                className="pl-9 h-8 text-xs border-slate-200 focus:border-slate-400"
+                                className="pl-9 pr-9 h-8 text-xs border-slate-200 focus:border-slate-400"
                               />
+                              {searchQuery !== debouncedSearchQuery && (
+                                <Loader2 className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400 animate-spin" />
+                              )}
                             </div>
                           </div>
 
@@ -813,23 +871,51 @@ const LandlordListing = () => {
                             {filteredListings.length} of {currentListings.length} listings
                           </span>
                           {selectedStatus === 'active' && (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 flex items-center gap-1.5 px-2 py-0.5">
                               Active Listings
+                              <button
+                                onClick={handleRemoveStatusFilter}
+                                className="ml-1 hover:bg-emerald-200 rounded-full p-0.5 transition-colors"
+                                aria-label="Remove active filter"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </Badge>
                           )}
                           {selectedStatus !== 'all' && selectedStatus !== 'active' && (
-                            <Badge variant="secondary" className={`${statusConfig[selectedStatus as keyof typeof statusConfig]?.bgColor} ${statusConfig[selectedStatus as keyof typeof statusConfig]?.textColor}`}>
+                            <Badge variant="secondary" className={`${statusConfig[selectedStatus as keyof typeof statusConfig]?.bgColor} ${statusConfig[selectedStatus as keyof typeof statusConfig]?.textColor} flex items-center gap-1.5 px-2 py-0.5`}>
                               {statusConfig[selectedStatus as keyof typeof statusConfig]?.title}
+                              <button
+                                onClick={handleRemoveStatusFilter}
+                                className="ml-1 hover:opacity-70 rounded-full p-0.5 transition-opacity"
+                                aria-label={`Remove ${statusConfig[selectedStatus as keyof typeof statusConfig]?.title} filter`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </Badge>
                           )}
                           {selectedProperty !== 'all' && (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 flex items-center gap-1.5 px-2 py-0.5">
                               {properties.find(p => p.id === selectedProperty)?.title}
+                              <button
+                                onClick={handleRemovePropertyFilter}
+                                className="ml-1 hover:bg-emerald-200 rounded-full p-0.5 transition-colors"
+                                aria-label="Remove property filter"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </Badge>
                           )}
                           {searchQuery && (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 flex items-center gap-1.5 px-2 py-0.5">
                               "{searchQuery}"
+                              <button
+                                onClick={handleRemoveSearchFilter}
+                                className="ml-1 hover:bg-amber-200 rounded-full p-0.5 transition-colors"
+                                aria-label="Remove search filter"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </Badge>
                           )}
                         </div>
@@ -842,99 +928,189 @@ const LandlordListing = () => {
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {/* Stage 1: Waiting Review */}
-                <button
+                <motion.button
                   type="button"
                   onClick={() => handleStatusClick('WAITING_REVIEW')}
-                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all group ${
                     selectedStatus === 'WAITING_REVIEW'
                       ? 'bg-purple-50 border-purple-300 ring-2 ring-purple-400 shadow-md'
                       : 'bg-white border-purple-200 hover:border-purple-300 hover:shadow-md'
                   }`}
+                  title={statusConfig.WAITING_REVIEW.description}
                 >
-                  <div className="h-10 w-10 rounded-lg bg-purple-500 grid place-items-center">
+                  <motion.div 
+                    className="h-10 w-10 rounded-lg bg-purple-500 grid place-items-center"
+                    whileHover={{ rotate: [0, -5, 5, 0] }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <FileSearch className="h-4 w-4 text-white" />
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-purple-600 font-medium">Waiting Review</p>
+                    <motion.p 
+                      className="text-lg font-semibold text-purple-900"
+                      key={statusCounts['WAITING_REVIEW'] || 0}
+                      initial={{ scale: 1.2 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {statusCounts['WAITING_REVIEW'] || 0}
+                    </motion.p>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-purple-600">Waiting Review</p>
-                    <p className="text-lg font-semibold text-purple-900">{statusCounts['WAITING_REVIEW'] || 0}</p>
-                  </div>
-                </button>
+                  {(statusCounts['WAITING_REVIEW'] || 0) === 0 && (
+                    <div className="absolute top-1 right-1 h-2 w-2 rounded-full bg-purple-300 opacity-50" />
+                  )}
+                </motion.button>
 
                 {/* Stage 2: Active (with VISIBLE/HIDDEN inside) */}
-                <button
+                <motion.button
                   type="button"
                   onClick={() => handleStatusClick('active')}
-                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all group ${
                     selectedStatus === 'active' || selectedStatus === 'VISIBLE' || selectedStatus === 'HIDDEN'
                       ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400 shadow-md'
                       : 'bg-white border-emerald-200 hover:border-emerald-300 hover:shadow-md'
                   }`}
+                  title="Active listings (Visible + Hidden)"
                 >
-                  <div className="h-10 w-10 rounded-lg bg-emerald-500 grid place-items-center">
+                  <motion.div 
+                    className="h-10 w-10 rounded-lg bg-emerald-500 grid place-items-center"
+                    whileHover={{ rotate: [0, -5, 5, 0] }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <TrendingUp className="h-4 w-4 text-white" />
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-emerald-600 font-medium">Active</p>
+                    <motion.p 
+                      className="text-lg font-semibold text-emerald-900"
+                      key={activeListings}
+                      initial={{ scale: 1.2 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {activeListings}
+                    </motion.p>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-emerald-600">Active</p>
-                    <p className="text-lg font-semibold text-emerald-900">{activeListings}</p>
-                  </div>
-                </button>
+                  {activeListings === 0 && (
+                    <div className="absolute top-1 right-1 h-2 w-2 rounded-full bg-emerald-300 opacity-50" />
+                  )}
+                </motion.button>
 
                 {/* Stage 3: Flagged */}
-                <button
+                <motion.button
                   type="button"
                   onClick={() => handleStatusClick('FLAGGED')}
-                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all group ${
                     selectedStatus === 'FLAGGED'
                       ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400 shadow-md'
                       : 'bg-white border-amber-200 hover:border-amber-300 hover:shadow-md'
                   }`}
+                  title={statusConfig.FLAGGED.description}
                 >
-                  <div className="h-10 w-10 rounded-lg bg-amber-500 grid place-items-center">
+                  <motion.div 
+                    className="h-10 w-10 rounded-lg bg-amber-500 grid place-items-center"
+                    whileHover={{ rotate: [0, -5, 5, 0] }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Flag className="h-4 w-4 text-white" />
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-amber-600 font-medium">Flagged</p>
+                    <motion.p 
+                      className="text-lg font-semibold text-amber-900"
+                      key={statusCounts['FLAGGED'] || 0}
+                      initial={{ scale: 1.2 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {statusCounts['FLAGGED'] || 0}
+                    </motion.p>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-amber-600">Flagged</p>
-                    <p className="text-lg font-semibold text-amber-900">{statusCounts['FLAGGED'] || 0}</p>
-                  </div>
-                </button>
+                  {(statusCounts['FLAGGED'] || 0) === 0 && (
+                    <div className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-300 opacity-50" />
+                  )}
+                </motion.button>
 
                 {/* Stage 4: Blocked */}
-                <button
+                <motion.button
                   type="button"
                   onClick={() => handleStatusClick('BLOCKED')}
-                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all group ${
                     selectedStatus === 'BLOCKED'
                       ? 'bg-red-50 border-red-300 ring-2 ring-red-400 shadow-md'
                       : 'bg-white border-red-200 hover:border-red-300 hover:shadow-md'
                   }`}
+                  title={statusConfig.BLOCKED.description}
                 >
-                  <div className="h-10 w-10 rounded-lg bg-red-500 grid place-items-center">
+                  <motion.div 
+                    className="h-10 w-10 rounded-lg bg-red-500 grid place-items-center"
+                    whileHover={{ rotate: [0, -5, 5, 0] }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Ban className="h-4 w-4 text-white" />
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-red-600 font-medium">Blocked</p>
+                    <motion.p 
+                      className="text-lg font-semibold text-red-900"
+                      key={statusCounts['BLOCKED'] || 0}
+                      initial={{ scale: 1.2 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {statusCounts['BLOCKED'] || 0}
+                    </motion.p>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-red-600">Blocked</p>
-                    <p className="text-lg font-semibold text-red-900">{statusCounts['BLOCKED'] || 0}</p>
-                  </div>
-                </button>
+                  {(statusCounts['BLOCKED'] || 0) === 0 && (
+                    <div className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-300 opacity-50" />
+                  )}
+                </motion.button>
 
                 {/* Stage 5: Expired */}
-                <button
+                <motion.button
                   type="button"
                   onClick={() => handleStatusClick('EXPIRED')}
-                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all ${
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`relative rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all group ${
                     selectedStatus === 'EXPIRED'
                       ? 'bg-gray-50 border-gray-300 ring-2 ring-gray-400 shadow-md'
                       : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
                   }`}
+                  title={statusConfig.EXPIRED.description}
                 >
-                  <div className="h-10 w-10 rounded-lg bg-gray-500 grid place-items-center">
+                  <motion.div 
+                    className="h-10 w-10 rounded-lg bg-gray-500 grid place-items-center"
+                    whileHover={{ rotate: [0, -5, 5, 0] }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Clock className="h-4 w-4 text-white" />
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-gray-600 font-medium">Expired</p>
+                    <motion.p 
+                      className="text-lg font-semibold text-gray-900"
+                      key={statusCounts['EXPIRED'] || 0}
+                      initial={{ scale: 1.2 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {statusCounts['EXPIRED'] || 0}
+                    </motion.p>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-600">Expired</p>
-                    <p className="text-lg font-semibold text-gray-900">{statusCounts['EXPIRED'] || 0}</p>
-                  </div>
-                </button>
+                  {(statusCounts['EXPIRED'] || 0) === 0 && (
+                    <div className="absolute top-1 right-1 h-2 w-2 rounded-full bg-gray-300 opacity-50" />
+                  )}
+                </motion.button>
                         </div>
                       </div>
                     </>
@@ -972,11 +1148,14 @@ const LandlordListing = () => {
                           <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                             <Input
-                              placeholder="Search..."
+                              placeholder="Search by unit or property..."
                               value={searchQuery}
                               onChange={(e) => handleSearchChange(e.target.value)}
-                              className="pl-9 h-8 text-xs border-slate-200 focus:border-slate-400"
+                              className="pl-9 pr-9 h-8 text-xs border-slate-200 focus:border-slate-400"
                             />
+                            {searchQuery !== debouncedSearchQuery && (
+                              <Loader2 className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400 animate-spin" />
+                            )}
                           </div>
                         </div>
 
@@ -1011,18 +1190,39 @@ const LandlordListing = () => {
                           {filteredListings.length} of {historyListings.length} listings
                         </span>
                         {selectedStatus !== 'all' && (
-                          <Badge variant="secondary" className={`${statusConfig[selectedStatus as keyof typeof statusConfig]?.bgColor} ${statusConfig[selectedStatus as keyof typeof statusConfig]?.textColor}`}>
+                          <Badge variant="secondary" className={`${statusConfig[selectedStatus as keyof typeof statusConfig]?.bgColor} ${statusConfig[selectedStatus as keyof typeof statusConfig]?.textColor} flex items-center gap-1.5 px-2 py-0.5`}>
                             {statusConfig[selectedStatus as keyof typeof statusConfig]?.title}
+                            <button
+                              onClick={handleRemoveStatusFilter}
+                              className="ml-1 hover:opacity-70 rounded-full p-0.5 transition-opacity"
+                              aria-label={`Remove ${statusConfig[selectedStatus as keyof typeof statusConfig]?.title} filter`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </Badge>
                         )}
                         {selectedProperty !== 'all' && (
-                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 flex items-center gap-1.5 px-2 py-0.5">
                             {properties.find(p => p.id === selectedProperty)?.title}
+                            <button
+                              onClick={handleRemovePropertyFilter}
+                              className="ml-1 hover:bg-emerald-200 rounded-full p-0.5 transition-colors"
+                              aria-label="Remove property filter"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </Badge>
                         )}
                         {searchQuery && (
-                          <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-800 flex items-center gap-1.5 px-2 py-0.5">
                             "{searchQuery}"
+                            <button
+                              onClick={handleRemoveSearchFilter}
+                              className="ml-1 hover:bg-amber-200 rounded-full p-0.5 transition-colors"
+                              aria-label="Remove search filter"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </Badge>
                         )}
                       </div>
@@ -1050,25 +1250,55 @@ const LandlordListing = () => {
           </CardHeader>
           <CardContent className="p-0">
             {filteredListings.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <Building className="h-16 w-16 mx-auto mb-4 text-blue-200" />
-                <p className="text-lg font-medium text-gray-600">No listings found</p>
-                <p className="text-sm mt-2 text-gray-500">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-16 text-muted-foreground"
+              >
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <Building className="h-16 w-16 mx-auto mb-4 text-blue-200" />
+                </motion.div>
+                <p className="text-lg font-medium text-gray-600 mb-2">No listings found</p>
+                <p className="text-sm text-gray-500 mb-6">
                   {selectedStatus === 'all' 
                     ? 'Create your first listing to get started'
                     : `No ${statusConfig[selectedStatus as keyof typeof statusConfig]?.title?.toLowerCase()} listings`
                   }
                 </p>
-                {selectedStatus !== 'all' && (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleStatusClick('all')}
-                    className="mt-4 border-blue-200 text-blue-700 hover:bg-blue-50"
-                  >
-                    View All Listings
-                  </Button>
-                )}
-              </div>
+                <div className="flex items-center justify-center gap-3">
+                  {selectedStatus !== 'all' && (
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleStatusClick('all')}
+                      className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                    >
+                      View All Listings
+                    </Button>
+                  )}
+                  {(selectedProperty !== 'all' || searchQuery) && (
+                    <Button 
+                      variant="outline" 
+                      onClick={handleClearFilters}
+                      className="border-slate-200 text-slate-700 hover:bg-slate-50"
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
+                  {selectedStatus === 'all' && (
+                    <Button 
+                      onClick={handleCreateListing}
+                      className="bg-gradient-to-r from-blue-500 to-emerald-500 text-white hover:brightness-110"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Listing
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
             ) : (
               <>
                 <div className="border-0">
@@ -1092,7 +1322,8 @@ const LandlordListing = () => {
                       return (
                         <TableRow 
                           key={listing.id} 
-                          className="group hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-emerald-50/50 border-b border-blue-50 transition-all duration-200"
+                          className="group hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-emerald-50/50 border-b border-blue-50 transition-all duration-200 cursor-pointer"
+                          onClick={() => handleViewDetails(listing.id)}
                         >
                           <TableCell className="py-2">
                             <div className="flex items-start space-x-2">
@@ -1140,9 +1371,9 @@ const LandlordListing = () => {
                           <TableCell className="py-2">
                             <div className="text-xs text-gray-600">
                               {listing.expiresAt ? (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 group/date" title={formatDate(listing.expiresAt)}>
                                   <Clock className="h-3 w-3 text-gray-500" />
-                                  <span className="text-[10px]">{formatDate(listing.expiresAt)}</span>
+                                  <span className="text-[10px]">{formatRelativeDate(listing.expiresAt)}</span>
                                 </div>
                               ) : (
                                 <span className="text-gray-400 text-xs">—</span>
@@ -1152,9 +1383,9 @@ const LandlordListing = () => {
                           <TableCell className="py-2">
                             <div className="text-xs text-gray-600">
                               {listing.reviewedAt ? (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 group/date" title={formatDate(listing.reviewedAt)}>
                                   <CheckCircle2 className="h-3 w-3 text-purple-500" />
-                                  <span className="text-[10px]">{formatDate(listing.reviewedAt)}</span>
+                                  <span className="text-[10px]">{formatRelativeDate(listing.reviewedAt)}</span>
                                 </div>
                               ) : (
                                 <span className="text-gray-400 text-xs">—</span>
@@ -1163,9 +1394,9 @@ const LandlordListing = () => {
                           </TableCell>
                           <TableCell className="py-2">
                             <div className="text-xs text-gray-600">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 group/date" title={formatDate(listing.createdAt)}>
                                 <Calendar className="h-3 w-3 text-blue-500" />
-                                <span className="text-[10px]">{formatDate(listing.createdAt)}</span>
+                                <span className="text-[10px]">{formatRelativeDate(listing.createdAt)}</span>
                               </div>
                             </div>
                           </TableCell>
@@ -1174,11 +1405,15 @@ const LandlordListing = () => {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => handleViewDetails(listing.id)}
-                                className="h-8 px-3 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-300 transition-colors text-xs font-medium"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewDetails(listing.id);
+                                }}
+                                className="h-8 px-3 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-300 transition-colors text-xs font-medium group-hover:border-blue-400"
                               >
                                 <Info className="h-3.5 w-3.5" />
-                                View Details
+                                <span className="hidden sm:inline">View Details</span>
+                                <ArrowUpRight className="h-3.5 w-3.5 sm:hidden" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1191,11 +1426,11 @@ const LandlordListing = () => {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-200">
                     <div className="text-xs text-gray-600">
                       Showing {startIndex + 1} to {Math.min(endIndex, filteredListings.length)} of {filteredListings.length} listings
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1230,6 +1465,34 @@ const LandlordListing = () => {
                           return null;
                         })}
                       </div>
+                      {totalPages > 5 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-gray-500">Go to:</span>
+                          <Input
+                            type="number"
+                            min="1"
+                            max={totalPages}
+                            value={jumpToPage}
+                            onChange={(e) => setJumpToPage(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleJumpToPage();
+                              }
+                            }}
+                            placeholder="Page"
+                            className="h-8 w-16 text-xs text-center"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleJumpToPage}
+                            disabled={!jumpToPage || parseInt(jumpToPage) < 1 || parseInt(jumpToPage) > totalPages}
+                            className="h-8 px-2 text-xs"
+                          >
+                            Go
+                          </Button>
+                        </div>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"

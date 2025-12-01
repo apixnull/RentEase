@@ -639,9 +639,98 @@ export const getDashboardLeases = async (req, res) => {
         : null,
     }));
 
+    // Get recent leases (any status, sorted by updatedAt)
+    const recentLeases = await prisma.lease.findMany({
+      where: {
+        landlordId,
+      },
+      select: {
+        id: true,
+        leaseNickname: true,
+        leaseType: true,
+        startDate: true,
+        endDate: true,
+        rentAmount: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        property: {
+          select: {
+            id: true,
+            title: true,
+            street: true,
+            barangay: true,
+            zipCode: true,
+            city: { select: { name: true } },
+            municipality: { select: { name: true } },
+          },
+        },
+        unit: {
+          select: {
+            id: true,
+            label: true,
+          },
+        },
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 5, // Limit to 5 records
+    });
+
+    // Format recent leases
+    const formattedRecentLeases = recentLeases.map((lease) => ({
+      id: lease.id,
+      leaseNickname: lease.leaseNickname,
+      leaseType: lease.leaseType,
+      startDate: lease.startDate,
+      endDate: lease.endDate,
+      rentAmount: lease.rentAmount,
+      status: lease.status,
+      createdAt: lease.createdAt,
+      updatedAt: lease.updatedAt,
+      property: lease.property
+        ? {
+            id: lease.property.id,
+            title: lease.property.title,
+            address: [
+              lease.property.street,
+              lease.property.barangay,
+              lease.property.city?.name || lease.property.municipality?.name,
+              lease.property.zipCode,
+            ]
+              .filter(Boolean)
+              .join(", "),
+          }
+        : null,
+      unit: lease.unit
+        ? {
+            id: lease.unit.id,
+            label: lease.unit.label,
+          }
+        : null,
+      tenant: lease.tenant
+        ? {
+            id: lease.tenant.id,
+            firstName: lease.tenant.firstName,
+            lastName: lease.tenant.lastName,
+            email: lease.tenant.email,
+            avatarUrl: lease.tenant.avatarUrl,
+          }
+        : null,
+    }));
+
     return res.status(200).json({
       pendingLeases: formattedPendingLeases,
       completingLeases: formattedCompletingLeases,
+      recentLeases: formattedRecentLeases,
     });
   } catch (error) {
     console.error("Error fetching dashboard leases:", error);
@@ -735,9 +824,36 @@ export const getDashboardScreenings = async (req, res) => {
         : null,
     });
 
+    // Get recent screenings (any status, sorted by updatedAt)
+    const recentScreenings = await prisma.tenantScreening.findMany({
+      where: {
+        landlordId,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        submitted: true,
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 5, // Limit to 5 records
+    });
+
     return res.status(200).json({
       pendingScreenings: pendingScreenings.map(formatScreening),
       submittedScreenings: submittedScreenings.map(formatScreening),
+      recentScreenings: recentScreenings.map(formatScreening),
     });
   } catch (error) {
     console.error("Error fetching dashboard screenings:", error);
@@ -890,9 +1006,54 @@ export const getDashboardMaintenance = async (req, res) => {
         : null,
     });
 
+    // Get recent maintenance requests (any status, sorted by updatedAt)
+    const recentMaintenance = await prisma.maintenanceRequest.findMany({
+      where: {
+        property: {
+          ownerId: landlordId,
+        },
+      },
+      select: {
+        id: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        property: {
+          select: {
+            id: true,
+            title: true,
+            street: true,
+            barangay: true,
+            zipCode: true,
+            city: { select: { name: true } },
+            municipality: { select: { name: true } },
+          },
+        },
+        unit: {
+          select: {
+            id: true,
+            label: true,
+          },
+        },
+        reporter: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 5, // Limit to 5 records
+    });
+
     return res.status(200).json({
       openMaintenance: openMaintenance.map(formatMaintenance),
       inProgressMaintenance: inProgressMaintenance.map(formatMaintenance),
+      recentMaintenance: recentMaintenance.map(formatMaintenance),
     });
   } catch (error) {
     console.error("Error fetching dashboard maintenance:", error);
@@ -1066,14 +1227,49 @@ export const getDashboardListings = async (req, res) => {
       take: 4,
     });
 
+    // Get recent listings (any status, sorted by createdAt descending)
+    const recentListings = await prisma.listing.findMany({
+      where: {
+        landlordId,
+      },
+      select: {
+        id: true,
+        lifecycleStatus: true,
+        isFeatured: true,
+        createdAt: true,
+        updatedAt: true,
+        unit: {
+          select: {
+            id: true,
+            label: true,
+            property: {
+              select: {
+                id: true,
+                title: true,
+                street: true,
+                barangay: true,
+                zipCode: true,
+                city: { select: { name: true } },
+                municipality: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5, // Limit to 5 records
+    });
+
     // Format listings
     const formatListing = (listing) => ({
       id: listing.id,
       lifecycleStatus: listing.lifecycleStatus,
+      isFeatured: listing.isFeatured,
       expiresAt: listing.expiresAt,
       blockedAt: listing.blockedAt,
       flaggedAt: listing.flaggedAt,
       createdAt: listing.createdAt,
+      updatedAt: listing.updatedAt,
       property: listing.unit?.property
         ? {
             id: listing.unit.property.id,
@@ -1101,6 +1297,7 @@ export const getDashboardListings = async (req, res) => {
       expiringListings: expiringListings.map(formatListing),
       blockedListings: blockedListings.map(formatListing),
       flaggedListings: flaggedListings.map(formatListing),
+      recentListings: recentListings.map(formatListing),
     });
   } catch (error) {
     console.error("Error fetching dashboard listings:", error);

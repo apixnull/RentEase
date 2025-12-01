@@ -392,7 +392,7 @@ const ReviewUnitForListing = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/landlord/units/${unit.id}/edit`)}
+                      onClick={() => navigate(`/landlord/units/${property.id}/${unit.id}`)}
                       className="gap-2 text-xs border-slate-300 text-slate-700 hover:bg-slate-50"
                     >
                       <Edit2 className="h-3.5 w-3.5" />
@@ -419,7 +419,7 @@ const ReviewUnitForListing = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => navigate('/privacy-policy')}
+                    onClick={() => navigate('/terms-privacy')}
                     className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                     title="Learn More"
                   >
@@ -564,7 +564,7 @@ const ReviewUnitForListing = () => {
                     <span className="text-xs text-slate-700 leading-relaxed flex-1">
                       I have read and agree to the{' '}
                       <a 
-                        href="/privacy-policy"
+                        href="/terms-privacy"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-emerald-600 hover:text-emerald-700 underline underline-offset-2 font-medium"

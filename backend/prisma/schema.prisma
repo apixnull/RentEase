@@ -670,8 +670,8 @@ model ChatChannel {
   readAt              DateTime? // ✅ when last message was read 
 
   // --- Relations ---
-  tenant   User @relation("TenantChatChannels", fields: [tenantId], references: [id])
-  landlord User @relation("LandlordChatChannels", fields: [landlordId], references: [id])
+  tenant   User @relation("TenantChatChannels", fields: [tenantId], references: [id], onDelete: Cascade)
+  landlord User @relation("LandlordChatChannels", fields: [landlordId], references: [id], onDelete: Cascade)
   messages ChatMessage[]
 
   @@unique([tenantId, landlordId])
@@ -690,8 +690,8 @@ model ChatMessage {
   readAt    DateTime?
 
   // --- Relations ---
-  channel ChatChannel @relation(fields: [channelId], references: [id])
-  sender  User        @relation(fields: [senderId], references: [id])
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender  User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([channelId])
   @@map("chat_messages")

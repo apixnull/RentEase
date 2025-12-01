@@ -409,6 +409,8 @@ export default function CreateProperty() {
   const [latitude, setLatitude] = React.useState<number | null>(null);
   const [longitude, setLongitude] = React.useState<number | null>(null);
   const [imageFile, setImageFile] = React.useState<File | null>(null);
+  const [imageUrl, setImageUrl] = React.useState<string>("");
+  const [imageInputMode, setImageInputMode] = React.useState<"file" | "url">("file");
   const [imageError, setImageError] = React.useState<string>("");
   const [imagePreview, setImagePreview] = React.useState<string>("");
   const [nearInstitutions, setNearInstitutions] = React.useState<Institution[]>([]);
@@ -721,6 +723,7 @@ export default function CreateProperty() {
     setImageError("");
     setImagePreview("");
     setImageFile(null);
+    setImageUrl("");
     if (!file) return;
     if (file.size > maxBytes) {
       setImageError("File exceeds 5MB limit");
@@ -729,6 +732,50 @@ export default function CreateProperty() {
     setImageFile(file);
     const url = URL.createObjectURL(file);
     setImagePreview(url);
+  }
+
+  function handleImageUrlChange(url: string) {
+    setImageError("");
+    setImagePreview("");
+    setImageFile(null);
+    setImageUrl(url);
+    
+    if (!url.trim()) {
+      setImagePreview("");
+      return;
+    }
+
+    // Validate URL format
+    try {
+      const urlObj = new URL(url);
+      // Check if it's a valid image URL
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+      const pathname = urlObj.pathname.toLowerCase();
+      const isImageUrl = imageExtensions.some(ext => pathname.endsWith(ext)) || 
+                        urlObj.hostname.includes('imgur') ||
+                        urlObj.hostname.includes('cloudinary') ||
+                        urlObj.hostname.includes('unsplash') ||
+                        urlObj.hostname.includes('pexels');
+      
+      if (!isImageUrl) {
+        // Still allow it but show a warning
+        setImageError("Please ensure the URL points to a valid image");
+      }
+      
+      // Set preview
+      setImagePreview(url);
+    } catch (error) {
+      setImageError("Please enter a valid URL");
+      setImagePreview("");
+    }
+  }
+
+  function handleImageModeChange(mode: "file" | "url") {
+    setImageInputMode(mode);
+    setImageError("");
+    setImagePreview("");
+    setImageFile(null);
+    setImageUrl("");
   }
 
   function addInstitution() {
@@ -795,14 +842,37 @@ export default function CreateProperty() {
     try {
       setIsSubmitting(true);
 
-      if (!imageFile) {
+      if (imageInputMode === "file" && !imageFile) {
         toast.error("Please upload a main image before submitting.");
         setIsSubmitting(false);
         return;
       }
 
-      // 1️⃣ Upload image
-      const mainImageUrl = await uploadMainImage(imageFile);
+      if (imageInputMode === "url" && !imageUrl.trim()) {
+        toast.error("Please enter an image URL before submitting.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 1️⃣ Get image URL (either upload file or use provided URL)
+      let mainImageUrl: string;
+      if (imageInputMode === "file" && imageFile) {
+        mainImageUrl = await uploadMainImage(imageFile);
+      } else if (imageInputMode === "url" && imageUrl.trim()) {
+        // Validate URL one more time
+        try {
+          new URL(imageUrl.trim());
+          mainImageUrl = imageUrl.trim();
+        } catch (error) {
+          toast.error("Please enter a valid image URL.");
+          setIsSubmitting(false);
+          return;
+        }
+      } else {
+        toast.error("Please provide a main image (file upload or URL).");
+        setIsSubmitting(false);
+        return;
+      }
 
       // 2️⃣ Build payload
       const payload = {
@@ -1429,29 +1499,75 @@ export default function CreateProperty() {
                           animate="visible"
                         >
                           <motion.div variants={itemVariants} className="space-y-3">
+                            {/* Input Mode Toggle */}
+                            <div className="flex items-center gap-2 mb-4">
+                              <span className="text-sm font-semibold text-gray-900">Image Source:</span>
+                              <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleImageModeChange("file")}
+                                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                    imageInputMode === "file"
+                                      ? "bg-white text-emerald-600 shadow-sm"
+                                      : "text-gray-600 hover:text-gray-900"
+                                  }`}
+                                >
+                                  Upload File
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleImageModeChange("url")}
+                                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                    imageInputMode === "url"
+                                      ? "bg-white text-emerald-600 shadow-sm"
+                                      : "text-gray-600 hover:text-gray-900"
+                                  }`}
+                                >
+                                  Image URL
+                                </button>
+                              </div>
+                            </div>
+
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                               <div className="space-y-3">
                                 <label className="text-sm font-semibold text-gray-900">
                                   Main Image
                                 </label>
-                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-emerald-400 transition-colors cursor-pointer">
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
-                                    className="hidden"
-                                    id="image-upload"
-                                  />
-                                  <label htmlFor="image-upload" className="cursor-pointer block">
-                                    <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                    <div className="text-sm font-semibold text-gray-700 mb-1">
-                                      Click to upload main image
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      PNG, JPG, JPEG up to 5MB
-                                    </div>
-                                  </label>
-                                </div>
+                                
+                                {imageInputMode === "file" ? (
+                                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-emerald-400 transition-colors cursor-pointer">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
+                                      className="hidden"
+                                      id="image-upload"
+                                    />
+                                    <label htmlFor="image-upload" className="cursor-pointer block">
+                                      <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                      <div className="text-sm font-semibold text-gray-700 mb-1">
+                                        Click to upload main image
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        PNG, JPG, JPEG up to 5MB
+                                      </div>
+                                    </label>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <input
+                                      type="url"
+                                      value={imageUrl}
+                                      onChange={(e) => handleImageUrlChange(e.target.value)}
+                                      placeholder="https://example.com/image.jpg"
+                                      className="h-11 w-full px-4 rounded-xl border border-gray-300 bg-white outline-none text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+                                    />
+                                    <p className="text-xs text-gray-500">
+                                      Enter a direct link to an image (e.g., from Imgur, Cloudinary, or any image hosting service)
+                                    </p>
+                                  </div>
+                                )}
+                                
                                 {imageError && (
                                   <p className="text-red-500 text-xs mt-2">{imageError}</p>
                                 )}

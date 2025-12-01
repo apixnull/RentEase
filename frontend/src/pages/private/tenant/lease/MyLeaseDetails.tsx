@@ -783,151 +783,151 @@ const MyLeaseDetails = () => {
   const combinedHeaderGradient = getCombinedHeaderGradient(lease.status);
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header Section - Redesigned with Status Colors */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: "easeOut" }}
-          className="relative overflow-hidden rounded-2xl"
-        >
-          {/* Background Gradient with Status Color */}
-          <div className={`absolute inset-0 -z-10 bg-gradient-to-r ${combinedHeaderGradient} opacity-40`} />
-          <div className={`relative m-[1px] rounded-[16px] bg-gradient-to-br ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.backgroundCard || 'bg-white'} backdrop-blur-lg border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} shadow-xl`}>
-            {/* Animated Status Color Blur Effects */}
-            <motion.div
-              aria-hidden
-              className={`pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br ${themeGradient} opacity-20 blur-3xl`}
-              initial={{ opacity: 0.1, scale: 0.85 }}
-              animate={{ opacity: 0.25, scale: 1.05 }}
-              transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
-            />
-            <motion.div
-              aria-hidden
-              className={`pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl ${themeGradient} opacity-15 blur-3xl`}
-              initial={{ opacity: 0.08 }}
-              animate={{ opacity: 0.2 }}
-              transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
-            />
+    <div className="min-h-screen space-y-6 p-4 sm:p-6">
+      {/* Header Section - Redesigned with Status Colors */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="relative overflow-hidden rounded-2xl"
+      >
+        {/* Background Gradient with Status Color */}
+        <div className={`absolute inset-0 -z-10 bg-gradient-to-r ${combinedHeaderGradient} opacity-40`} />
+        <div className={`relative m-[1px] rounded-[16px] bg-gradient-to-br ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.backgroundCard || 'bg-white'} backdrop-blur-lg border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} shadow-xl`}>
+          {/* Animated Status Color Blur Effects */}
+          <motion.div
+            aria-hidden
+            className={`pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br ${themeGradient} opacity-20 blur-3xl`}
+            initial={{ opacity: 0.1, scale: 0.85 }}
+            animate={{ opacity: 0.25, scale: 1.05 }}
+            transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+          <motion.div
+            aria-hidden
+            className={`pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl ${themeGradient} opacity-15 blur-3xl`}
+            initial={{ opacity: 0.08 }}
+            animate={{ opacity: 0.2 }}
+            transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
 
-            <div className="px-4 sm:px-6 py-5 space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-4 min-w-0 flex-1">
-                  {/* Status Icon with Gradient */}
+          <div className="px-4 sm:px-6 py-5 space-y-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4 min-w-0">
+                {/* Status Icon with Gradient */}
+                <motion.div
+                  whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                  className="relative flex-shrink-0"
+                >
+                  <div className={`relative h-11 w-11 rounded-2xl bg-gradient-to-br ${themeGradient} text-white grid place-items-center shadow-xl ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.blurLight || ''}`}>
+                    <ScrollText className="h-5 w-5 relative z-10" />
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                  </div>
                   <motion.div
-                    whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
-                    className="relative flex-shrink-0"
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                    className={`absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-teal-600'} ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-teal-100'} border shadow-sm grid place-items-center`}
                   >
-                    <div className={`relative h-11 w-11 rounded-2xl bg-gradient-to-br ${themeGradient} text-white grid place-items-center shadow-xl ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.blurLight || ''}`}>
-                      <ScrollText className="h-5 w-5 relative z-10" />
-                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
-                    </div>
-                    <motion.div
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
-                      className={`absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-teal-600'} ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-teal-100'} border shadow-sm grid place-items-center`}
-                    >
-                      <FileText className="h-3 w-3" />
-                    </motion.div>
-                    <motion.div
-                      className={`absolute inset-0 rounded-2xl border-2 ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-cyan-400/30'}`}
-                      animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    />
+                    <FileText className="h-3 w-3" />
                   </motion.div>
+                  <motion.div
+                    className={`absolute inset-0 rounded-2xl border-2 ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-cyan-400/30'}`}
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                </motion.div>
 
-                  {/* Lease Title and Info */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h1 className={`text-lg sm:text-2xl font-semibold tracking-tight ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColorDark || 'text-slate-900'} truncate`}>
-                        {lease.leaseNickname || `${lease.property.title} - ${lease.unit.label}`}
-                      </h1>
-                      <motion.div
-                        animate={{ rotate: [0, 8, -8, 0] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      >
-                        <Sparkles className={`h-4 w-4 ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-teal-500'}`} />
-                      </motion.div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} text-xs sm:text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>
-                        <Building className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                        <span className="truncate font-medium">{lease.property.title}</span>
-                      </div>
-                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} text-xs sm:text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>
-                        <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                        <span className="font-semibold">{formatCurrency(lease.rentAmount)}</span>
-                      </div>
-                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} text-xs sm:text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>
-                        <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                        <span className="hidden sm:inline font-medium">Created {formatDate(lease.createdAt)}</span>
-                        <span className="sm:hidden font-medium">{new Date(lease.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Status Badge and Actions */}
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                  <Badge className={`${themeColor} flex items-center gap-1.5 text-xs sm:text-sm px-3 py-1.5 border shadow-sm font-medium`}>
-                    {getStatusIcon(lease.status)}
-                    {lease.status}
-                  </Badge>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      onClick={handleRefresh}
-                      variant="outline"
-                      size="sm"
-                      disabled={refreshing}
-                      className={`h-8 px-3 text-xs bg-white/60 hover:bg-white/80 ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-300'}`}
+                {/* Lease Title and Info */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h1 className={`text-lg sm:text-2xl font-semibold tracking-tight ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColorDark || 'text-slate-900'} truncate`}>
+                      {lease.leaseNickname || `${lease.property.title} - ${lease.unit.label}`}
+                    </h1>
+                    <motion.div
+                      animate={{ rotate: [0, 8, -8, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                     >
-                      {refreshing ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                          <span className="hidden sm:inline">Refreshing</span>
-                        </>
-                      ) : (
-                        <>
-                          <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                          <span className="hidden sm:inline">Refresh</span>
-                        </>
-                      )}
-                    </Button>
-                    {lease.leaseDocumentUrl && (
-                      <Button 
-                        onClick={downloadLeaseDocument} 
-                        variant="outline" 
-                        size="sm"
-                        className={`h-8 px-3 text-xs bg-white/60 hover:bg-white/80 ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-300'}`}
-                      >
-                        <Download className="h-3.5 w-3.5 mr-1.5" />
-                        <span className="hidden sm:inline">Download</span>
-                      </Button>
-                    )}
+                      <Sparkles className={`h-4 w-4 ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-teal-500'}`} />
+                    </motion.div>
                   </div>
+                  <p className={`text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-600'} leading-6 flex items-center gap-1.5 mt-1`}>
+                    <FileText className="h-4 w-4 text-cyan-500" />
+                    Complete lease details, payments, and maintenance requests
+                  </p>
                 </div>
               </div>
 
-              {/* Status Color Progress Bar */}
-              <motion.div
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
-                style={{ originX: 0 }}
-                className="relative h-1 w-full rounded-full overflow-hidden"
-              >
-                <div className={`absolute inset-0 bg-gradient-to-r ${themeGradient} opacity-50`} />
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
-                  animate={{ x: ["-100%", "100%"] }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
-                />
-              </motion.div>
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                <Button
+                  variant="outline"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="h-11 rounded-xl border-slate-200 bg-white/80 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white disabled:opacity-70"
+                >
+                  {refreshing ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Refreshing
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4" />
+                      Refresh Data
+                    </span>
+                  )}
+                </Button>
+                {lease.leaseDocumentUrl && (
+                  <Button 
+                    onClick={downloadLeaseDocument} 
+                    variant="outline"
+                    className="h-11 rounded-xl border-slate-200 bg-white/80 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Document
+                  </Button>
+                )}
+              </div>
             </div>
+
+            {/* Status Badge and Quick Info */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <Badge className={`${themeColor} flex items-center gap-1.5 text-xs sm:text-sm px-3 py-1.5 border shadow-sm font-medium`}>
+                {getStatusIcon(lease.status)}
+                {lease.status}
+              </Badge>
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} text-xs sm:text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>
+                <Building className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="truncate font-medium">{lease.property.title}</span>
+              </div>
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} text-xs sm:text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>
+                <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="font-semibold">{formatCurrency(lease.rentAmount)}</span>
+              </div>
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} text-xs sm:text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>
+                <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline font-medium">Created {formatDate(lease.createdAt)}</span>
+                <span className="sm:hidden font-medium">{new Date(lease.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              </div>
+            </div>
+
+            {/* Status Color Progress Bar */}
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+              style={{ originX: 0 }}
+              className="relative h-1 w-full rounded-full overflow-hidden"
+            >
+              <div className={`absolute inset-0 bg-gradient-to-r ${themeGradient} opacity-50`} />
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                animate={{ x: ["-100%", "100%"] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+              />
+            </motion.div>
           </div>
-        </motion.div>
+        </div>
+      </motion.div>
 
       {/* Action Alert for Pending Status */}
       {lease.status === 'PENDING' && (
@@ -1454,17 +1454,17 @@ const MyLeaseDetails = () => {
               if (upcomingPayments.length > 0) {
                 return (
                   <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 shadow-md">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-amber-500 rounded-lg">
-                          <AlertTriangle className="w-5 h-5 text-white" />
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row items-start gap-3">
+                        <div className="p-2 bg-amber-500 rounded-lg flex-shrink-0">
+                          <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                         </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-amber-900 mb-2 flex flex-wrap items-center gap-2 text-sm sm:text-base">
                             Payment Reminders
-                            <Badge className="bg-amber-600 text-white">{upcomingPayments.length}</Badge>
+                            <Badge className="bg-amber-600 text-white text-xs">{upcomingPayments.length}</Badge>
                           </h4>
-                          <p className="text-sm text-amber-800 mb-3">
+                          <p className="text-xs sm:text-sm text-amber-800 mb-3">
                             The following payments are due soon. Please pay your landlord on time to avoid late fees and penalties.
                           </p>
                           <div className="space-y-2">
@@ -1477,15 +1477,15 @@ const MyLeaseDetails = () => {
                               const daysUntilDue = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
                               
                               return (
-                                <div key={payment.id} className="flex items-center justify-between p-3 bg-white/80 rounded-lg border border-amber-200">
-                                  <div className="flex items-center gap-3">
-                                    <Calendar className="w-4 h-4 text-amber-600" />
-                                    <div>
-                                      <p className="font-semibold text-gray-900">{formatCurrency(payment.amount)}</p>
+                                <div key={payment.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 p-2.5 sm:p-3 bg-white/80 rounded-lg border border-amber-200">
+                                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                                    <Calendar className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-semibold text-sm sm:text-base text-gray-900 truncate">{formatCurrency(payment.amount)}</p>
                                       <p className="text-xs text-gray-600">Due: {formatDate(payment.dueDate)}</p>
                                     </div>
                                   </div>
-                                  <Badge className={daysUntilDue === 0 ? "bg-red-500 text-white" : daysUntilDue === 1 ? "bg-orange-500 text-white" : "bg-amber-500 text-white"}>
+                                  <Badge className={`flex-shrink-0 text-xs ${daysUntilDue === 0 ? "bg-red-500 text-white" : daysUntilDue === 1 ? "bg-orange-500 text-white" : "bg-amber-500 text-white"}`}>
                                     {daysUntilDue === 0 ? 'Due Today' : daysUntilDue === 1 ? 'Due Tomorrow' : `${daysUntilDue} days left`}
                                   </Badge>
                                 </div>
@@ -1503,182 +1503,299 @@ const MyLeaseDetails = () => {
 
             {/* Payment Statistics */}
             {lease && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5">
                 <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-0 shadow-sm">
-                  <CardContent className="p-3 text-center">
-                    <CreditCard className="w-4 h-4 text-blue-600 mx-auto mb-1" />
-                    <p className="text-xs text-gray-600 font-medium mb-0.5">Total Expected</p>
-                    <p className="text-base font-bold text-blue-600">{formatCurrency(totalExpected)}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{lease.payments.length} payment{lease.payments.length !== 1 ? 's' : ''}</p>
+                  <CardContent className="p-2.5 sm:p-3 text-center">
+                    <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 mx-auto mb-1" />
+                    <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-0.5">Total Expected</p>
+                    <p className="text-sm sm:text-base font-bold text-blue-600 break-words">{formatCurrency(totalExpected)}</p>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 line-clamp-1">{lease.payments.length} payment{lease.payments.length !== 1 ? 's' : ''}</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-0 shadow-sm">
-                  <CardContent className="p-3 text-center">
-                    <CheckCircle2 className="w-4 h-4 text-green-600 mx-auto mb-1" />
-                    <p className="text-xs text-gray-600 font-medium mb-0.5">Collected</p>
-                    <p className="text-base font-bold text-green-600">{formatCurrency(totalPaid)}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{paidPayments.length} payment{paidPayments.length !== 1 ? 's' : ''}</p>
+                  <CardContent className="p-2.5 sm:p-3 text-center">
+                    <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 mx-auto mb-1" />
+                    <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-0.5">Collected</p>
+                    <p className="text-sm sm:text-base font-bold text-green-600 break-words">{formatCurrency(totalPaid)}</p>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 line-clamp-1">{paidPayments.length} payment{paidPayments.length !== 1 ? 's' : ''}</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-0 shadow-sm">
-                  <CardContent className="p-3 text-center">
-                    <Clock className="w-4 h-4 text-orange-600 mx-auto mb-1" />
-                    <p className="text-xs text-gray-600 font-medium mb-0.5">Outstanding</p>
-                    <p className="text-base font-bold text-orange-600">{formatCurrency(outstandingAmount)}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{pendingPayments.length} payment{pendingPayments.length !== 1 ? 's' : ''} awaiting confirmation</p>
+                  <CardContent className="p-2.5 sm:p-3 text-center">
+                    <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-600 mx-auto mb-1" />
+                    <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-0.5">Outstanding</p>
+                    <p className="text-sm sm:text-base font-bold text-orange-600 break-words">{formatCurrency(outstandingAmount)}</p>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 line-clamp-1 hidden sm:block">{pendingPayments.length} payment{pendingPayments.length !== 1 ? 's' : ''} awaiting</p>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 line-clamp-1 sm:hidden">{pendingPayments.length} pending</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-r from-red-50 to-rose-50 border-0 shadow-sm">
-                  <CardContent className="p-3 text-center">
-                    <AlertTriangle className="w-4 h-4 text-red-600 mx-auto mb-1" />
-                    <p className="text-xs text-gray-600 font-medium mb-0.5">Overdue</p>
-                    <p className="text-base font-bold text-red-600">{formatCurrency(overdueAmount)}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{overduePayments.length} payment{overduePayments.length !== 1 ? 's' : ''} overdue</p>
+                  <CardContent className="p-2.5 sm:p-3 text-center">
+                    <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 mx-auto mb-1" />
+                    <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-0.5">Overdue</p>
+                    <p className="text-sm sm:text-base font-bold text-red-600 break-words">{formatCurrency(overdueAmount)}</p>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 line-clamp-1">{overduePayments.length} payment{overduePayments.length !== 1 ? 's' : ''}</p>
                   </CardContent>
                 </Card>
               </div>
             )}
 
-            {/* Payments Table */}
+            {/* Payments Table - Responsive */}
             <Card className="border-0 shadow-lg">
               <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 border-b">
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-gray-600" />
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
                   Payment History
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader className="bg-gray-50">
-                    <TableRow>
-                      <TableHead className="font-semibold">Amount</TableHead>
-                      <TableHead className="font-semibold">Due Date</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="font-semibold">Paid Date</TableHead>
-                      <TableHead className="font-semibold">Method</TableHead>
-                      <TableHead className="font-semibold">Timing</TableHead>
-                      <TableHead className="font-semibold">Type</TableHead>
-                      <TableHead className="font-semibold">Reminder</TableHead>
-                      <TableHead className="font-semibold text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lease.payments.length === 0 ? (
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-gray-50">
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-gray-500 py-12">
-                          <div className="flex flex-col items-center gap-3">
-                            <CreditCard className="w-16 h-16 text-gray-300" />
-                            <p className="text-lg font-medium text-gray-600">No payments recorded yet</p>
-                            <p className="text-gray-500">Payment records will appear here once created</p>
-                          </div>
-                        </TableCell>
+                        <TableHead className="font-semibold">Amount</TableHead>
+                        <TableHead className="font-semibold">Due Date</TableHead>
+                        <TableHead className="font-semibold">Status</TableHead>
+                        <TableHead className="font-semibold">Paid Date</TableHead>
+                        <TableHead className="font-semibold">Method</TableHead>
+                        <TableHead className="font-semibold">Timing</TableHead>
+                        <TableHead className="font-semibold">Type</TableHead>
+                        <TableHead className="font-semibold">Reminder</TableHead>
+                        <TableHead className="font-semibold text-right">Actions</TableHead>
                       </TableRow>
-                    ) : (
-                      lease.payments.map((payment) => (
-                        <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
-                          <TableCell className="font-semibold text-green-600">
-                            {formatCurrency(payment.amount)}
-                          </TableCell>
-                          <TableCell className="min-w-[140px]">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-medium text-gray-900">{formatDate(payment.dueDate)}</span>
-                              <span className="text-xs text-gray-500">
-                                {new Date(payment.dueDate).toLocaleDateString('en-US', { weekday: 'short' })}
-                              </span>
+                    </TableHeader>
+                    <TableBody>
+                      {lease.payments.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center text-gray-500 py-12">
+                            <div className="flex flex-col items-center gap-3">
+                              <CreditCard className="w-16 h-16 text-gray-300" />
+                              <p className="text-lg font-medium text-gray-600">No payments recorded yet</p>
+                              <p className="text-gray-500">Payment records will appear here once created</p>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={getPaymentStatusVariant(payment.status)}
-                              className={`font-medium px-2 py-1 ${
-                                payment.status === 'PAID' 
-                                  ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-100' 
-                                  : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-100'
-                              }`}
-                            >
-                              {payment.status === 'PAID' ? (
-                                <CheckCircle2 className="w-3 h-3 mr-1" />
-                              ) : (
-                                <Clock className="w-3 h-3 mr-1" />
-                              )}
-                              {payment.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="min-w-[140px]">
-                            {payment.paidAt ? (
+                        </TableRow>
+                      ) : (
+                        lease.payments.map((payment) => (
+                          <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
+                            <TableCell className="font-semibold text-green-600">
+                              {formatCurrency(payment.amount)}
+                            </TableCell>
+                            <TableCell className="min-w-[140px]">
                               <div className="flex flex-col gap-0.5">
-                                <span className="font-medium text-gray-900">{formatDate(payment.paidAt)}</span>
+                                <span className="font-medium text-gray-900">{formatDate(payment.dueDate)}</span>
                                 <span className="text-xs text-gray-500">
-                                  {new Date(payment.paidAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                  {new Date(payment.dueDate).toLocaleDateString('en-US', { weekday: 'short' })}
                                 </span>
                               </div>
-                            ) : (
-                              <span className="text-gray-400 italic text-sm">Not paid</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <span className={payment.method ? "font-medium text-gray-700" : "text-gray-400 italic"}>
-                              {payment.method || 'Not specified'}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {payment.timingStatus ? (
+                            </TableCell>
+                            <TableCell>
                               <Badge 
-                                variant={payment.timingStatus === 'ONTIME' ? 'default' : payment.timingStatus === 'LATE' ? 'destructive' : 'outline'}
+                                variant={getPaymentStatusVariant(payment.status)}
                                 className={`font-medium px-2 py-1 ${
-                                  payment.timingStatus === 'ONTIME'
-                                    ? 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-100'
-                                    : payment.timingStatus === 'ADVANCE'
-                                      ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-100'
-                                      : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-100'
+                                  payment.status === 'PAID' 
+                                    ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-100' 
+                                    : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-100'
                                 }`}
                               >
-                                {payment.timingStatus}
+                                {payment.status === 'PAID' ? (
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                                ) : (
+                                  <Clock className="w-3 h-3 mr-1" />
+                                )}
+                                {payment.status}
                               </Badge>
-                            ) : (
-                              <span className="text-gray-400 text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="font-medium">
-                              {payment.type || 'RENT'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge 
-                              className={`font-medium px-2 py-1 ${
-                                payment.reminderStage === 0
-                                  ? 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-100'
-                                  : payment.reminderStage === 1
-                                    ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-100'
-                                    : 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-100'
-                              }`}
-                            >
-                              {payment.reminderStage === 0 
-                                ? 'No reminder' 
-                                : payment.reminderStage === 1 
-                                  ? 'Pre-due sent' 
-                                  : 'Due-day sent'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {payment.note && (
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => setNoteModal({ isOpen: true, note: payment.note })}
-                                className="border-blue-200 text-blue-700 hover:bg-blue-50 h-8 px-3 text-xs"
+                            </TableCell>
+                            <TableCell className="min-w-[140px]">
+                              {payment.paidAt ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-medium text-gray-900">{formatDate(payment.paidAt)}</span>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(payment.paidAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 italic text-sm">Not paid</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <span className={payment.method ? "font-medium text-gray-700" : "text-gray-400 italic"}>
+                                {payment.method || 'Not specified'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {payment.timingStatus ? (
+                                <Badge 
+                                  variant={payment.timingStatus === 'ONTIME' ? 'default' : payment.timingStatus === 'LATE' ? 'destructive' : 'outline'}
+                                  className={`font-medium px-2 py-1 ${
+                                    payment.timingStatus === 'ONTIME'
+                                      ? 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                      : payment.timingStatus === 'ADVANCE'
+                                        ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-100'
+                                        : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-100'
+                                  }`}
+                                >
+                                  {payment.timingStatus}
+                                </Badge>
+                              ) : (
+                                <span className="text-gray-400 text-sm">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="font-medium">
+                                {payment.type || 'RENT'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                className={`font-medium px-2 py-1 ${
+                                  payment.reminderStage === 0
+                                    ? 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-100'
+                                    : payment.reminderStage === 1
+                                      ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-100'
+                                      : 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                }`}
                               >
-                                <FileText className="w-3 h-3 mr-1" />
-                                Note
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                                {payment.reminderStage === 0 
+                                  ? 'No reminder' 
+                                  : payment.reminderStage === 1 
+                                    ? 'Pre-due sent' 
+                                    : 'Due-day sent'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {payment.note && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => setNoteModal({ isOpen: true, note: payment.note })}
+                                  className="border-blue-200 text-blue-700 hover:bg-blue-50 h-8 px-3 text-xs"
+                                >
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  Note
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden">
+                  {lease.payments.length === 0 ? (
+                    <div className="text-center text-gray-500 py-12 px-4">
+                      <div className="flex flex-col items-center gap-3">
+                        <CreditCard className="w-16 h-16 text-gray-300" />
+                        <p className="text-lg font-medium text-gray-600">No payments recorded yet</p>
+                        <p className="text-sm text-gray-500">Payment records will appear here once created</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 p-4">
+                      {lease.payments.map((payment) => (
+                        <Card key={payment.id} className="border border-gray-200 shadow-sm">
+                          <CardContent className="p-4 space-y-3">
+                            {/* Amount and Status - Top Row */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-lg font-bold text-green-600">{formatCurrency(payment.amount)}</p>
+                                <Badge variant="outline" className="mt-1 text-xs">
+                                  {payment.type || 'RENT'}
+                                </Badge>
+                              </div>
+                              <Badge 
+                                variant={getPaymentStatusVariant(payment.status)}
+                                className={`font-medium px-2.5 py-1.5 ${
+                                  payment.status === 'PAID' 
+                                    ? 'bg-green-100 text-green-700 border-green-300' 
+                                    : 'bg-gray-100 text-gray-700 border-gray-300'
+                                }`}
+                              >
+                                {payment.status === 'PAID' ? (
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                                ) : (
+                                  <Clock className="w-3 h-3 mr-1" />
+                                )}
+                                {payment.status}
+                              </Badge>
+                            </div>
+
+                            {/* Due Date */}
+                            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                              <Calendar className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-500">Due Date</p>
+                                <p className="text-sm font-semibold text-gray-900">{formatDate(payment.dueDate)}</p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(payment.dueDate).toLocaleDateString('en-US', { weekday: 'long' })}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Additional Info - Collapsible or always visible */}
+                            <div className="pt-2 border-t border-gray-100 space-y-2">
+                              {payment.paidAt && (
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-gray-500">Paid Date</p>
+                                    <p className="text-sm font-medium text-gray-900">{formatDate(payment.paidAt)}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {payment.method && (
+                                <div className="flex items-center gap-2">
+                                  <CreditCard className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-gray-500">Method</p>
+                                    <p className="text-sm font-medium text-gray-900">{payment.method}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {payment.timingStatus && (
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-gray-500">Timing</p>
+                                    <Badge 
+                                      variant={payment.timingStatus === 'ONTIME' ? 'default' : payment.timingStatus === 'LATE' ? 'destructive' : 'outline'}
+                                      className={`text-xs ${
+                                        payment.timingStatus === 'ONTIME'
+                                          ? 'bg-blue-100 text-blue-700 border-blue-300'
+                                          : payment.timingStatus === 'ADVANCE'
+                                            ? 'bg-green-100 text-green-700 border-green-300'
+                                            : 'bg-red-100 text-red-700 border-red-300'
+                                      }`}
+                                    >
+                                      {payment.timingStatus}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              )}
+                              {payment.note && (
+                                <div className="pt-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setNoteModal({ isOpen: true, note: payment.note })}
+                                    className="w-full border-blue-200 text-blue-700 hover:bg-blue-50 text-xs"
+                                  >
+                                    <FileText className="w-3 h-3 mr-1" />
+                                    View Note
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1833,7 +1950,7 @@ const MyLeaseDetails = () => {
 
             {/* Create Maintenance Request Modal */}
             <Dialog open={showCreateMaintenanceModal} onOpenChange={setShowCreateMaintenanceModal}>
-              <DialogContent className="sm:max-w-lg">
+              <DialogContent className="w-[90vw] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto p-3 sm:p-6 mx-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Wrench className="w-5 h-5 text-blue-600" />
@@ -1961,7 +2078,7 @@ const MyLeaseDetails = () => {
 
             {/* Cancel Maintenance Request Modal */}
             <Dialog open={cancelModal.isOpen} onOpenChange={(open) => setCancelModal({ isOpen: open, requestId: null })}>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="w-[90vw] sm:w-full max-w-md max-h-[90vh] overflow-y-auto p-3 sm:p-6 mx-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <XCircle className="w-5 h-5 text-red-600" />
@@ -2016,7 +2133,7 @@ const MyLeaseDetails = () => {
 
       {/* Maintenance Request Detail Modal */}
       <Dialog open={detailModal.isOpen} onOpenChange={(open) => setDetailModal({ isOpen: open, request: null })}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto p-3 sm:p-6 mx-auto">
           {detailModal.request && (
             <>
               <DialogHeader>
@@ -2179,7 +2296,6 @@ const MyLeaseDetails = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </div>
     </div>
   );
 };

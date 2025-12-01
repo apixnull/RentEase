@@ -58,7 +58,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { cancelLeaseRequest, getLeaseByIdRequest, terminateLeaseRequest, completeLeaseRequest, addLandlordNoteRequest, updateLandlordNoteRequest, deleteLandlordNoteRequest } from '@/api/landlord/leaseApi';
-import { createPaymentRequest, markPaymentAsPaidRequest } from '@/api/landlord/paymentApi';
+import { createPaymentRequest, markPaymentAsPaidRequest, updatePaymentRequest, deletePaymentRequest } from '@/api/landlord/paymentApi';
 import { toast } from 'sonner';
 
 // Complete Color Schema for Lease Statuses
@@ -280,7 +280,7 @@ interface Lease {
   };
   payments: Payment[];
   behaviorMetrics?: {
-    paymentBehavior: 'ONTIME' | 'LATE' | 'ADVANCE' | 'MIXED' | null;
+    paymentBehavior: 'GOOD' | 'HAS_1_LATE' | 'HAS_MULTIPLE_LATE' | 'ONTIME' | 'LATE' | 'ADVANCE' | 'MIXED' | null;
     paymentReliability: number | null;
     maintenanceRequestsCount: number;
   };
@@ -315,6 +315,14 @@ interface MarkAsPaidForm {
   timingStatus: string;
   manualTimingOverride: boolean;
   amount?: number;
+  note?: string;
+}
+
+interface EditPaymentForm {
+  amount: number;
+  dueDate: string;
+  type: string;
+  note: string;
 }
 
 interface RecordPaymentForm {
@@ -460,7 +468,21 @@ const ViewSpecificLease = () => {
     method: '',
     type: 'RENT',
     timingStatus: 'ONTIME',
-    manualTimingOverride: false
+    manualTimingOverride: false,
+    note: ''
+  });
+  const [editPaymentModal, setEditPaymentModal] = useState<{
+    isOpen: boolean;
+    payment: Payment | null;
+  }>({
+    isOpen: false,
+    payment: null,
+  });
+  const [editPaymentForm, setEditPaymentForm] = useState<EditPaymentForm>({
+    amount: 0,
+    dueDate: '',
+    type: 'RENT',
+    note: '',
   });
   const [recordPaymentForm, setRecordPaymentForm] = useState<RecordPaymentForm>({
     amount: 0,
@@ -566,17 +588,6 @@ const ViewSpecificLease = () => {
 
   const handleRefresh = () => {
     fetchLeaseData(true);
-  };
-
-  // Get the latest pending payment
-  const getLatestPendingPayment = () => {
-    if (!lease?.payments?.length) return null;
-
-    const pendingPayments = lease.payments
-      .filter(payment => payment.status === 'PENDING')
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-
-    return pendingPayments[0] || null;
   };
 
   // Get upcoming payments that need reminders
@@ -808,12 +819,17 @@ const ViewSpecificLease = () => {
       payment,
     });
     const defaultTimingStatus = calculateTimingStatus(payment.dueDate, new Date().toISOString().split('T')[0], payment.type || 'RENT');
+    // Get today's date in local timezone (YYYY-MM-DD format)
+    const today = new Date();
+    const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
     setMarkAsPaidForm({
-      paidAt: new Date().toISOString().split('T')[0],
+      paidAt: todayString,
       method: '',
-      type: payment.type || 'RENT', // Keep for timing calculation, but won't be sent to API
+      type: payment.type || 'RENT', // Pre-populate with existing payment type, can be updated
       timingStatus: defaultTimingStatus || 'ONTIME',
       manualTimingOverride: false,
+      note: '', // Initialize note field
       // If it's a PREPAYMENT with amount 0, allow landlord to set amount
       amount: payment.type === 'PREPAYMENT' && payment.amount === 0 ? undefined : payment.amount
     });
@@ -823,8 +839,7 @@ const ViewSpecificLease = () => {
     if (!markAsPaidModal.payment || !leaseId) return;
 
     // Calculate timing status (use manual override if set, otherwise calculate)
-    // Use the payment's existing type, not the form type
-    const paymentType = markAsPaidModal.payment.type || 'RENT';
+    // Use the form's type
     let timingStatus: 'ONTIME' | 'LATE' | 'ADVANCE' | null;
     if (markAsPaidForm.manualTimingOverride) {
       timingStatus = markAsPaidForm.timingStatus as 'ONTIME' | 'LATE' | 'ADVANCE';
@@ -832,12 +847,12 @@ const ViewSpecificLease = () => {
       timingStatus = calculateTimingStatus(
         markAsPaidModal.payment.dueDate,
         markAsPaidForm.paidAt,
-        paymentType
+        markAsPaidForm.type
       );
     }
 
     // Get the amount to display (use form amount for prepayments with amount 0, otherwise use payment amount)
-    const displayAmount = (markAsPaidModal.payment.type === 'PREPAYMENT' && markAsPaidModal.payment.amount === 0 && markAsPaidForm.amount)
+    const displayAmount = (markAsPaidForm.type === 'PREPAYMENT' && markAsPaidModal.payment.amount === 0 && markAsPaidForm.amount)
       ? markAsPaidForm.amount
       : markAsPaidModal.payment.amount;
 
@@ -848,22 +863,24 @@ const ViewSpecificLease = () => {
     try {
       setSubmitting(true);
       
-      // Prepare request data - use payment's existing type, not form type
+      // Prepare request data - use form's type
       const requestData: {
         paidAt: string;
         method: string;
         type: string;
         timingStatus: string;
         amount?: number;
+        note?: string;
       } = {
         paidAt: markAsPaidForm.paidAt,
         method: markAsPaidForm.method,
-        type: paymentType, // Use payment's existing type
+        type: markAsPaidForm.type, // Use form's type
         timingStatus: timingStatus || 'ONTIME',
+        note: markAsPaidForm.note?.trim() || undefined,
       };
 
       // Include amount if it's a PREPAYMENT with amount 0
-      if (markAsPaidModal.payment.type === 'PREPAYMENT' && markAsPaidModal.payment.amount === 0 && markAsPaidForm.amount !== undefined) {
+      if (markAsPaidForm.type === 'PREPAYMENT' && markAsPaidModal.payment.amount === 0 && markAsPaidForm.amount !== undefined) {
         requestData.amount = markAsPaidForm.amount;
       }
       
@@ -937,6 +954,58 @@ const ViewSpecificLease = () => {
       }
     }
   }, [recordPaymentForm.status, recordPaymentModal]);
+
+  const handleEditPaymentSubmit = async () => {
+    if (!editPaymentModal.payment || !leaseId) return;
+
+    if (!confirm(`Update this payment record?\nAmount: ${formatCurrency(editPaymentForm.amount)}\nDue Date: ${formatDate(editPaymentForm.dueDate)}\nType: ${editPaymentForm.type}`)) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      await updatePaymentRequest(editPaymentModal.payment.id, {
+        amount: editPaymentForm.amount,
+        dueDate: editPaymentForm.dueDate,
+        type: editPaymentForm.type,
+        note: editPaymentForm.note.trim() || undefined,
+      });
+
+      await fetchLeaseData(true);
+
+      setEditPaymentModal({ isOpen: false, payment: null });
+      toast.success('Payment updated successfully!');
+    } catch (error: any) {
+      console.error('Error updating payment:', error);
+      toast.error(error?.response?.data?.error || 'Failed to update payment. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeletePayment = async (payment: Payment) => {
+    // Only allow deleting PENDING payments
+    if (payment.status !== 'PENDING' || lease?.status !== 'ACTIVE') {
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete this payment?\nAmount: ${formatCurrency(payment.amount)}\nDue Date: ${formatDate(payment.dueDate)}\nType: ${payment.type || 'RENT'}\n\nThis action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await deletePaymentRequest(payment.id);
+      await fetchLeaseData(true);
+      toast.success('Payment deleted successfully!');
+    } catch (error: any) {
+      console.error('Error deleting payment:', error);
+      toast.error(error?.response?.data?.error || 'Failed to delete payment. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleRecordPaymentSubmit = async () => {
     if (!lease || !leaseId) return;
@@ -1132,7 +1201,6 @@ const ViewSpecificLease = () => {
   const leaseDuration = calculateLeaseDuration();
   const paidPayments = lease.payments.filter(p => p.status === 'PAID');
   const totalPaid = paidPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const latestPendingPayment = getLatestPendingPayment();
   const pendingPayments = lease.payments.filter(p => p.status === 'PENDING');
   const totalExpected = lease.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const outstandingAmount = pendingPayments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -1971,7 +2039,29 @@ const ViewSpecificLease = () => {
                         </TableRow>
                       ) : (
                         lease.payments.map((payment) => (
-                          <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
+                          <TableRow 
+                            key={payment.id} 
+                            className={`hover:bg-gray-50 transition-colors ${
+                              payment.status === 'PENDING' && lease.status === 'ACTIVE' 
+                                ? 'cursor-pointer' 
+                                : ''
+                            }`}
+                            onClick={() => {
+                              if (payment.status === 'PENDING' && lease.status === 'ACTIVE') {
+                                // Open edit modal for PENDING payments
+                                setEditPaymentModal({
+                                  isOpen: true,
+                                  payment,
+                                });
+                                setEditPaymentForm({
+                                  amount: payment.amount,
+                                  dueDate: payment.dueDate.split('T')[0],
+                                  type: payment.type || 'RENT',
+                                  note: payment.note || '',
+                                });
+                              }
+                            }}
+                          >
                             <TableCell className="font-semibold text-green-600">
                               {formatCurrency(payment.amount)}
                             </TableCell>
@@ -2058,7 +2148,7 @@ const ViewSpecificLease = () => {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <div className="flex justify-end gap-2">
+                              <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                 {payment.note && (
                                   <Button 
                                     variant="outline" 
@@ -2070,15 +2160,32 @@ const ViewSpecificLease = () => {
                                     Notes Available
                                   </Button>
                                 )}
-                                {lease.status === 'ACTIVE' && payment.status === 'PENDING' && payment.id === latestPendingPayment?.id && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => handleMarkAsPaid(payment)}
-                                    className="border-green-200 text-green-700 hover:bg-green-50"
-                                  >
-                                    Mark as Paid
-                                  </Button>
+                                {lease.status === 'ACTIVE' && payment.status === 'PENDING' && (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMarkAsPaid(payment);
+                                      }}
+                                      className="border-green-200 text-green-700 hover:bg-green-50"
+                                    >
+                                      Mark as Paid
+                                    </Button>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeletePayment(payment);
+                                      }}
+                                      className="border-red-200 text-red-700 hover:bg-red-50"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-1" />
+                                      Delete
+                                    </Button>
+                                  </>
                                 )}
                                 {payment.status === 'PAID' && (
                                   <Button variant="outline" size="sm" disabled>
@@ -2106,6 +2213,25 @@ const ViewSpecificLease = () => {
                     <h3 className="text-2xl font-bold text-gray-800">Tenant Behavior Analysis</h3>
                     <p className="text-gray-600">Track tenant payment patterns and maintenance requests</p>
                   </div>
+                  <Button
+                    onClick={() => fetchLeaseData(true)}
+                    variant="outline"
+                    size="sm"
+                    disabled={refreshing}
+                    className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
+                  >
+                    {refreshing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Refreshing
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Refresh Metrics
+                      </>
+                    )}
+                  </Button>
                 </div>
 
                 {(() => {
@@ -2115,16 +2241,51 @@ const ViewSpecificLease = () => {
                   // Helper functions
                   const getPaymentBehaviorColor = (behavior: string | null) => {
                     switch (behavior) {
+                      case 'GOOD':
+                        return 'bg-green-100 text-green-700 border-green-300';
+                      case 'HAS_1_LATE':
+                        return 'bg-amber-100 text-amber-700 border-amber-300';
+                      case 'HAS_MULTIPLE_LATE':
+                        return 'bg-red-100 text-red-700 border-red-300';
                       case 'ONTIME':
                         return 'bg-green-100 text-green-700 border-green-300';
                       case 'LATE':
                         return 'bg-red-100 text-red-700 border-red-300';
                       case 'ADVANCE':
                         return 'bg-blue-100 text-blue-700 border-blue-300';
-                      case 'MIXED':
-                        return 'bg-amber-100 text-amber-700 border-amber-300';
                       default:
                         return 'bg-gray-100 text-gray-700 border-gray-300';
+                    }
+                  };
+
+                  // Get payment behavior display text with details
+                  const getPaymentBehaviorDisplay = (behavior: string | null) => {
+                    if (!behavior || !hasPaymentData) return 'No payment data yet';
+                    
+                    const paidPayments = lease.payments?.filter(p => p.status === 'PAID' && p.timingStatus) || [];
+                    const timingCounts = {
+                      ONTIME: paidPayments.filter(p => p.timingStatus === 'ONTIME').length,
+                      LATE: paidPayments.filter(p => p.timingStatus === 'LATE').length,
+                      ADVANCE: paidPayments.filter(p => p.timingStatus === 'ADVANCE').length,
+                    };
+
+                    switch (behavior) {
+                      case 'GOOD':
+                        const parts = [];
+                        if (timingCounts.ADVANCE > 0) {
+                          parts.push(`${timingCounts.ADVANCE} advance`);
+                        }
+                        if (timingCounts.ONTIME > 0) {
+                          parts.push(`${timingCounts.ONTIME} on-time`);
+                        }
+                        const detailText = parts.length > 0 ? parts.join(' and ') : 'all payments';
+                        return `Has ${detailText} payment${paidPayments.length !== 1 ? 's' : ''}. Good payment behavior.`;
+                      case 'HAS_1_LATE':
+                        return `Has 1 late payment.`;
+                      case 'HAS_MULTIPLE_LATE':
+                        return `Has ${timingCounts.LATE} late payment${timingCounts.LATE !== 1 ? 's' : ''}. This tenant needs improvement.`;
+                      default:
+                        return behavior;
                     }
                   };
 
@@ -2145,9 +2306,14 @@ const ViewSpecificLease = () => {
                     }
                   };
 
+                  // Calculate payment reliability percentage
                   const paymentReliabilityPercent = behaviorMetrics?.paymentReliability !== null && behaviorMetrics?.paymentReliability !== undefined
                     ? ((behaviorMetrics.paymentReliability || 0) * 100).toFixed(1) 
                     : null;
+
+                  // Check if there are any paid payments to calculate metrics from
+                  const paidPayments = lease.payments?.filter(p => p.status === 'PAID' && p.timingStatus) || [];
+                  const hasPaymentData = paidPayments.length > 0;
 
 
                   return (
@@ -2166,16 +2332,33 @@ const ViewSpecificLease = () => {
                             {behaviorMetrics?.paymentBehavior ? (
                               <div className="space-y-2">
                                 <Badge className={`${getPaymentBehaviorColor(behaviorMetrics.paymentBehavior)} font-semibold px-3 py-1.5 text-sm`}>
-                                  {behaviorMetrics.paymentBehavior}
+                                  {(behaviorMetrics.paymentBehavior === 'GOOD' || behaviorMetrics.paymentBehavior === 'HAS_1_LATE' || behaviorMetrics.paymentBehavior === 'HAS_MULTIPLE_LATE') ? (
+                                    behaviorMetrics.paymentBehavior === 'GOOD' ? 'GOOD' : 
+                                    behaviorMetrics.paymentBehavior === 'HAS_1_LATE' ? 'NEEDS ATTENTION' :
+                                    'POOR'
+                                  ) : (
+                                    behaviorMetrics.paymentBehavior
+                                  )}
                                 </Badge>
+                                <p className="text-sm text-gray-700 mt-2">
+                                  {getPaymentBehaviorDisplay(behaviorMetrics.paymentBehavior)}
+                                </p>
                                 {paymentReliabilityPercent !== null && (
-                                  <p className="text-sm text-gray-600 mt-2">
-                                    <span className="font-semibold">{paymentReliabilityPercent}%</span> on-time payment rate
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    <span className="font-semibold">{paymentReliabilityPercent}%</span> payment reliability
                                   </p>
                                 )}
                               </div>
+                            ) : hasPaymentData ? (
+                              <div className="space-y-2">
+                                <p className="text-sm text-amber-600">Calculating...</p>
+                                <p className="text-xs text-gray-500">Refresh to see updated metrics</p>
+                              </div>
                             ) : (
-                              <p className="text-sm text-gray-500">No payment data yet</p>
+                              <div className="space-y-2">
+                                <p className="text-sm text-gray-500">No payment data yet</p>
+                                <p className="text-xs text-gray-400">Metrics will appear after payments are marked as paid</p>
+                              </div>
                             )}
                           </CardContent>
                         </Card>
@@ -2214,8 +2397,16 @@ const ViewSpecificLease = () => {
                                     : 'Needs Improvement'}
                                 </p>
                               </div>
+                            ) : hasPaymentData ? (
+                              <div className="space-y-2">
+                                <p className="text-sm text-amber-600">Calculating...</p>
+                                <p className="text-xs text-gray-500">Refresh to see updated metrics</p>
+                              </div>
                             ) : (
-                              <p className="text-sm text-gray-500">No payment data yet</p>
+                              <div className="space-y-2">
+                                <p className="text-sm text-gray-500">No payment data yet</p>
+                                <p className="text-xs text-gray-400">Metrics will appear after payments are marked as paid</p>
+                              </div>
                             )}
                           </CardContent>
                         </Card>
@@ -2552,11 +2743,10 @@ const ViewSpecificLease = () => {
                 onChange={(newDate) => {
                   setMarkAsPaidForm(prev => {
                     // Recalculate timing status when date changes (unless manual override is active)
-                    // Use payment's existing type for calculation
-                    const paymentType = markAsPaidModal.payment?.type || 'RENT';
+                    // Use form's type for calculation
                     const newTimingStatus = prev.manualTimingOverride 
                       ? prev.timingStatus 
-                      : (calculateTimingStatus(markAsPaidModal.payment?.dueDate || '', newDate, paymentType) || 'ONTIME');
+                      : (calculateTimingStatus(markAsPaidModal.payment?.dueDate || '', newDate, prev.type) || 'ONTIME');
                     return { ...prev, paidAt: newDate, timingStatus: newTimingStatus };
                   });
                 }}
@@ -2586,8 +2776,38 @@ const ViewSpecificLease = () => {
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="type">
+                Payment Type *
+              </Label>
+              <Select 
+                value={markAsPaidForm.type} 
+                onValueChange={(value) => {
+                  setMarkAsPaidForm(prev => {
+                    // Recalculate timing status when type changes (unless manual override is active)
+                    const newTimingStatus = prev.manualTimingOverride 
+                      ? prev.timingStatus 
+                      : (calculateTimingStatus(markAsPaidModal.payment?.dueDate || '', prev.paidAt, value) || 'ONTIME');
+                    return { ...prev, type: value, timingStatus: newTimingStatus };
+                  });
+                }}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment type" />
+                </SelectTrigger>
+                <SelectContent className="z-[100]">
+                  <SelectItem value="RENT">Rent</SelectItem>
+                  <SelectItem value="PREPAYMENT">Prepayment</SelectItem>
+                  <SelectItem value="ADVANCE_PAYMENT">Advance Payment</SelectItem>
+                  <SelectItem value="PENALTY">Penalty</SelectItem>
+                  <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Amount field for PREPAYMENT with amount 0 */}
-            {markAsPaidModal.payment?.type === 'PREPAYMENT' && markAsPaidModal.payment?.amount === 0 && (
+            {markAsPaidForm.type === 'PREPAYMENT' && markAsPaidModal.payment?.amount === 0 && (
               <div className="space-y-2">
                 <Label htmlFor="amount">
                   Amount * <span className="text-xs text-gray-500">(Set prorated amount for gap period)</span>
@@ -2673,15 +2893,14 @@ const ViewSpecificLease = () => {
                 ) : (
                   <div>
                     {(() => {
-                      const paymentType = markAsPaidModal.payment?.type || 'RENT';
-                      const calculatedStatus = calculateTimingStatus(markAsPaidModal.payment.dueDate, markAsPaidForm.paidAt, paymentType);
+                      const calculatedStatus = calculateTimingStatus(markAsPaidModal.payment.dueDate, markAsPaidForm.paidAt, markAsPaidForm.type);
                       return (
                         <>
                           <Badge variant={getTimingStatusVariant(calculatedStatus)}>
                             {calculatedStatus || 'Not calculated'}
                           </Badge>
                           <p className="text-xs text-gray-500 mt-1">
-                            {paymentType === 'PREPAYMENT' || paymentType === 'ADVANCE_PAYMENT'
+                            {markAsPaidForm.type === 'PREPAYMENT' || markAsPaidForm.type === 'ADVANCE_PAYMENT'
                               ? 'Prepayments and advance payments default to ADVANCE status'
                               : 'Based on due date and paid date comparison'}
                           </p>
@@ -2692,6 +2911,22 @@ const ViewSpecificLease = () => {
                 )}
               </div>
             )}
+
+            {/* Note Field */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label htmlFor="mark-paid-note">Note (Optional)</Label>
+              <Textarea
+                id="mark-paid-note"
+                value={markAsPaidForm.note || ''}
+                onChange={(e) => setMarkAsPaidForm({ ...markAsPaidForm, note: e.target.value })}
+                placeholder="Add a note for this payment (e.g., reference number, special circumstances...)"
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-gray-500">
+                Useful for recording reference numbers or special circumstances
+              </p>
+            </div>
           </div>
           
           <DialogFooter>
@@ -2706,8 +2941,9 @@ const ViewSpecificLease = () => {
               onClick={handleMarkAsPaidSubmit}
               disabled={
                 !markAsPaidForm.method || 
+                !markAsPaidForm.type ||
                 submitting ||
-                (markAsPaidModal.payment?.type === 'PREPAYMENT' && 
+                (markAsPaidForm.type === 'PREPAYMENT' && 
                  markAsPaidModal.payment?.amount === 0 && 
                  (!markAsPaidForm.amount || markAsPaidForm.amount <= 0))
               }
@@ -3102,6 +3338,105 @@ const ViewSpecificLease = () => {
               className="bg-blue-600 hover:bg-blue-700"
             >
               {submitting ? 'Updating...' : 'Update Note'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Payment Modal */}
+      <Dialog open={editPaymentModal.isOpen} onOpenChange={(open) => setEditPaymentModal({ isOpen: open, payment: null })}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="w-5 h-5 text-blue-600" />
+              Edit Payment
+            </DialogTitle>
+            <DialogDescription>
+              Update payment details for {editPaymentModal.payment && formatCurrency(editPaymentModal.payment.amount)} due on {editPaymentModal.payment && formatDate(editPaymentModal.payment.dueDate)}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-amount">Amount *</Label>
+                <Input
+                  id="edit-amount"
+                  type="number"
+                  value={editPaymentForm.amount}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, amount: Number(e.target.value) })}
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-type">Payment Type *</Label>
+                <Select 
+                  value={editPaymentForm.type} 
+                  onValueChange={(value) => setEditPaymentForm({ ...editPaymentForm, type: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[100]">
+                    <SelectItem value="RENT">Rent</SelectItem>
+                    <SelectItem value="PREPAYMENT">Prepayment</SelectItem>
+                    <SelectItem value="ADVANCE_PAYMENT">Advance Payment</SelectItem>
+                    <SelectItem value="PENALTY">Penalty</SelectItem>
+                    <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-dueDate">Due Date *</Label>
+              <CustomDatePicker
+                value={editPaymentForm.dueDate}
+                onChange={(newDate) => setEditPaymentForm({ ...editPaymentForm, dueDate: newDate })}
+              />
+            </div>
+
+            {/* Note Field */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-note">Note (Optional)</Label>
+              <Textarea
+                id="edit-note"
+                value={editPaymentForm.note}
+                onChange={(e) => setEditPaymentForm({ ...editPaymentForm, note: e.target.value })}
+                placeholder="Add a note for this payment (e.g., reference number, special circumstances...)"
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-gray-500">
+                Useful for recording reference numbers or special circumstances
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setEditPaymentModal({ isOpen: false, payment: null })}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleEditPaymentSubmit}
+              disabled={
+                !editPaymentForm.type || 
+                !editPaymentForm.amount ||
+                !editPaymentForm.dueDate ||
+                submitting
+              }
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {submitting ? 'Updating...' : 'Update Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>

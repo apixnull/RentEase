@@ -23,3 +23,7 @@ export const updateUnitRequest = (
   options?: { signal?: AbortSignal }
 ) =>
   privateApi.patch(apiRoutes.landlord(`/unit/${unitId}`), data, { signal: options?.signal });
+
+// Delete a unit
+export const deleteUnitRequest = (unitId: string, options?: { signal?: AbortSignal }) =>
+  privateApi.delete(apiRoutes.landlord(`/unit/${unitId}`), { signal: options?.signal });

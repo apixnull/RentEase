@@ -12,44 +12,58 @@ import { createNotification } from "../notificationController.js";
  */
 async function computeTenantBehaviorMetrics(leaseId, tenantId, propertyId, unitId) {
   try {
-    // Get all paid payments with timing status
-    const paidPayments = await prisma.payment.findMany({
+    // Get all paid payments (including those without timingStatus for debugging)
+    const allPaidPayments = await prisma.payment.findMany({
       where: {
         leaseId,
         status: 'PAID',
-        timingStatus: { not: null },
       },
     });
+
+    // Filter to only payments with timingStatus for metrics calculation
+    const paidPayments = allPaidPayments.filter(p => p.timingStatus !== null);
+
+    // Debug logging
+    console.log(`📊 Computing behavior metrics for lease ${leaseId}:`);
+    console.log(`   - Total paid payments: ${allPaidPayments.length}`);
+    console.log(`   - Paid payments with timingStatus: ${paidPayments.length}`);
 
     // Calculate payment metrics
     let paymentReliability = null;
     let paymentBehavior = null;
 
     if (paidPayments.length > 0) {
-      // Calculate payment reliability
-      const onTimeCount = paidPayments.filter(p => p.timingStatus === 'ONTIME').length;
-      paymentReliability = onTimeCount / paidPayments.length;
-
-      // Determine dominant payment behavior
+      // Count payments by timing status
       const timingCounts = {
         ONTIME: paidPayments.filter(p => p.timingStatus === 'ONTIME').length,
         LATE: paidPayments.filter(p => p.timingStatus === 'LATE').length,
         ADVANCE: paidPayments.filter(p => p.timingStatus === 'ADVANCE').length,
       };
 
-      const maxCount = Math.max(timingCounts.ONTIME, timingCounts.LATE, timingCounts.ADVANCE);
+      // Payment Reliability: 100% if no late payments (on-time + advance count as good)
+      // Only late payments reduce reliability
+      const goodPayments = timingCounts.ONTIME + timingCounts.ADVANCE;
+      paymentReliability = goodPayments / paidPayments.length;
       
-      // Count how many statuses have the max count (for tie detection)
-      const tiedStatuses = [];
-      if (timingCounts.ONTIME === maxCount) tiedStatuses.push('ONTIME');
-      if (timingCounts.LATE === maxCount) tiedStatuses.push('LATE');
-      if (timingCounts.ADVANCE === maxCount) tiedStatuses.push('ADVANCE');
+      console.log(`   - On-time payments: ${timingCounts.ONTIME}`);
+      console.log(`   - Advance payments: ${timingCounts.ADVANCE}`);
+      console.log(`   - Late payments: ${timingCounts.LATE}`);
+      console.log(`   - Payment reliability: ${(paymentReliability * 100).toFixed(1)}%`);
 
-      if (tiedStatuses.length > 1) {
-        paymentBehavior = 'MIXED'; // True tie
+      // Payment Behavior: Show detailed message based on payment patterns
+      if (timingCounts.LATE === 0) {
+        // No late payments = GOOD behavior
+        paymentBehavior = 'GOOD';
+      } else if (timingCounts.LATE === 1) {
+        // 1 late payment
+        paymentBehavior = 'HAS_1_LATE';
       } else {
-        paymentBehavior = tiedStatuses[0]; // Dominant pattern
+        // More than 1 late payment = WORSE behavior
+        paymentBehavior = 'HAS_MULTIPLE_LATE';
       }
+    } else if (allPaidPayments.length > 0) {
+      // If there are paid payments but none have timingStatus, log a warning
+      console.warn(`⚠️ Lease ${leaseId} has ${allPaidPayments.length} paid payment(s) but none have timingStatus set. This may indicate a data issue.`);
     }
 
     // Count maintenance requests
@@ -333,6 +347,13 @@ export const getLeaseById = async (req, res) => {
       lease.propertyId,
       lease.unitId
     );
+
+    // Debug logging
+    console.log(`📊 Behavior metrics computed for lease ${lease.id}:`, {
+      paymentBehavior: behaviorMetrics.paymentBehavior,
+      paymentReliability: behaviorMetrics.paymentReliability,
+      maintenanceRequestsCount: behaviorMetrics.maintenanceRequestsCount,
+    });
 
     // Add computed metrics and landlordNotes to lease response
     const leaseWithMetrics = {
@@ -763,7 +784,7 @@ export const createPayment = async (req, res) => {
 export const markPaymentAsPaid = async (req, res) => {
   try {
     const { paymentId } = req.params;
-    const { paidAt, method, type, timingStatus, amount } = req.body;
+    const { paidAt, method, type, timingStatus, amount, note } = req.body;
 
     console.log("🟢 Incoming markPaymentAsPaid request:");
     console.log("paymentId:", paymentId);
@@ -807,6 +828,7 @@ export const markPaymentAsPaid = async (req, res) => {
       type,
       timingStatus,
       status: "PAID",
+      note: note || null,
     };
 
     let finalAmount = payment.amount;
@@ -871,6 +893,166 @@ export const markPaymentAsPaid = async (req, res) => {
     console.error("🔥 Error marking payment as paid:", err);
     return res.status(500).json({
       error: "Failed to mark payment as paid.",
+      details: err.message,
+    });
+  }
+};
+
+/**
+ * @desc Update a PENDING payment record
+ * @route PATCH /api/payments/:paymentId/update
+ * @access Private (Landlord)
+ */
+export const updatePayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { amount, dueDate, type, note } = req.body;
+
+    console.log("🟢 Incoming updatePayment request:");
+    console.log("paymentId:", paymentId);
+    console.log("Body:", { amount, dueDate, type, note });
+
+    // --- Basic validation ---
+    if (!amount || !dueDate || !type) {
+      return res.status(400).json({
+        error: "Missing required fields: amount, dueDate, type",
+      });
+    }
+
+    // --- Validate numeric fields ---
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: "Invalid amount." });
+    }
+
+    // --- Validate dates ---
+    const parsedDueDate = new Date(dueDate);
+    if (isNaN(parsedDueDate.getTime())) {
+      return res.status(400).json({ error: "Invalid dueDate." });
+    }
+
+    // --- Check if payment exists and belongs to landlord ---
+    const landlordId = req.user?.id;
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        lease: {
+          select: {
+            id: true,
+            landlordId: true,
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: "Payment not found." });
+    }
+
+    if (payment.lease.landlordId !== landlordId) {
+      return res.status(403).json({ error: "Unauthorized: You don't have access to this payment." });
+    }
+
+    // --- Only allow updating PENDING payments ---
+    if (payment.status !== 'PENDING') {
+      return res.status(400).json({ error: "Only PENDING payments can be updated." });
+    }
+
+    // --- Update payment data ---
+    const updateData = {
+      amount: parsedAmount,
+      dueDate: parsedDueDate,
+      type,
+      note: note || null,
+    };
+
+    const updatedPayment = await prisma.payment.update({
+      where: { id: paymentId },
+      data: updateData,
+      select: {
+        id: true,
+        amount: true,
+        dueDate: true,
+        paidAt: true,
+        method: true,
+        status: true,
+        timingStatus: true,
+        type: true,
+        reminderStage: true,
+        note: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    console.log("✅ Payment updated:", updatedPayment);
+
+    return res.status(200).json({
+      message: "Payment updated successfully.",
+      payment: updatedPayment,
+    });
+  } catch (err) {
+    console.error("🔥 Error updating payment:", err);
+    return res.status(500).json({
+      error: "Failed to update payment.",
+      details: err.message,
+    });
+  }
+};
+
+/**
+ * @desc Delete a PENDING payment record
+ * @route DELETE /api/payments/:paymentId
+ * @access Private (Landlord)
+ */
+export const deletePayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+
+    console.log("🟢 Incoming deletePayment request:");
+    console.log("paymentId:", paymentId);
+
+    // --- Check if payment exists and belongs to landlord ---
+    const landlordId = req.user?.id;
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        lease: {
+          select: {
+            id: true,
+            landlordId: true,
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: "Payment not found." });
+    }
+
+    if (payment.lease.landlordId !== landlordId) {
+      return res.status(403).json({ error: "Unauthorized: You don't have access to this payment." });
+    }
+
+    // --- Only allow deleting PENDING payments ---
+    if (payment.status !== 'PENDING') {
+      return res.status(400).json({ error: "Only PENDING payments can be deleted." });
+    }
+
+    // --- Delete payment ---
+    await prisma.payment.delete({
+      where: { id: paymentId },
+    });
+
+    console.log("✅ Payment deleted:", paymentId);
+
+    return res.status(200).json({
+      message: "Payment deleted successfully.",
+    });
+  } catch (err) {
+    console.error("🔥 Error deleting payment:", err);
+    return res.status(500).json({
+      error: "Failed to delete payment.",
       details: err.message,
     });
   }

@@ -1,8 +1,9 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { getUserChatChannelsRequest, sendAndCreateChannelRequest, searchUsersForMessagingRequest } from "@/api/chatApi";
+import { getUserChatChannelsRequest, sendAndCreateChannelRequest, searchUsersForMessagingRequest, getChannelMessagesRequest, sendMessageRequest, markMessagesAsReadRequest } from "@/api/chatApi";
 import { useSocket } from "@/hooks/useSocket";
+import { inviteTenantForScreeningRequest } from "@/api/landlord/screeningApi";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Search, 
   MessageCircle, 
@@ -28,10 +46,16 @@ import {
   HelpCircle,
   Sparkles,
   UserPlus,
-  Loader2
+  Loader2,
+  FileText,
+  Info,
+  ShieldAlert,
+  ShieldCheck,
+  X
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { format, isToday, isYesterday } from "date-fns";
 
 // Types
 type User = {
@@ -54,6 +78,28 @@ type Channel = {
   readAt: string | null;
   tenant: User;
   landlord: User;
+};
+
+type Message = {
+  id: string;
+  content: string;
+  createdAt: string;
+  readAt: string | null;
+  senderId: string;
+};
+
+type Participant = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  role: "TENANT" | "LANDLORD" | "ADMIN";
+  email: string;
+};
+
+type ChannelMessagesResponse = {
+  channel: Channel;
+  participants: Participant[];
+  messages: Message[];
 };
 
 type FilterType = "ALL" | "INQUIRY" | "ACTIVE" | "ENDED";
@@ -124,6 +170,45 @@ const useChannels = () => {
   return { channels, loading, loadChannels };
 };
 
+// Custom Hook for Presence Tracking
+// Tracks online users based on channel viewing (modal open/close)
+const usePresence = () => {
+  const { socket, isConnected } = useSocket();
+  const currentUser = useAuthStore((state) => state.user);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!socket || !isConnected || !currentUser?.id) return;
+
+    const handleUserOnline = (data: { userId: string; channelId: string }) => {
+      // Only track other users, not ourselves
+      if (data.userId !== currentUser.id) {
+        setOnlineUsers((prev) => new Set(prev).add(data.userId));
+      }
+    };
+
+    const handleUserOffline = (data: { userId: string; channelId: string }) => {
+      if (data.userId !== currentUser.id) {
+        setOnlineUsers((prev) => {
+          const next = new Set(prev);
+          next.delete(data.userId);
+          return next;
+        });
+      }
+    };
+
+    socket.on("presence:userOnline", handleUserOnline);
+    socket.on("presence:userOffline", handleUserOffline);
+
+    return () => {
+      socket.off("presence:userOnline", handleUserOnline);
+      socket.off("presence:userOffline", handleUserOffline);
+    };
+  }, [socket, isConnected, currentUser?.id]);
+
+  return { onlineUsers };
+};
+
 // Loading Skeleton Component
 const MessagesSkeleton = () => (
   <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
@@ -183,11 +268,13 @@ const MessagesSkeleton = () => (
 const ChannelItem = ({ 
   channel, 
   currentUser,
-  onClick 
+  onClick,
+  isOnline
 }: { 
   channel: Channel;
   currentUser: any;
   onClick: () => void;
+  isOnline?: boolean;
 }) => {
   const getCounterpart = (channel: Channel): User => {
     return currentUser?.id === channel.tenantId ? channel.landlord : channel.tenant;
@@ -212,7 +299,7 @@ const ChannelItem = ({
     const isToday = date.toDateString() === now.toDateString();
     
     if (isToday) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return format(date, "h:mm a");
     }
     
     const yesterday = new Date(now);
@@ -283,6 +370,10 @@ const ChannelItem = ({
           {hasUnread && (
             <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-600 border-2 border-white rounded-full" />
           )}
+          {/* Presence Indicator - Messenger style green/gray circle */}
+          <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
+            isOnline ? 'bg-emerald-500' : 'bg-slate-400'
+          }`} />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -328,8 +419,8 @@ const ChannelItem = ({
   );
 };
 
-// Filter Buttons Component
-const FilterButtons = ({ 
+// Filter Select Component
+const FilterSelect = ({ 
   statusFilter, 
   onStatusFilterChange 
 }: { 
@@ -344,24 +435,619 @@ const FilterButtons = ({
   ];
 
   return (
-    <div className="flex gap-1 flex-wrap">
-      {filters.map((filter) => (
-        <Button
-          key={filter.key}
-          variant={statusFilter === filter.key ? "default" : "outline"}
-          size="sm"
-          onClick={() => onStatusFilterChange(filter.key)}
-          className={`rounded-lg text-xs px-4 transition-all ${
-            statusFilter === filter.key 
-              ? 'bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-sm' 
-              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-          }`}
-        >
-          {filter.label}
-        </Button>
-      ))}
-    </div>
+    <Select value={statusFilter} onValueChange={(value) => onStatusFilterChange(value as FilterType)}>
+      <SelectTrigger className="w-full sm:w-[180px] h-11">
+        <SelectValue placeholder="Filter by status" />
+      </SelectTrigger>
+      <SelectContent>
+        {filters.map((filter) => (
+          <SelectItem key={filter.key} value={filter.key}>
+            {filter.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
+};
+
+// Reminders Modal Component
+const RemindersModal = () => {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 text-amber-600/80 hover:text-amber-700 hover:bg-amber-50"
+        >
+          <ShieldAlert className="h-4 w-4" />
+          <span className="hidden sm:inline">Reminders</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center">
+              <ShieldAlert className="w-5 h-5 text-white" />
+            </div>
+            <DialogTitle>Reminders for Landlords</DialogTitle>
+          </div>
+          <DialogDescription>
+            Important information about messaging policies
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 mt-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-2">
+                <h4 className="font-medium text-blue-900 text-sm">Message Policy</h4>
+                <p className="text-xs text-blue-800 leading-relaxed">
+                  Messages in this conversation cannot be deleted or edited for audit purposes. All messages are permanently recorded to maintain transparency and accountability in rental communications.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-start gap-2">
+              <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1.5 flex-shrink-0" />
+              <p className="text-xs text-slate-700 leading-relaxed">
+                All messages are stored permanently and cannot be modified or removed.
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1.5 flex-shrink-0" />
+              <p className="text-xs text-slate-700 leading-relaxed">
+                This ensures a complete audit trail for all rental-related communications.
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1.5 flex-shrink-0" />
+              <p className="text-xs text-slate-700 leading-relaxed">
+                Please be mindful of what you share in messages as they cannot be edited or deleted.
+              </p>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Message Modal Component
+const MessageModal = ({
+  channel,
+  isOpen,
+  onClose,
+  currentUser
+}: {
+  channel: Channel | null;
+  isOpen: boolean;
+  onClose: () => void;
+  currentUser: any;
+}) => {
+  const { socket, isConnected } = useSocket();
+  const [data, setData] = useState<ChannelMessagesResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [showScreeningConfirmation, setShowScreeningConfirmation] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const getStatusDisplay = (status: string) => {
+    switch (status) {
+      case "ACTIVE":
+        return "Active Lease";
+      case "ENDED":
+        return "Ended Lease";
+      case "INQUIRY":
+        return "Inquiry";
+      default:
+        return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "ACTIVE":
+        return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      case "ENDED":
+        return "bg-amber-50 text-amber-700 border-amber-200";
+      case "INQUIRY":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      default:
+        return "bg-slate-100 text-slate-700 border-slate-200";
+    }
+  };
+
+  const formatMessageTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return format(date, "h:mm a");
+  };
+
+  const formatDateHeader = (dateString: string) => {
+    const date = new Date(dateString);
+    if (isToday(date)) {
+      return "Today";
+    } else if (isYesterday(date)) {
+      return "Yesterday";
+    } else {
+      return format(date, "MMMM dd, yyyy");
+    }
+  };
+
+  const getOtherParticipant = () => {
+    if (!data || !currentUser) return null;
+    return data.participants.find(participant => participant.id !== currentUser.id);
+  };
+
+  const fetchMessages = async () => {
+    if (!channel?.id) return;
+    
+    try {
+      setLoading(true);
+      const response = await getChannelMessagesRequest(channel.id);
+      setData(response.data);
+      
+      if (currentUser) {
+        await markMessagesAsReadRequest(channel.id);
+      }
+    } catch (err) {
+      console.error("Error fetching messages:", err);
+      toast.error("Failed to load messages");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !channel?.id || sending) return;
+
+    try {
+      setSending(true);
+      await sendMessageRequest(channel.id, { content: newMessage.trim() });
+      setNewMessage("");
+    } catch (err) {
+      console.error("Error sending message:", err);
+      toast.error("Failed to send message");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleInviteTenantForScreening = () => {
+    const otherParticipant = getOtherParticipant();
+    if (!otherParticipant) {
+      toast.error("Unable to identify tenant");
+      return;
+    }
+    setShowScreeningConfirmation(true);
+  };
+
+  const confirmInviteTenantForScreening = async () => {
+    if (!channel?.id || inviting || !data) return;
+
+    const otherParticipant = getOtherParticipant();
+    if (!otherParticipant || !otherParticipant.email) {
+      toast.error("Unable to get tenant email");
+      setShowScreeningConfirmation(false);
+      return;
+    }
+
+    try {
+      setInviting(true);
+      setShowScreeningConfirmation(false);
+      
+      const response = await inviteTenantForScreeningRequest({ tenantEmail: otherParticipant.email });
+      
+      if (response.data?.message) {
+        toast.success(response.data.message);
+      } else {
+        toast.success("Tenant screening invitation sent successfully.");
+      }
+      
+      await fetchMessages();
+    } catch (err: any) {
+      console.error("Error inviting for screening:", err);
+      
+      if (err?.response?.status === 409) {
+        const errorMessage = err.response.data?.message || "A screening invitation is already pending for this tenant.";
+        toast.error(errorMessage);
+      } else {
+        const errorMessage = err?.response?.data?.message || "Failed to send screening invitation";
+        toast.error(errorMessage);
+      }
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  // Load messages when modal opens
+  useEffect(() => {
+    if (isOpen && channel) {
+      fetchMessages();
+      
+      if (socket && isConnected) {
+        socket.emit("join:channel", channel.id);
+      }
+    }
+
+    return () => {
+      if (socket && isConnected && channel) {
+        socket.emit("leave:channel", channel.id);
+      }
+    };
+  }, [isOpen, channel?.id, socket, isConnected]);
+
+  // Listen for new messages via Socket.IO
+  useEffect(() => {
+    if (!socket || !isConnected || !channel?.id || !isOpen) return;
+
+    const handleNewMessage = async (messageData: Message & { channelId: string }) => {
+      if (messageData.channelId !== channel.id) return;
+
+      setData((prevData) => {
+        if (!prevData) return prevData;
+
+        const messageExists = prevData.messages.some((msg) => msg.id === messageData.id);
+        if (messageExists) return prevData;
+
+        return {
+          ...prevData,
+          messages: [...prevData.messages, messageData],
+        };
+      });
+
+      setTimeout(() => scrollToBottom(), 100);
+
+      const isFromOtherParticipant = currentUser?.id && messageData.senderId !== currentUser.id;
+      if (isFromOtherParticipant && channel.id && currentUser?.id) {
+        markMessagesAsReadRequest(channel.id).catch(console.error);
+      }
+    };
+
+    const handleReadReceipt = (receiptData: { channelId: string; readAt: string }) => {
+      if (receiptData.channelId !== channel.id) return;
+
+      setData((prevData) => {
+        if (!prevData) return prevData;
+
+        const updatedMessages = prevData.messages.map((msg) => {
+          if (msg.senderId !== currentUser?.id && !msg.readAt) {
+            return { ...msg, readAt: receiptData.readAt };
+          }
+          if (msg.senderId === currentUser?.id && !msg.readAt) {
+            return { ...msg, readAt: receiptData.readAt };
+          }
+          return msg;
+        });
+
+        return {
+          ...prevData,
+          messages: updatedMessages,
+        };
+      });
+    };
+
+    socket.on("chat:message:new", handleNewMessage);
+    socket.on("chat:message:read", handleReadReceipt);
+
+    return () => {
+      socket.off("chat:message:new", handleNewMessage);
+      socket.off("chat:message:read", handleReadReceipt);
+    };
+  }, [socket, isConnected, channel?.id, currentUser?.id, isOpen]);
+
+  useEffect(() => {
+    if (data?.messages) {
+      scrollToBottom();
+    }
+  }, [data?.messages]);
+
+  const otherParticipant = getOtherParticipant();
+  const participantInitials = otherParticipant?.name
+    ? otherParticipant.name
+        .split(" ")
+        .map((part) => part.charAt(0))
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "";
+  const groupedMessages = data ? groupMessagesByDate(data.messages) : [];
+
+  if (!channel) return null;
+
+  const dialogTitle = otherParticipant?.name || channel?.tenant?.firstName || "Tenant";
+  const dialogDescription = otherParticipant?.email || "Conversation with tenant";
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0" showCloseButton={false}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>Chat with {dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
+        </DialogHeader>
+        {loading ? (
+          <div className="p-6 flex items-center justify-center min-h-[400px]">
+            <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
+          </div>
+        ) : data ? (
+          <>
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-sky-50 to-emerald-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  {otherParticipant && (
+                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm flex-shrink-0">
+                      <AvatarImage src={otherParticipant.avatarUrl || undefined} />
+                      <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-xs">
+                        {participantInitials || "TN"}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold text-slate-900 truncate">
+                        {otherParticipant?.name || "Conversation"}
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+                      <span>{otherParticipant?.email || "Tenant conversation"}</span>
+                      {otherParticipant?.role && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs border-slate-200 bg-slate-50 text-slate-700 rounded-full px-2"
+                        >
+                          {otherParticipant.role === "TENANT" ? "Tenant" : otherParticipant.role === "LANDLORD" ? "Landlord" : "Admin"}
+                        </Badge>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className={`text-xs border ${getStatusColor(data.channel.status)} rounded-full px-2`}
+                      >
+                        {getStatusDisplay(data.channel.status)}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {(data.channel.status === "INQUIRY" || data.channel.status === "ENDED") && (
+                    <Button
+                      onClick={handleInviteTenantForScreening}
+                      disabled={inviting}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      Screen Tenant
+                    </Button>
+                  )}
+                  {data.channel.status !== "ACTIVE" && (
+                    <Button
+                      onClick={() => {
+                        onClose();
+                        navigate("/landlord/leases/create");
+                      }}
+                      size="sm"
+                      className="bg-gradient-to-r from-sky-500 to-emerald-500 text-white"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      New Lease
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClose}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Messages Container */}
+            <div 
+              ref={messagesContainerRef}
+              className="flex-1 overflow-y-auto px-6 py-4 bg-slate-50/50 min-h-[400px] max-h-[60vh]"
+            >
+              <div className="space-y-6">
+                {groupedMessages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-sky-100 to-emerald-100 rounded-full flex items-center justify-center mb-4">
+                      <MessageCircle className="w-8 h-8 text-slate-500" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">No messages yet</h3>
+                    <p className="text-slate-600 text-sm max-w-sm">
+                      Start the conversation by sending a message
+                    </p>
+                  </div>
+                ) : (
+                  groupedMessages.map((group) => (
+                    <div key={group.date} className="space-y-4">
+                      <div className="flex justify-center">
+                        <div className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs text-slate-600 shadow-sm">
+                          {formatDateHeader(group.date)}
+                        </div>
+                      </div>
+
+                      {group.messages.map((message) => {
+                        const sender = data.participants.find(p => p.id === message.senderId);
+                        const isCurrentUser = currentUser?.id === message.senderId;
+                        const isOtherParticipant = !isCurrentUser;
+                        const showAvatar = isOtherParticipant;
+
+                        return (
+                          <div
+                            key={message.id}
+                            className={`flex items-end gap-3 ${
+                              isCurrentUser ? "flex-row-reverse" : ""
+                            }`}
+                          >
+                            {showAvatar && sender && (
+                              <Avatar className="h-8 w-8 border-2 border-white shadow-sm flex-shrink-0">
+                                <AvatarImage src={sender.avatarUrl || undefined} />
+                                <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white text-xs">
+                                  {sender.name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
+
+                            {!showAvatar && <div className="w-8 flex-shrink-0"></div>}
+
+                            <div
+                              className={`max-w-[75%] sm:max-w-[70%] ${
+                                isCurrentUser ? "text-right" : ""
+                              }`}
+                            >
+                              {showAvatar && sender && (
+                                <div className={`text-xs text-slate-600 mb-1 ${isCurrentUser ? 'text-right mr-2' : 'ml-2'}`}>
+                                  {sender.name}
+                                </div>
+                              )}
+                              <div
+                                className={`px-4 py-2.5 rounded-2xl shadow-sm ${
+                                  isCurrentUser
+                                    ? "bg-gradient-to-r from-sky-500 to-emerald-500 text-white rounded-br-md"
+                                    : "bg-white border border-slate-200 rounded-bl-md"
+                                }`}
+                              >
+                                <p className="text-sm whitespace-pre-wrap leading-relaxed text-left">{message.content}</p>
+                              </div>
+                              <div
+                                className={`text-xs mt-1.5 flex items-center gap-1 ${
+                                  isCurrentUser ? "justify-end text-slate-500" : "text-slate-500"
+                                }`}
+                              >
+                                <span>{formatMessageTime(message.createdAt)}</span>
+                                {message.readAt && isCurrentUser && (
+                                  <CheckCheck className="h-3 w-3 text-sky-500" />
+                                )}
+                                {!message.readAt && isCurrentUser && (
+                                  <Check className="h-3 w-3 text-slate-400" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+
+            {/* Input Area */}
+            <div className="border-t border-slate-200 bg-white px-6 py-4">
+              <div className="flex items-end gap-3">
+                <div className="flex-1 border border-slate-200 rounded-lg px-4 py-2.5 bg-slate-50 focus-within:bg-white focus-within:border-sky-300 transition-colors">
+                  <textarea
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Type your message..."
+                    className="w-full outline-none resize-none bg-transparent text-sm max-h-32 text-slate-900 placeholder:text-slate-400"
+                    rows={1}
+                    disabled={sending}
+                  />
+                </div>
+                <Button
+                  onClick={sendMessage}
+                  disabled={!newMessage.trim() || sending}
+                  className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white px-6 gap-2 h-11"
+                >
+                  <Send className="h-4 w-4" />
+                  {sending ? "Sending..." : "Send"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Screening Confirmation Dialog */}
+            <AlertDialog open={showScreeningConfirmation} onOpenChange={setShowScreeningConfirmation}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Invite Tenant for Screening</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {otherParticipant ? (
+                      <>
+                        You are about to send a screening invitation to:
+                        <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="text-sm font-medium text-slate-900">{otherParticipant.name}</div>
+                          <div className="text-sm text-slate-600 mt-1">
+                            {otherParticipant.email || "Email not available"}
+                          </div>
+                        </div>
+                        <p className="mt-3 text-sm text-slate-700">
+                          This will send an invitation email to the tenant and notify them in this conversation.
+                        </p>
+                      </>
+                    ) : (
+                      "Unable to identify tenant information."
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={inviting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={confirmInviteTenantForScreening}
+                    disabled={inviting || !otherParticipant?.email}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {inviting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block" />
+                        Sending...
+                      </>
+                    ) : (
+                      "Send Invitation"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Helper function to group messages by date
+const groupMessagesByDate = (messages: Message[]) => {
+  const groups: { [key: string]: Message[] } = {};
+
+  messages.forEach((message) => {
+    const date = new Date(message.createdAt).toDateString();
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(message);
+  });
+
+  return Object.entries(groups).map(([date, messages]) => ({
+    date,
+    messages: messages.sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    ),
+  }));
 };
 
 // Quick Tips Modal Component
@@ -422,9 +1108,11 @@ const QuickTipsModal = () => {
 
 // Search and Message Tenant Component
 const SearchAndMessageTenant = ({ 
-  onMessageSent 
+  onMessageSent,
+  onChannelSelect
 }: { 
   onMessageSent: () => void;
+  onChannelSelect: (channelId: string) => void;
 }) => {
   const { loadChannels } = useChannels();
   const [searchQuery, setSearchQuery] = useState("");
@@ -434,7 +1122,6 @@ const SearchAndMessageTenant = ({
   const [messageContent, setMessageContent] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const navigate = useNavigate();
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Debounced search
@@ -470,6 +1157,14 @@ const SearchAndMessageTenant = ({
   }, [searchQuery]);
 
   const handleSelectTenant = (tenant: any) => {
+    // If conversation exists, open it in modal instead of navigating
+    if (tenant.existingChannelId) {
+      onChannelSelect(tenant.existingChannelId);
+      setSearchQuery("");
+      setSearchResults([]);
+      return;
+    }
+    
     setSelectedTenant(tenant);
     setSearchQuery(`${tenant.firstName} ${tenant.lastName}`);
     setSearchResults([]);
@@ -482,9 +1177,9 @@ const SearchAndMessageTenant = ({
       return;
     }
 
-    // If conversation already exists, navigate to it instead
+    // If conversation already exists, open it in modal instead of navigating
     if (selectedTenant.existingChannelId) {
-      navigate(`/landlord/messages/${selectedTenant.existingChannelId}`);
+      onChannelSelect(selectedTenant.existingChannelId);
       setIsDialogOpen(false);
       setSelectedTenant(null);
       setSearchQuery("");
@@ -508,9 +1203,9 @@ const SearchAndMessageTenant = ({
       loadChannels();
       onMessageSent();
       
-      // Navigate to the new channel
+      // Open the new channel in modal
       if (response.data.channelId) {
-        navigate(`/landlord/messages/${response.data.channelId}`);
+        onChannelSelect(response.data.channelId);
       }
     } catch (error: any) {
       console.error("Error sending message:", error);
@@ -522,7 +1217,7 @@ const SearchAndMessageTenant = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative z-[100]" style={{ zIndex: 100 }}>
       <div className="relative" ref={searchContainerRef}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 z-10" />
@@ -547,20 +1242,11 @@ const SearchAndMessageTenant = ({
 
         {/* Search Results Dropdown */}
         {searchQuery.length >= 2 && !isSearching && searchResults.length > 0 && !selectedTenant && (
-          <div className="absolute z-[100] w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+          <div className="absolute z-[10001] w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-2xl max-h-60 overflow-y-auto" style={{ zIndex: 10001 }}>
             {searchResults.map((user) => (
               <button
                 key={user.id}
-                onClick={() => {
-                  // If conversation exists, navigate directly
-                  if (user.existingChannelId) {
-                    navigate(`/landlord/messages/${user.existingChannelId}`);
-                    setSearchQuery("");
-                    setSearchResults([]);
-                  } else {
-                    handleSelectTenant(user);
-                  }
-                }}
+                onClick={() => handleSelectTenant(user)}
                 className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 transition-colors text-left border-b last:border-b-0"
               >
                 <Avatar className="h-10 w-10 flex-shrink-0">
@@ -593,7 +1279,7 @@ const SearchAndMessageTenant = ({
         )}
 
         {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && !selectedTenant && (
-          <div className="absolute z-[100] w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-xl p-4 text-center">
+          <div className="absolute z-[10001] w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-2xl p-4 text-center" style={{ zIndex: 10001 }}>
             <p className="text-sm text-slate-500">No tenants found</p>
           </div>
         )}
@@ -669,91 +1355,29 @@ const SearchAndMessageTenant = ({
 // Chat Channels List Component
 const ChatChannelsList = ({
   channels,
-  searchQuery,
   statusFilter,
   currentUser,
-  onSearchChange,
   onStatusFilterChange,
   onRefreshChannels: _onRefreshChannels,
+  onlineUsers,
 }: {
   channels: Channel[];
-  searchQuery: string;
   statusFilter: FilterType;
   currentUser: any;
-  onSearchChange: (query: string) => void;
   onStatusFilterChange: (filter: FilterType) => void;
   onRefreshChannels: () => void;
+  onlineUsers: Set<string>;
 }) => {
-  const navigate = useNavigate();
-
-  const getCounterpart = (channel: Channel): User => {
-    return currentUser?.id === channel.tenantId ? channel.landlord : channel.tenant;
-  };
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
 
   const filteredChannels = useMemo(() => {
     return channels.filter(channel => {
       if (statusFilter !== "ALL" && channel.status !== statusFilter) return false;
-
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const counterpart = getCounterpart(channel);
-        const searchableText = [
-          counterpart.firstName,
-          counterpart.lastName,
-          channel.lastMessageText
-        ].join(" ").toLowerCase();
-        return searchableText.includes(query);
-      }
-
       return true;
     });
-  }, [channels, searchQuery, statusFilter, currentUser]);
+  }, [channels, statusFilter]);
 
-  const inquiryCount = useMemo(
-    () => channels.filter((channel) => channel.status === "INQUIRY").length,
-    [channels]
-  );
-
-  const activeCount = useMemo(
-    () => channels.filter((channel) => channel.status === "ACTIVE").length,
-    [channels]
-  );
-
-  const endedCount = useMemo(
-    () => channels.filter((channel) => channel.status === "ENDED").length,
-    [channels]
-  );
-
-  const heroStats = [
-    {
-      label: "Total Chats",
-      value: channels.length,
-      detail: "All tenant threads",
-      iconBg: "bg-sky-500/90",
-      icon: MessageCircle,
-    },
-    {
-      label: "Active Leases",
-      value: activeCount,
-      detail: "Lease-related",
-      iconBg: "bg-emerald-500/90",
-      icon: MessageSquare,
-    },
-    {
-      label: "New Inquiries",
-      value: inquiryCount,
-      detail: "Awaiting reply",
-      iconBg: "bg-cyan-500/90",
-      icon: HelpCircle,
-    },
-    {
-      label: "Ended Leases",
-      value: endedCount,
-      detail: "Closed threads",
-      iconBg: "bg-amber-500/90",
-      icon: Send,
-    },
-  ];
 
   const sortedChannels = useMemo(() => {
     return [...filteredChannels].sort((a, b) => {
@@ -764,7 +1388,8 @@ const ChatChannelsList = ({
   }, [filteredChannels]);
 
   const handleChannelClick = (channel: Channel) => {
-    navigate(`/landlord/messages/${channel.id}`);
+    setSelectedChannel(channel);
+    setIsMessageModalOpen(true);
   };
 
   return (
@@ -774,7 +1399,8 @@ const ChatChannelsList = ({
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
-        className="relative overflow-hidden rounded-2xl"
+        className="relative overflow-visible rounded-2xl"
+        style={{ zIndex: 100 }}
       >
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-emerald-200/70 opacity-95" />
         <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
@@ -839,72 +1465,36 @@ const ChatChannelsList = ({
               </div>
 
               <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center justify-end">
+                <RemindersModal />
                 <QuickTipsModal />
               </div>
             </div>
 
             {/* Search Tenant to Message */}
-            <div className="pt-2">
-              <SearchAndMessageTenant onMessageSent={() => {}} />
-            </div>
-
-            <motion.div
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
-              style={{ originX: 0 }}
-              className="relative h-1 w-full rounded-full overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/80 via-cyan-400/80 to-emerald-400/80" />
-              <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
-                animate={{ x: ["-100%", "100%"] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+            <div className="pt-2 relative" style={{ zIndex: 100 }}>
+              <SearchAndMessageTenant 
+                onMessageSent={() => {}} 
+                onChannelSelect={(channelId) => {
+                  const channel = channels.find(c => c.id === channelId);
+                  if (channel) {
+                    setSelectedChannel(channel);
+                    setIsMessageModalOpen(true);
+                  }
+                }}
               />
-            </motion.div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {heroStats.map((stat) => {
-                const Icon = stat.icon;
-                return (
-                  <div
-                    key={stat.label}
-                    className="flex items-center gap-3 rounded-xl border border-white/70 bg-white/80 p-3 shadow-[0_12px_35px_-18px_rgba(15,23,42,0.7)]"
-                  >
-                    <div className={`h-11 w-11 rounded-xl grid place-items-center text-white ${stat.iconBg}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-500">{stat.label}</p>
-                      <p className="text-lg font-semibold text-slate-900">{stat.value}</p>
-                      <p className="text-xs text-slate-500">{stat.detail}</p>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
+
           </div>
         </div>
       </motion.div>
 
       {/* Main Content */}
-      <div className="space-y-4">
+      <div className="space-y-4 relative" style={{ zIndex: 1 }}>
         <Card className="bg-white/90 backdrop-blur-sm border-slate-200 shadow-sm">
           <CardHeader>
             <div className="flex flex-col gap-3">
-              {/* Search Conversations */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <Input
-                  placeholder="Search conversations..."
-                  value={searchQuery}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  className="pl-10 h-11 bg-slate-50 border-slate-200 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 rounded-lg text-sm"
-                />
-              </div>
-              
-              {/* Filters Row */}
-              <FilterButtons 
+              {/* Filter Select */}
+              <FilterSelect 
                 statusFilter={statusFilter} 
                 onStatusFilterChange={onStatusFilterChange} 
               />
@@ -919,30 +1509,46 @@ const ChatChannelsList = ({
                     <MessageCircle className="w-8 h-8 text-slate-500" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                    {searchQuery || statusFilter !== "ALL" 
+                    {statusFilter !== "ALL" 
                       ? "No matches found" 
                       : "No conversations yet"}
                   </h3>
                   <p className="text-slate-600 text-sm max-w-sm">
-                    {searchQuery || statusFilter !== "ALL"
-                      ? "Try adjusting your search or filter criteria"
+                    {statusFilter !== "ALL"
+                      ? "Try adjusting your filter criteria"
                       : "Your conversations with tenants will appear here once they start messaging you"}
                   </p>
                 </div>
               ) : (
-                sortedChannels.map((channel) => (
-                  <ChannelItem
-                    key={channel.id}
-                    channel={channel}
-                    currentUser={currentUser}
-                    onClick={() => handleChannelClick(channel)}
-                  />
-                ))
+                sortedChannels.map((channel) => {
+                  const counterpart = currentUser?.id === channel.tenantId ? channel.landlord : channel.tenant;
+                  const isOnline = onlineUsers.has(counterpart.id);
+                  return (
+                    <ChannelItem
+                      key={channel.id}
+                      channel={channel}
+                      currentUser={currentUser}
+                      onClick={() => handleChannelClick(channel)}
+                      isOnline={isOnline}
+                    />
+                  );
+                })
               )}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Message Modal */}
+      <MessageModal
+        channel={selectedChannel}
+        isOpen={isMessageModalOpen}
+        onClose={() => {
+          setIsMessageModalOpen(false);
+          setSelectedChannel(null);
+        }}
+        currentUser={currentUser}
+      />
     </div>
   );
 };
@@ -951,7 +1557,7 @@ const ChatChannelsList = ({
 const LandlordMessages = () => {
   const currentUser = useAuthStore((state) => state.user);
   const { channels, loading } = useChannels();
-  const [searchQuery, setSearchQuery] = useState("");
+  const { onlineUsers } = usePresence();
   const [statusFilter, setStatusFilter] = useState<FilterType>("ALL");
 
   if (loading) {
@@ -966,12 +1572,11 @@ const LandlordMessages = () => {
     <div className="min-h-screen py-2">
       <ChatChannelsList
         channels={channels}
-        searchQuery={searchQuery}
         statusFilter={statusFilter}
         currentUser={currentUser}
-        onSearchChange={setSearchQuery}
         onStatusFilterChange={setStatusFilter}
         onRefreshChannels={() => {}}
+        onlineUsers={onlineUsers}
       />
     </div>
   );

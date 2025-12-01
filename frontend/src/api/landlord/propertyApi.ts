@@ -31,5 +31,9 @@ export const getPropertyEditableDataRequest = (propertyId: string, options?: { s
 export const updatePropertyRequest = (propertyId: string, data: any, options?: { signal?: AbortSignal }) =>
   privateApi.patch(apiRoutes.landlord(`/property/${propertyId}`), data, { signal: options?.signal });
 
+// Delete property
+export const deletePropertyRequest = (propertyId: string, options?: { signal?: AbortSignal }) =>
+  privateApi.delete(apiRoutes.landlord(`/property/${propertyId}`), { signal: options?.signal });
+
 
 

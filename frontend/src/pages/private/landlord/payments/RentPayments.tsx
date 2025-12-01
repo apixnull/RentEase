@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -135,6 +136,7 @@ interface MarkPaidForm {
   timingStatus: 'ONTIME' | 'LATE' | 'ADVANCE';
   manualTimingOverride: boolean;
   amount?: number;
+  note?: string;
 }
 
 const MONTHS = [
@@ -305,23 +307,15 @@ const calculateStats = (records: PaymentRecord[]) => {
 const TODAY = new Date();
 const CURRENT_MONTH = TODAY.getMonth();
 const CURRENT_YEAR = TODAY.getFullYear();
-type FilterMode = 'THIS_MONTH' | 'SPECIFIC_MONTH' | 'YEAR' | 'ALL_TIME';
+type FilterMode = 'SPECIFIC_MONTH' | 'THIS_YEAR' | 'ALL_TIME';
 
 const RentPayments = () => {
   const navigate = useNavigate();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [activeMeta, setActiveMeta] = useState<PaymentsResponse['meta'] | null>(null);
-  const [filtersData, setFiltersData] = useState<PaymentsResponse['filters']>({
-    properties: [],
-    units: [],
-    leases: [],
-  });
-  const [filterMode, setFilterMode] = useState<FilterMode>('THIS_MONTH');
-  const [specificMonth, setSpecificMonth] = useState<number>(CURRENT_MONTH);
-  const [specificYear, setSpecificYear] = useState<number>(CURRENT_YEAR);
-  const [yearOnly, setYearOnly] = useState<number>(CURRENT_YEAR);
-  const [selectedProperty, setSelectedProperty] = useState<string>('ALL');
-  const [selectedUnit, setSelectedUnit] = useState<string>('ALL');
+  const [filterMode, setFilterMode] = useState<FilterMode>('SPECIFIC_MONTH');
+  const [selectedMonth, setSelectedMonth] = useState<number>(CURRENT_MONTH + 1); // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(CURRENT_YEAR);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'PENDING'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -336,6 +330,7 @@ const RentPayments = () => {
     type: 'RENT',
     timingStatus: 'ONTIME',
     manualTimingOverride: false,
+    note: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(true);
@@ -344,13 +339,6 @@ const RentPayments = () => {
     note: null,
   });
 
-  useEffect(() => {
-    if (filterMode === 'SPECIFIC_MONTH') {
-      setSpecificYear(CURRENT_YEAR);
-    } else if (filterMode === 'YEAR') {
-      setYearOnly(CURRENT_YEAR);
-    }
-  }, [filterMode]);
 
   const fetchPayments = async () => {
     try {
@@ -360,9 +348,9 @@ const RentPayments = () => {
         setLoading(true);
       }
       let requestParams: { month?: number; year: number; scope: 'month' | 'year' | 'all' };
-      if (filterMode === 'YEAR') {
+      if (filterMode === 'THIS_YEAR') {
         requestParams = {
-          year: yearOnly,
+          year: CURRENT_YEAR,
           scope: 'year',
         };
       } else if (filterMode === 'ALL_TIME') {
@@ -370,23 +358,17 @@ const RentPayments = () => {
           year: CURRENT_YEAR,
           scope: 'all',
         };
-      } else if (filterMode === 'SPECIFIC_MONTH') {
-        requestParams = {
-          year: specificYear,
-          month: specificMonth + 1,
-          scope: 'month',
-        };
       } else {
+        // SPECIFIC_MONTH
         requestParams = {
-          year: CURRENT_YEAR,
-          month: CURRENT_MONTH + 1,
+          year: selectedYear,
+          month: selectedMonth,
           scope: 'month',
         };
       }
       const response = await getLandlordPaymentsRequest(requestParams);
       const data: PaymentsResponse = response.data;
       setPayments(data.payments || []);
-      setFiltersData(data.filters || { properties: [], units: [], leases: [] });
       setActiveMeta(data.meta || null);
     } catch (error: any) {
       console.error('Failed to load payments:', error);
@@ -400,12 +382,8 @@ const RentPayments = () => {
   useEffect(() => {
     fetchPayments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMode, specificMonth, specificYear, yearOnly]);
+  }, [filterMode, selectedMonth, selectedYear]);
 
-  const propertyFilteredUnits = useMemo(() => {
-    if (selectedProperty === 'ALL') return filtersData.units;
-    return filtersData.units.filter((unit) => unit.propertyId === selectedProperty);
-  }, [filtersData.units, selectedProperty]);
 
   // Get reminder stage display text
   const getReminderStageText = (stage: number) => {
@@ -449,16 +427,10 @@ const RentPayments = () => {
 
   const selectorFilteredPayments = useMemo(() => {
     return payments.filter((payment) => {
-      const propertyId = payment.lease?.property?.id;
-      const unitId = payment.lease?.unit?.id;
-
-      const matchesProperty = selectedProperty === 'ALL' || propertyId === selectedProperty;
-      const matchesUnit = selectedUnit === 'ALL' || unitId === selectedUnit;
       const matchesStatus = statusFilter === 'ALL' || payment.status === statusFilter;
-
-      return matchesProperty && matchesUnit && matchesStatus;
+      return matchesStatus;
     });
-  }, [payments, selectedProperty, selectedUnit, statusFilter]);
+  }, [payments, statusFilter]);
 
   const filteredPayments = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -468,15 +440,23 @@ const RentPayments = () => {
       const tenantName = payment.lease?.tenant
         ? `${payment.lease.tenant.firstName} ${payment.lease.tenant.lastName}`.toLowerCase()
         : '';
+      const tenantEmail = payment.lease?.tenant?.email?.toLowerCase() || '';
       const propertyTitle = payment.lease?.property?.title.toLowerCase() || '';
       const unitLabel = payment.lease?.unit?.label.toLowerCase() || '';
       const leaseNickname = payment.lease?.leaseNickname?.toLowerCase() || '';
+      const paymentType = payment.type?.toLowerCase() || '';
+      const paymentMethod = payment.method?.toLowerCase() || '';
+      const paymentNote = payment.note?.toLowerCase() || '';
 
       return (
         tenantName.includes(normalizedSearch) ||
+        tenantEmail.includes(normalizedSearch) ||
         propertyTitle.includes(normalizedSearch) ||
         unitLabel.includes(normalizedSearch) ||
-        leaseNickname.includes(normalizedSearch)
+        leaseNickname.includes(normalizedSearch) ||
+        paymentType.includes(normalizedSearch) ||
+        paymentMethod.includes(normalizedSearch) ||
+        paymentNote.includes(normalizedSearch)
       );
     });
   }, [selectorFilteredPayments, searchTerm]);
@@ -491,14 +471,14 @@ const RentPayments = () => {
 
   const fallbackRangeLabel = () => {
     switch (filterMode) {
-      case 'YEAR':
-        return `${yearOnly}`;
-      case 'SPECIFIC_MONTH':
-        return `${MONTHS[specificMonth]} ${specificYear}`;
+      case 'THIS_YEAR':
+        return `${CURRENT_YEAR}`;
       case 'ALL_TIME':
         return 'All Time';
       default:
-        return `${MONTHS[CURRENT_MONTH]} ${CURRENT_YEAR}`;
+        const monthIndex = selectedMonth - 1;
+        const safeIndex = Math.min(Math.max(monthIndex, 0), 11);
+        return `${MONTHS[safeIndex]} ${selectedYear}`;
     }
   };
 
@@ -507,13 +487,13 @@ const RentPayments = () => {
     if (activeMeta.scope === 'all') {
       return 'All Time';
     }
-    if (activeMeta.scope === 'year' || (!activeMeta.month && filterMode === 'YEAR')) {
+    if (activeMeta.scope === 'year' || filterMode === 'THIS_YEAR') {
       return `${activeMeta.year}`;
     }
-    const monthIndex = (activeMeta.month ?? 1) - 1;
+    const monthIndex = (activeMeta.month ?? selectedMonth) - 1;
     const safeIndex = Math.min(Math.max(monthIndex, 0), 11);
-    return `${MONTHS[safeIndex]} ${activeMeta.year}`;
-  }, [activeMeta, filterMode, specificMonth, specificYear, yearOnly]);
+    return `${MONTHS[safeIndex]} ${activeMeta.year ?? selectedYear}`;
+  }, [activeMeta, filterMode, selectedMonth, selectedYear]);
 
   const openMarkPaidModal = (payment: PaymentRecord) => {
     const defaultDate = format(new Date(), 'yyyy-MM-dd');
@@ -526,6 +506,7 @@ const RentPayments = () => {
       type: payment.type || 'RENT',
       timingStatus: defaultTiming,
       manualTimingOverride: false,
+      note: '',
       amount:
         payment.type === 'PREPAYMENT' && payment.amount === 0 ? undefined : payment.amount,
     });
@@ -539,6 +520,7 @@ const RentPayments = () => {
       type: 'RENT',
       timingStatus: 'ONTIME',
       manualTimingOverride: false,
+      note: '',
       amount: undefined,
     });
     setMarkPaidModal({ open: false, payment: null });
@@ -550,15 +532,17 @@ const RentPayments = () => {
       toast.error('Please select a payment method');
       return;
     }
-
-    const paymentType = markPaidModal.payment.type || 'RENT';
+    if (!markPaidForm.type) {
+      toast.error('Please select a payment type');
+      return;
+    }
 
     const timingStatus = markPaidForm.manualTimingOverride
       ? markPaidForm.timingStatus
       : calculateTimingStatus(
           markPaidModal.payment.dueDate,
           markPaidForm.paidAt,
-          paymentType
+          markPaidForm.type
         ) || 'ONTIME';
 
     try {
@@ -566,14 +550,15 @@ const RentPayments = () => {
       await markPaymentAsPaidRequest(markPaidModal.payment.id, {
         paidAt: markPaidForm.paidAt,
         method: markPaidForm.method,
-        type: paymentType,
+        type: markPaidForm.type,
         timingStatus,
         amount:
-          markPaidModal.payment.type === 'PREPAYMENT' &&
+          markPaidForm.type === 'PREPAYMENT' &&
           markPaidModal.payment.amount === 0 &&
           markPaidForm.amount !== undefined
             ? markPaidForm.amount
             : undefined,
+        note: markPaidForm.note?.trim() || undefined,
       });
       toast.success('Payment marked as paid');
       closeMarkPaidModal();
@@ -659,61 +644,49 @@ const RentPayments = () => {
               <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 shadow-sm">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    Range
+                    Period
                   </span>
                   <Select value={filterMode} onValueChange={(value) => setFilterMode(value as FilterMode)}>
                     <SelectTrigger className="h-8 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0">
-                      <SelectValue placeholder="Select range" />
+                      <SelectValue placeholder="Select period" />
                     </SelectTrigger>
                     <SelectContent className="z-[130] max-h-60">
-                      <SelectItem value="THIS_MONTH">This Month</SelectItem>
                       <SelectItem value="SPECIFIC_MONTH">Specific Month</SelectItem>
-                      <SelectItem value="YEAR">Specific Year</SelectItem>
+                      <SelectItem value="THIS_YEAR">This Year</SelectItem>
                       <SelectItem value="ALL_TIME">All Time</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
                 {filterMode === 'SPECIFIC_MONTH' && (
-                  <>
-                    <div className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 shadow-sm">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                        Month
-                      </span>
-                      <Select
-                        value={specificMonth.toString()}
-                        onValueChange={(value) => setSpecificMonth(Number(value))}
-                      >
-                        <SelectTrigger className="h-8 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0">
-                          <SelectValue placeholder="Select month" />
-                        </SelectTrigger>
-                        <SelectContent className="z-[130] max-h-60">
-                          {MONTHS.map((month, index) => (
-                            <SelectItem key={month} value={index.toString()}>
-                              {month}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
-
-                {filterMode === 'YEAR' && (
-                  <div className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 shadow-sm">
+                  <div className="flex items-center gap-2 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 shadow-sm">
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                      Year
+                      Month
                     </span>
-                    <Select
-                      value={String(yearOnly)}
-                      onValueChange={(value) => setYearOnly(Number(value))}
+                    <Select 
+                      value={selectedMonth.toString()} 
+                      onValueChange={(value) => setSelectedMonth(parseInt(value))}
                     >
-                      <SelectTrigger className="h-8 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0">
-                        <SelectValue placeholder="Select year" />
+                      <SelectTrigger className="h-8 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[130] max-h-60">
+                        {MONTHS.map((month, index) => (
+                          <SelectItem key={month} value={(index + 1).toString()}>
+                            {month}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select 
+                      value={selectedYear.toString()} 
+                      onValueChange={(value) => setSelectedYear(parseInt(value))}
+                    >
+                      <SelectTrigger className="h-8 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 w-24">
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="z-[130] max-h-60">
                         {getYears().map((year) => (
-                          <SelectItem key={year} value={String(year)}>
+                          <SelectItem key={year} value={year.toString()}>
                             {year}
                           </SelectItem>
                         ))}
@@ -789,44 +762,6 @@ const RentPayments = () => {
         {filtersExpanded && (
           <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-3">
-              <Select
-                value={selectedProperty}
-                onValueChange={(value) => {
-                  setSelectedProperty(value);
-                  setSelectedUnit('ALL');
-                }}
-              >
-                <SelectTrigger className="w-[200px] text-sm">
-                  <SelectValue placeholder="Property" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Properties</SelectItem>
-                  {filtersData.properties.map((property) => (
-                    <SelectItem key={property.id} value={property.id}>
-                      {property.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={selectedUnit}
-                onValueChange={setSelectedUnit}
-                disabled={propertyFilteredUnits.length === 0}
-              >
-                <SelectTrigger className="w-[180px] text-sm">
-                  <SelectValue placeholder="Unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Units</SelectItem>
-                  {propertyFilteredUnits.map((unit) => (
-                    <SelectItem key={unit.id} value={unit.id}>
-                      {unit.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'ALL' | 'PAID' | 'PENDING')}>
                 <SelectTrigger className="w-[160px] text-sm">
                   <SelectValue placeholder="Status" />
@@ -841,7 +776,7 @@ const RentPayments = () => {
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
-                  placeholder="Search tenant, property, or lease"
+                  placeholder="Search tenant, property, unit, lease, payment type, method, or note"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -1183,7 +1118,7 @@ const RentPayments = () => {
                       : (calculateTimingStatus(
                           markPaidModal.payment?.dueDate || '',
                           newDate,
-                          markPaidModal.payment?.type || 'RENT'
+                          prev.type
                         ) || 'ONTIME'),
                   }))
                 }
@@ -1210,8 +1145,40 @@ const RentPayments = () => {
               </Select>
             </div>
 
-            {markPaidModal.payment?.type === 'PREPAYMENT' &&
-              markPaidModal.payment.amount === 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="type">Payment Type *</Label>
+              <Select
+                value={markPaidForm.type}
+                onValueChange={(value) => {
+                  setMarkPaidForm((prev) => ({
+                    ...prev,
+                    type: value,
+                    timingStatus: prev.manualTimingOverride
+                      ? prev.timingStatus
+                      : (calculateTimingStatus(
+                          markPaidModal.payment?.dueDate || '',
+                          prev.paidAt,
+                          value
+                        ) || 'ONTIME'),
+                  }));
+                }}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment type" />
+                </SelectTrigger>
+                <SelectContent className="z-[130]">
+                  <SelectItem value="RENT">Rent</SelectItem>
+                  <SelectItem value="PREPAYMENT">Prepayment</SelectItem>
+                  <SelectItem value="ADVANCE_PAYMENT">Advance Payment</SelectItem>
+                  <SelectItem value="PENALTY">Penalty</SelectItem>
+                  <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {markPaidForm.type === 'PREPAYMENT' &&
+              markPaidModal.payment?.amount === 0 && (
                 <div className="space-y-2">
                   <Label htmlFor="amount">
                     Amount * <span className="text-xs text-slate-500">(prorated amount)</span>
@@ -1277,7 +1244,7 @@ const RentPayments = () => {
                             calculateTimingStatus(
                               markPaidModal.payment?.dueDate || '',
                               prev.paidAt,
-                              markPaidModal.payment?.type || 'RENT'
+                              prev.type
                             ) || 'ONTIME',
                         }))
                       }
@@ -1296,20 +1263,38 @@ const RentPayments = () => {
                     calculateTimingStatus(
                       markPaidModal.payment?.dueDate || '',
                       markPaidForm.paidAt,
-                      markPaidModal.payment?.type || 'RENT'
+                      markPaidForm.type
                     )
                   )}>
                     {calculateTimingStatus(
                       markPaidModal.payment?.dueDate || '',
                       markPaidForm.paidAt,
-                      markPaidModal.payment?.type || 'RENT'
+                      markPaidForm.type
                     ) || 'Not calculated'}
                   </Badge>
                   <p className="text-xs text-slate-500 mt-1">
-                    Based on due date vs paid date, unless overridden.
+                    {markPaidForm.type === 'PREPAYMENT' || markPaidForm.type === 'ADVANCE_PAYMENT'
+                      ? 'Prepayments and advance payments default to ADVANCE status'
+                      : 'Based on due date vs paid date, unless overridden.'}
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Note Field */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label htmlFor="mark-paid-note">Note (Optional)</Label>
+              <Textarea
+                id="mark-paid-note"
+                value={markPaidForm.note || ''}
+                onChange={(e) => setMarkPaidForm({ ...markPaidForm, note: e.target.value })}
+                placeholder="Add a note for this payment (e.g., reference number, special circumstances...)"
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-slate-500">
+                Useful for recording reference numbers or special circumstances
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -1321,8 +1306,9 @@ const RentPayments = () => {
               disabled={
                 submitting ||
                 !markPaidForm.method ||
-                (markPaidModal.payment?.type === 'PREPAYMENT' &&
-                  markPaidModal.payment.amount === 0 &&
+                !markPaidForm.type ||
+                (markPaidForm.type === 'PREPAYMENT' &&
+                  markPaidModal.payment?.amount === 0 &&
                   (!markPaidForm.amount || markPaidForm.amount <= 0))
               }
             >

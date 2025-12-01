@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,7 @@ const CreateLease = () => {
     rentAmount: "",
     securityDeposit: "",
     dueDate: "1",
+    dueDateOption: "FIRST" as "FIRST" | "MATCH_START",
 
     // Step 3: Documents
     leaseDocumentUrl: "",
@@ -135,13 +136,10 @@ const CreateLease = () => {
   const [leaseDurationDays, setLeaseDurationDays] = useState<number | null>(null);
   const [calculatedEndDate, setCalculatedEndDate] = useState<string>("");
   const [rentAmountError, setRentAmountError] = useState("");
-  const [matchDueDateToStart, setMatchDueDateToStart] = useState(false);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
+  const [proratedAmount, setProratedAmount] = useState<number | null>(null);
   const [showAllSuggestedTenants, setShowAllSuggestedTenants] = useState(false);
   const [showAllSearchResults, setShowAllSearchResults] = useState(false);
-  
-  // Ref to track last processed start date to prevent infinite loops
-  const lastProcessedStartDateRef = useRef<string>("");
 
   // Load from session storage on component mount
   useEffect(() => {
@@ -295,26 +293,25 @@ const CreateLease = () => {
       }
 
       // Calculate end date by adding months to start date
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + termMonths);
-
-      // Adjust for end of month (if start date is end of month, keep end date at end of month)
-      if (
-        startDate.getDate() !==
-        new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate()
-      ) {
-        // Not end of month, subtract one day to make it inclusive
-        endDate.setDate(endDate.getDate() - 1);
-      }
+      // Industry standard: For a 3-month lease starting Dec 1, end date is Feb 28 (last day of final month)
+      // Method: Add months to get the first day of the month after lease ends, then subtract 1 day
+      const calculatedEnd = new Date(startDate);
+      
+      // Add the lease term months (setMonth handles year rollover automatically)
+      calculatedEnd.setMonth(calculatedEnd.getMonth() + termMonths);
+      
+      // Subtract 1 day to get the last day of the final lease month
+      // Example: Dec 1 + 3 months = March 1, subtract 1 = Feb 28 ✓
+      calculatedEnd.setDate(calculatedEnd.getDate() - 1);
 
       // Format end date using local time to avoid timezone issues
-      const year = endDate.getFullYear();
-      const month = String(endDate.getMonth() + 1).padStart(2, '0');
-      const day = String(endDate.getDate()).padStart(2, '0');
+      const year = calculatedEnd.getFullYear();
+      const month = String(calculatedEnd.getMonth() + 1).padStart(2, '0');
+      const day = String(calculatedEnd.getDate()).padStart(2, '0');
       setCalculatedEndDate(`${year}-${month}-${day}`);
 
       // Calculate duration in days
-      const timeDiff = endDate.getTime() - startDate.getTime();
+      const timeDiff = calculatedEnd.getTime() - startDate.getTime();
       const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
       setLeaseDurationDays(daysDiff);
 
@@ -378,40 +375,47 @@ const CreateLease = () => {
     }
   }, [formData.leaseType]);
 
-  // Auto-update due date to match lease start date when option is enabled
+  // Auto-update due date based on selected option
   useEffect(() => {
-    if (matchDueDateToStart && formData.startDate) {
-      const startDate = new Date(formData.startDate);
+    if (!formData.startDate) return;
+
+    const startDate = new Date(formData.startDate);
+    
+    if (formData.dueDateOption === "MATCH_START") {
+      // Option 2: Match start date (common in small rentals/boarding houses)
       const dayOfMonth = startDate.getDate();
-      // Ensure day is between 1-28 (to avoid month-end issues)
-      const safeDay = Math.min(dayOfMonth, 28);
-      
-      // Check if start date has changed
-      const startDateChanged = lastProcessedStartDateRef.current !== formData.startDate;
-      
-      // Only update if start date changed (to prevent infinite loops)
-      // When start date changes, we need to update the due date
-      if (startDateChanged) {
-        // Update the ref to track this start date BEFORE updating state
-        lastProcessedStartDateRef.current = formData.startDate;
-        
-        // Update due date to match the new start date
-        if (formData.dueDate !== safeDay.toString()) {
-          setFormData((prev) => ({ ...prev, dueDate: safeDay.toString() }));
-        }
-      } else if (formData.dueDate !== safeDay.toString()) {
-        // If start date hasn't changed but due date doesn't match (e.g., when toggling on)
-        // Only update if we haven't processed this start date yet (ref is empty)
-        if (lastProcessedStartDateRef.current === "") {
-          lastProcessedStartDateRef.current = formData.startDate;
-          setFormData((prev) => ({ ...prev, dueDate: safeDay.toString() }));
-        }
-      }
+      const safeDay = Math.min(dayOfMonth, 28); // Cap at 28 to avoid month-end issues
+      setFormData((prev) => ({ ...prev, dueDate: safeDay.toString() }));
+      setProratedAmount(null); // No proration needed
     } else {
-      // Reset ref when matching is disabled
-      lastProcessedStartDateRef.current = "";
+      // Option 1: Always 1st (most common in apartments/condos/professional rentals)
+      setFormData((prev) => ({ ...prev, dueDate: "1" }));
+      
+      // Calculate prorated rent if start date is not the 1st
+      if (startDate.getDate() !== 1 && formData.rentAmount) {
+        const rentAmount = parseFloat(formData.rentAmount);
+        if (!isNaN(rentAmount) && rentAmount > 0) {
+          const startDay = startDate.getDate();
+          const year = startDate.getFullYear();
+          const month = startDate.getMonth();
+          
+          // Get total days in the start month
+          const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+          
+          // Calculate days from start date to end of month (inclusive)
+          const daysInPartialMonth = totalDaysInMonth - startDay + 1;
+          
+          // Calculate prorated amount: (days in partial month / total days) * monthly rent
+          const prorated = (daysInPartialMonth / totalDaysInMonth) * rentAmount;
+          setProratedAmount(Math.round(prorated * 100) / 100); // Round to 2 decimal places
+        } else {
+          setProratedAmount(null);
+        }
+      } else {
+        setProratedAmount(null); // No proration needed if start is on 1st
+      }
     }
-  }, [matchDueDateToStart, formData.startDate]);
+  }, [formData.dueDateOption, formData.startDate, formData.rentAmount]);
 
   // Helper function to format date as YYYY-MM-DD in local time (not UTC)
   const formatDateLocal = (date: Date): string => {
@@ -543,6 +547,7 @@ const CreateLease = () => {
           : null,
         dueDate: parseInt(formData.dueDate),
         leaseDocumentUrl: leaseDocumentUrl || null,
+        proratedAmount: proratedAmount || null, // Include prorated amount if applicable
       };
       
       // Only include rentAmount if it's greater than 0
@@ -1371,15 +1376,35 @@ const CreateLease = () => {
                               selected={formData.startDate ? new Date(formData.startDate) : undefined}
                               onSelect={(date) => {
                                 if (date) {
-                                  handleInputChange("startDate", formatDateLocal(date));
+                                  // Ensure selected date is between 1-28
+                                  const day = date.getDate();
+                                  if (day > 28) {
+                                    // Adjust to 28th of the same month
+                                    const adjustedDate = new Date(date);
+                                    adjustedDate.setDate(28);
+                                    handleInputChange("startDate", formatDateLocal(adjustedDate));
+                                  } else {
+                                    handleInputChange("startDate", formatDateLocal(date));
+                                  }
                                   setStartDatePopoverOpen(false);
                                 }
                               }}
-                              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                              disabled={(date) => {
+                                const today = new Date(new Date().setHours(0, 0, 0, 0));
+                                const isPast = date < today;
+                                const day = date.getDate();
+                                // Disable dates 29, 30, 31
+                                const isInvalidDay = day > 28;
+                                return isPast || isInvalidDay;
+                              }}
                               initialFocus
                             />
                           </PopoverContent>
                         </Popover>
+                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                          <Info className="w-3 h-3" />
+                          Start date must be between 1st and 28th of the month (due dates are limited to 1-28)
+                        </div>
                       </div>
 
                       <div className="space-y-1.5">
@@ -1420,7 +1445,7 @@ const CreateLease = () => {
                         <div className="flex items-center justify-between">
                           <span className="text-green-800 font-medium">Lease End Date:</span>
                           <span className="text-green-700 font-semibold">
-                            {new Date(calculatedEndDate).toLocaleDateString()}
+                            {format(new Date(calculatedEndDate), "MMMM d, yyyy")}
                           </span>
                         </div>
                         {leaseDurationDays !== null && (
@@ -1447,15 +1472,15 @@ const CreateLease = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="rentAmount" className="text-xs font-medium flex items-center gap-1">
-                          <DollarSign className="w-3 h-3 text-green-600" />
+                          <span className="text-green-600 font-semibold">₱</span>
                           Monthly Rent <span className="text-red-500">*</span>
                         </Label>
                         <div className="relative">
-                          <DollarSign className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                          <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 font-semibold text-sm">₱</span>
                           <Input
                             type="number"
                             placeholder="0.00"
-                            className={`pl-6 h-8 text-xs ${
+                            className={`pl-7 h-8 text-xs ${
                               rentAmountError ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""
                             }`}
                             value={formData.rentAmount}
@@ -1486,11 +1511,11 @@ const CreateLease = () => {
                           Security Deposit
                         </Label>
                         <div className="relative">
-                          <DollarSign className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                          <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 font-semibold text-sm">₱</span>
                           <Input
                             type="number"
                             placeholder="0.00"
-                            className="pl-6 h-8 text-xs"
+                            className="pl-7 h-8 text-xs"
                             value={formData.securityDeposit}
                             onChange={(e) => handleInputChange("securityDeposit", e.target.value)}
                             min="0"
@@ -1505,77 +1530,106 @@ const CreateLease = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label htmlFor="dueDate" className="text-xs font-medium flex items-center gap-1">
+                        <Label className="text-xs font-medium flex items-center gap-1">
                           <Calendar className="w-3 h-3 text-blue-600" />
-                          Due Date <span className="text-red-500">*</span>
+                          Rent Due Date <span className="text-red-500">*</span>
                         </Label>
-                        {/* Due Date Select and Match Start button - closely grouped */}
-                        <div className="flex items-stretch gap-1.5">
-                          <div className="flex-1">
-                            <Select
-                              value={formData.dueDate}
-                              onValueChange={(value) => handleInputChange("dueDate", value)}
-                              disabled={matchDueDateToStart}
-                            >
-                              <SelectTrigger className="h-8 text-xs rounded-xl border-slate-300">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                                  <SelectItem key={day} value={day.toString()}>
-                                    {day}
-                                    {day === 1 && "st"}
-                                    {day === 2 && "nd"}
-                                    {day === 3 && "rd"}
-                                    {day > 3 && "th"}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {/* Match Due Date from Start Date button - directly adjacent to due date select */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setMatchDueDateToStart(!matchDueDateToStart);
-                            }}
-                            className={`flex items-center justify-center gap-1.5 px-3 h-8 rounded-xl border transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                              matchDueDateToStart
-                                ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-blue-600 shadow-md shadow-blue-200/50"
-                                : "bg-white text-gray-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
+                        
+                        {/* Two Due Date Options */}
+                        <div className="space-y-2">
+                          {/* Option 1: Always 1st (Most Common) */}
+                          <div
+                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                              formData.dueDateOption === "FIRST"
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-slate-300"
                             }`}
+                            onClick={() => handleInputChange("dueDateOption", "FIRST")}
                           >
-                            <div className={`h-3.5 w-3.5 rounded border-2 flex items-center justify-center ${
-                              matchDueDateToStart
-                                ? "border-white bg-white/20"
-                                : "border-slate-400 bg-white"
-                            }`}>
-                              {matchDueDateToStart && (
-                                <span className="text-white text-[10px] font-bold">✓</span>
-                              )}
+                            <div className="flex items-start gap-3">
+                              <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                formData.dueDateOption === "FIRST"
+                                  ? "border-blue-500 bg-blue-500"
+                                  : "border-slate-300 bg-white"
+                              }`}>
+                                {formData.dueDateOption === "FIRST" && (
+                                  <div className="h-2 w-2 rounded-full bg-white" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-semibold text-slate-900">
+                                    Always 1st of the Month
+                                  </span>
+                                  <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
+                                    Most Common
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-slate-600 mb-2">
+                                  Standard for apartments, condos, and professional rentals. Rent due on the 1st every month.
+                                </p>
+                                {formData.dueDateOption === "FIRST" && formData.startDate && new Date(formData.startDate).getDate() !== 1 && proratedAmount && (
+                                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-amber-800 font-medium">First Month Prorated:</span>
+                                      <span className="text-amber-700 font-semibold">
+                                        ₱{proratedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </span>
+                                    </div>
+                                    <p className="text-amber-700 text-[10px] mt-1">
+                                      Partial month from {format(new Date(formData.startDate), "MMM d")} to end of month
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <span className="text-xs font-semibold">
-                              {matchDueDateToStart ? "✓ Matched" : "Match from Start"}
-                            </span>
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
-                          <Info className="w-3 h-3" />
-                          {matchDueDateToStart && formData.startDate ? (
-                            <span className="text-green-600 font-medium">
-                              Due date matches start date: {new Date(formData.startDate).getDate()}
-                              {new Date(formData.startDate).getDate() === 1 && "st"}
-                              {new Date(formData.startDate).getDate() === 2 && "nd"}
-                              {new Date(formData.startDate).getDate() === 3 && "rd"}
-                              {new Date(formData.startDate).getDate() > 3 && "th"} of each month
-                              {new Date(formData.startDate).getDate() > 28 && (
-                                <span className="text-amber-600"> (adjusted to 28th for consistency)</span>
-                              )}
-                            </span>
-                          ) : (
-                            "Monthly payment due date (1st-28th only)"
-                          )}
+                          </div>
+
+                          {/* Option 2: Match Start Date */}
+                          <div
+                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                              formData.dueDateOption === "MATCH_START"
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                            onClick={() => handleInputChange("dueDateOption", "MATCH_START")}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                formData.dueDateOption === "MATCH_START"
+                                  ? "border-blue-500 bg-blue-500"
+                                  : "border-slate-300 bg-white"
+                              }`}>
+                                {formData.dueDateOption === "MATCH_START" && (
+                                  <div className="h-2 w-2 rounded-full bg-white" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-semibold text-slate-900">
+                                    Match Start Date
+                                  </span>
+                                  <Badge variant="secondary" className="text-[10px] bg-purple-100 text-purple-700">
+                                    Flexible
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-slate-600">
+                                  Common for small rentals and boarding houses. Rent due on the same day each month as the start date.
+                                </p>
+                                {formData.dueDateOption === "MATCH_START" && formData.startDate && (
+                                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                                    <span className="text-green-800 font-medium">
+                                      Due date: {new Date(formData.startDate).getDate()}
+                                      {new Date(formData.startDate).getDate() === 1 && "st"}
+                                      {new Date(formData.startDate).getDate() === 2 && "nd"}
+                                      {new Date(formData.startDate).getDate() === 3 && "rd"}
+                                      {new Date(formData.startDate).getDate() > 3 && "th"} of each month
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1766,11 +1820,11 @@ const CreateLease = () => {
 
                 {formData.rentAmount && parseFloat(formData.rentAmount) > 0 && (
                   <div className="flex items-start gap-1.5 p-1.5 bg-green-50 rounded">
-                    <DollarSign className="w-3 h-3 text-green-600 mt-0.5" />
+                    <span className="text-green-600 font-semibold text-base mt-0.5">₱</span>
                     <div>
                       <p className="font-medium text-green-800">Monthly Rent</p>
                       <p className="text-green-700 font-semibold">
-                        ${parseFloat(formData.rentAmount).toLocaleString()}
+                        ₱{parseFloat(formData.rentAmount).toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -1839,7 +1893,7 @@ const CreateLease = () => {
                     <>
                       <span className="text-gray-600">Rent:</span>
                       <span className="text-gray-900 font-medium">
-                        ${parseFloat(formData.rentAmount).toLocaleString()}/month
+                        ₱{parseFloat(formData.rentAmount).toLocaleString()}/month
                       </span>
                     </>
                   )}
@@ -1848,7 +1902,7 @@ const CreateLease = () => {
                     <>
                       <span className="text-gray-600">Security Deposit:</span>
                       <span className="text-gray-900 font-medium">
-                        ${parseFloat(formData.securityDeposit).toLocaleString()}
+                        ₱{parseFloat(formData.securityDeposit).toLocaleString()}
                       </span>
                     </>
                   )}

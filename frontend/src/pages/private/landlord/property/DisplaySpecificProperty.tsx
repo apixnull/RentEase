@@ -1,12 +1,24 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Home, Building, MapPin, CheckCircle2, Wrench, AlertTriangle, Ban, Users, Info, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { deletePropertyRequest } from "@/api/landlord/propertyApi";
 
 interface CityRef { id: string; name: string }
 interface MunicipalityRef { id: string; name: string }
@@ -401,16 +413,39 @@ const PropertyOverview = ({
 
 const DisplaySpecificProperty = ({ property, loading, error }: { property: Property | null; loading?: boolean; error?: string | null }) => {
   const navigate = useNavigate();
-  
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleDelete = () => {
     if (!property?.id) return;
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this property? This action cannot be undone."
-    );
-    if (!confirmed) return;
-    toast.success("Property deleted");
-    navigate("/landlord/properties", { replace: true });
+    setDeleteModalOpen(true);
+    setDeleteConfirmation("");
+    setAgreedToTerms(false);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!property?.id) return;
+    if (deleteConfirmation !== "DELETE" || !agreedToTerms) return;
+
+    setDeleting(true);
+    try {
+      await deletePropertyRequest(property.id);
+      toast.success("Property deleted successfully");
+      navigate("/landlord/properties", { replace: true });
+    } catch (err: any) {
+      console.error("Error deleting property:", err);
+      toast.error(err?.response?.data?.message || "Failed to delete property");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setDeleteConfirmation("");
+    setAgreedToTerms(false);
   };
 
   const handleEdit = () => {
@@ -454,6 +489,146 @@ const DisplaySpecificProperty = ({ property, loading, error }: { property: Prope
           onDelete={handleDelete}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          handleDeleteCancel();
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" showCloseButton={false}>
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-2xl font-bold text-gray-900">
+                  Delete Property
+                </DialogTitle>
+                <DialogDescription className="text-base text-gray-600 mt-1">
+                  This action cannot be undone
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Warning Box */}
+            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-semibold text-red-900 mb-1">
+                    Warning: This is a destructive action
+                  </h4>
+                  <p className="text-sm text-red-800">
+                    Once you delete this property, all related data will be permanently removed and cannot be restored.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Property Info */}
+            {property && (
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-2">Property to be deleted:</h4>
+                <p className="text-gray-700 font-medium">{property.title}</p>
+                <p className="text-sm text-gray-600 mt-1">{formatAddress(property)}</p>
+              </div>
+            )}
+
+            {/* What will be deleted */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h4 className="font-semibold text-amber-900 mb-3">
+                The following will be permanently deleted:
+              </h4>
+              <ul className="space-y-2 text-sm text-amber-800">
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Units</strong> associated with this property</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Listings</strong> for units in this property</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Leases</strong> related to this property and its units</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Maintenance Requests</strong> for this property</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Financial Transactions</strong> associated with this property</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Unit Reviews</strong> and related data</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Type Confirmation */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-gray-900">
+                Type <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">DELETE</span> to confirm:
+              </label>
+              <Input
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                placeholder="Type DELETE here"
+                className="font-mono"
+                disabled={deleting}
+              />
+            </div>
+
+            {/* Terms Agreement */}
+            <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <Checkbox
+                id="delete-terms"
+                checked={agreedToTerms}
+                onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                disabled={deleting}
+                className="mt-0.5"
+              />
+              <label
+                htmlFor="delete-terms"
+                className="text-sm text-gray-700 cursor-pointer flex-1"
+              >
+                I understand that deleting this property is a permanent and irreversible action. 
+                All related data including units, listings, leases, maintenance requests, transactions, 
+                and reviews will be permanently deleted and cannot be restored. I agree to proceed with 
+                this deletion at my own risk.
+              </label>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={handleDeleteCancel}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={
+                deleteConfirmation !== "DELETE" ||
+                !agreedToTerms ||
+                deleting
+              }
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? "Deleting..." : "Delete Property Permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -4,10 +4,19 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Edit, 
   Trash2, 
-  Share2, 
   Building, 
   Users, 
   Key, 
@@ -35,7 +44,8 @@ import {
   Loader2
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { getUnitDetailsRequest } from "@/api/landlord/unitApi";
+import { toast } from "sonner";
+import { getUnitDetailsRequest, deleteUnitRequest } from "@/api/landlord/unitApi";
 
 // Types based on your backend response
 interface City {
@@ -231,14 +241,12 @@ const UnitHeader = ({
   unit, 
   onEdit, 
   onDelete, 
-  onShare, 
   onRefresh,
   refreshing
 }: { 
   unit: Unit; 
   onEdit: () => void;
   onDelete: () => void;
-  onShare: () => void;
   onRefresh: () => void;
   refreshing: boolean;
 }) => {
@@ -377,10 +385,6 @@ const UnitHeader = ({
                     Refresh
                   </>
                 )}
-              </Button>
-              <Button variant="outline" size="sm" onClick={onShare} className="gap-2 bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm">
-                <Share2 className="h-4 w-4" />
-                Share
               </Button>
               <Button variant="outline" size="sm" onClick={onEdit} className="gap-2 bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm">
                 <Edit className="h-4 w-4" />
@@ -1186,6 +1190,10 @@ const DisplaySpecificUnit = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchUnitDetails = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!unitId) {
@@ -1222,10 +1230,37 @@ const DisplaySpecificUnit = () => {
 
   // Handler functions
   const handleEdit = () => navigate(`/landlord/units/${propertyId}/${unitId}/edit`);
-  const handleDelete = () => { /* TODO: Implement delete */ };
-  const handleShare = () => { /* TODO: Implement share */ };
+  const handleDelete = () => {
+    if (!unit?.id) return;
+    setDeleteModalOpen(true);
+    setDeleteConfirmation("");
+    setAgreedToTerms(false);
+  };
   const handleAdvertise = () => navigate(`/landlord/listing/${unitId}/review`);
   const handleRefresh = () => fetchUnitDetails({ silent: true });
+
+  const handleDeleteConfirm = async () => {
+    if (!unit?.id || !unitId) return;
+    if (deleteConfirmation !== "DELETE" || !agreedToTerms) return;
+
+    setDeleting(true);
+    try {
+      await deleteUnitRequest(unitId);
+      toast.success("Unit deleted successfully");
+      navigate(`/landlord/properties/${propertyId}`, { replace: true });
+    } catch (err: any) {
+      console.error("Error deleting unit:", err);
+      toast.error(err?.response?.data?.message || "Failed to delete unit");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setDeleteConfirmation("");
+    setAgreedToTerms(false);
+  };
 
   if (loading) {
     return (
@@ -1332,7 +1367,6 @@ const DisplaySpecificUnit = () => {
           unit={unit}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          onShare={handleShare}
           onRefresh={handleRefresh}
           refreshing={refreshing}
         />
@@ -1483,6 +1517,143 @@ const DisplaySpecificUnit = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          handleDeleteCancel();
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" showCloseButton={false}>
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-2xl font-bold text-gray-900">
+                  Delete Unit
+                </DialogTitle>
+                <DialogDescription className="text-base text-gray-600 mt-1">
+                  This action cannot be undone
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Warning Box */}
+            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-semibold text-red-900 mb-1">
+                    Warning: This is a destructive action
+                  </h4>
+                  <p className="text-sm text-red-800">
+                    Once you delete this unit, all related data will be permanently removed and cannot be restored.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Unit Info */}
+            {unit && (
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-2">Unit to be deleted:</h4>
+                <p className="text-gray-700 font-medium">{unit.label}</p>
+                <p className="text-sm text-gray-600 mt-1">{formatPropertyAddress(unit.property)}</p>
+                <p className="text-sm text-gray-600 mt-1">Property: {unit.property.title}</p>
+              </div>
+            )}
+
+            {/* What will be deleted */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h4 className="font-semibold text-amber-900 mb-3">
+                The following will be permanently deleted:
+              </h4>
+              <ul className="space-y-2 text-sm text-amber-800">
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Listings</strong> for this unit</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Leases</strong> related to this unit</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Maintenance Requests</strong> for this unit</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All Unit Reviews</strong> and ratings</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">•</span>
+                  <span><strong>All View Records</strong> and analytics data</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Type Confirmation */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-gray-900">
+                Type <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">DELETE</span> to confirm:
+              </label>
+              <Input
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                placeholder="Type DELETE here"
+                className="font-mono"
+                disabled={deleting}
+              />
+            </div>
+
+            {/* Terms Agreement */}
+            <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <Checkbox
+                id="delete-terms"
+                checked={agreedToTerms}
+                onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                disabled={deleting}
+                className="mt-0.5"
+              />
+              <label
+                htmlFor="delete-terms"
+                className="text-sm text-gray-700 cursor-pointer flex-1"
+              >
+                I understand that deleting this unit is a permanent and irreversible action. 
+                All related data including listings, leases, maintenance requests, reviews, 
+                and view records will be permanently deleted and cannot be restored. I agree to proceed with 
+                this deletion at my own risk.
+              </label>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={handleDeleteCancel}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={
+                deleteConfirmation !== "DELETE" ||
+                !agreedToTerms ||
+                deleting
+              }
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? "Deleting..." : "Delete Unit Permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

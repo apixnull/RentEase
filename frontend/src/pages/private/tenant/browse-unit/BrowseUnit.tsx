@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, MapPin, 
-  Eye, Star, Home, Bot, X, Send, ArrowLeft
+  Star, Home, Bot, X, Send, ArrowLeft, Building
 } from "lucide-react";
 import { getCitiesAndMunicipalitiesRequest, searchListingsRequest, sendAIChatbotMessage } from "@/api/tenant/browseUnitApi";
 
@@ -995,77 +995,117 @@ const BrowseUnit = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.05, duration: 0.3, ease: "easeOut" }}
                   whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
-                  className="relative flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px]"
+                  className="relative flex-shrink-0 w-[240px] sm:w-[260px] md:w-[280px]"
                 >
                 <Card 
-                  className="overflow-hidden border border-gray-200 transition-all duration-300 hover:shadow-xl bg-white cursor-pointer group h-full flex flex-col"
+                  className="overflow-hidden border border-gray-200 transition-all duration-300 hover:shadow-2xl hover:border-emerald-300 bg-white cursor-pointer group h-full flex flex-col"
                   onClick={() => navigate(`/tenant/browse-unit/${listing.id}/details`)}
                 >
-                  {/* Image container with rating overlay */}
-                  <div className="relative aspect-[4/3] bg-gray-50 overflow-hidden">
+                  {/* Image container */}
+                  <div className="relative aspect-[5/3] bg-gray-50 overflow-hidden">
                     {unit.mainImageUrl ? (
                       <img 
                         src={unit.mainImageUrl} 
                         alt={unit.label} 
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-gray-50">
-                        <Home className="h-8 w-8 text-gray-400" />
+                      <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                        <Home className="h-10 w-10 text-gray-400" />
                       </div>
                     )}
                     
-                    {/* Rating badge overlay on image */}
-                    {unit.avgRating !== null ? (
-                      <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center gap-1 z-10">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                        <span className="text-xs font-semibold text-white">
-                          {unit.avgRating.toFixed(1)}
-                        </span>
+                    {/* Badge overlays */}
+                    {isNewListing(listing.createdAt) && (
+                      <div className="absolute top-2 right-2 z-10">
+                        <div className="bg-emerald-600 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-lg backdrop-blur-sm">
+                          New
+                        </div>
                       </div>
-                    ) : isNewListing(listing.createdAt) ? (
-                      <div className="absolute bottom-2 left-2 bg-emerald-600/90 backdrop-blur-sm rounded-lg px-2 py-1 z-10">
-                        <span className="text-xs font-semibold text-white">New</span>
-                      </div>
-                    ) : null}
+                    )}
                   </div>
                   
-                  {/* Content area - compact */}
-                  <div className="p-2.5 sm:p-3 space-y-1.5 flex-1 flex flex-col">
+                  {/* Content area */}
+                  <div className="p-4 space-y-3 flex-1 flex flex-col">
                     {/* Title */}
-                    <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2">
-                      {unit.property.title}
-                    </h3>
-
-                    {/* Property type and label */}
-                    <p className="text-xs text-gray-600 line-clamp-1">
-                      {getPropertyTypeDisplay(unit.property.type)} • {unit.label}
-                    </p>
-
-                    {/* Address */}
-                    <p className="text-xs text-gray-500 line-clamp-2 flex items-start gap-1 min-h-[2.5rem]">
-                      <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
-                      <span className="flex-1">{formatCompactAddress(unit.property)}</span>
-                    </p>
-
-                    {/* Reviews count */}
-                    <div className="text-xs text-gray-500">
-                      {unit.totalReviews > 0 ? (
-                        <span>{unit.totalReviews} {unit.totalReviews === 1 ? 'review' : 'reviews'}</span>
-                      ) : (
-                        <span className="text-gray-400">No reviews yet</span>
-                      )}
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2 mb-1">
+                        {unit.property.title}
+                      </h3>
+                      <p className="text-xs text-gray-600 flex items-center gap-1.5">
+                        <Building className="h-3.5 w-3.5 text-gray-500" />
+                        <span>{getPropertyTypeDisplay(unit.property.type)} • {unit.label}</span>
+                      </p>
                     </div>
 
-                    {/* Price and view count in one row */}
-                    <div className="flex items-center justify-between pt-1 mt-auto border-t border-gray-100">
-                      <div className="flex items-baseline gap-1">
-                        <span className="font-bold text-gray-900 text-sm sm:text-base">₱{unit.targetPrice.toLocaleString()}</span>
-                        <span className="text-xs text-gray-500">/mo</span>
+                    {/* Address */}
+                    <div className="flex items-start gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                        {formatCompactAddress(unit.property)}
+                      </p>
+                    </div>
+
+                    {/* Rating Section */}
+                    {unit.avgRating !== null && unit.totalReviews > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                          <div className="flex items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star 
+                                key={star} 
+                                className={`h-3 w-3 ${
+                                  star <= Math.round(unit.avgRating!)
+                                    ? 'fill-amber-400 text-amber-400'
+                                    : 'fill-gray-200 text-gray-200'
+                                }`} 
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs font-bold text-amber-700 ml-1">
+                            {unit.avgRating.toFixed(1)}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          ({unit.totalReviews} {unit.totalReviews === 1 ? 'review' : 'reviews'})
+                        </span>
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Eye className="h-3 w-3" />
-                        <span>{unit.viewCount}</span>
+                    ) : (
+                      <div className="text-xs text-gray-400">
+                        No reviews yet
+                      </div>
+                    )}
+
+                    {/* Viewers and Price Section */}
+                    <div className="pt-3 mt-auto border-t border-gray-100 space-y-2">
+                      {/* Viewers */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex -space-x-1.5">
+                          {[1, 2, 3, 4].map((index) => (
+                            <img
+                              key={index}
+                              src={`https://i.pravatar.cc/150?img=${index + 10}`}
+                              alt={`Viewer ${index}`}
+                              className="w-6 h-6 rounded-full border-2 border-white object-cover"
+                            />
+                          ))}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          <span className="font-medium">{unit.viewCount}</span> viewed
+                        </div>
+                      </div>
+
+                      {/* Price */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-1">
+                          <span className="font-bold text-gray-900 text-lg">₱{unit.targetPrice.toLocaleString()}</span>
+                          <span className="text-xs text-gray-500">/mo</span>
+                        </div>
+                        {unit.requiresScreening && (
+                          <div className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700 font-medium">
+                            Screening Required
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1171,77 +1211,117 @@ const BrowseUnit = () => {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: index * 0.05, duration: 0.3, ease: "easeOut" }}
                         whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
-                        className="relative flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px]"
+                        className="relative flex-shrink-0 w-[240px] sm:w-[260px] md:w-[280px]"
                       >
                         <Card 
-                          className="overflow-hidden border border-gray-200 transition-all duration-300 hover:shadow-xl bg-white cursor-pointer group h-full flex flex-col"
+                          className="overflow-hidden border border-gray-200 transition-all duration-300 hover:shadow-2xl hover:border-emerald-300 bg-white cursor-pointer group h-full flex flex-col"
                           onClick={() => navigate(`/tenant/browse-unit/${listing.id}/details`)}
                         >
-                          {/* Image container with rating overlay */}
-                          <div className="relative aspect-[4/3] bg-gray-50 overflow-hidden">
+                          {/* Image container */}
+                          <div className="relative aspect-[5/3] bg-gray-50 overflow-hidden">
                             {unit.mainImageUrl ? (
                               <img 
                                 src={unit.mainImageUrl} 
                                 alt={unit.label} 
-                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                               />
                             ) : (
-                              <div className="h-full w-full flex items-center justify-center bg-gray-50">
-                                <Home className="h-8 w-8 text-gray-400" />
+                              <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                                <Home className="h-10 w-10 text-gray-400" />
                               </div>
                             )}
                             
-                            {/* Rating badge overlay on image */}
-                            {unit.avgRating !== null ? (
-                              <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center gap-1 z-10">
-                                <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                                <span className="text-xs font-semibold text-white">
-                                  {unit.avgRating.toFixed(1)}
-                                </span>
+                            {/* Badge overlays */}
+                            {isNewListing(listing.createdAt) && (
+                              <div className="absolute top-2 right-2 z-10">
+                                <div className="bg-emerald-600 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-lg backdrop-blur-sm">
+                                  New
+                                </div>
                               </div>
-                            ) : isNewListing(listing.createdAt) ? (
-                              <div className="absolute bottom-2 left-2 bg-emerald-600/90 backdrop-blur-sm rounded-lg px-2 py-1 z-10">
-                                <span className="text-xs font-semibold text-white">New</span>
-                              </div>
-                            ) : null}
+                            )}
                           </div>
                           
-                          {/* Content area - compact */}
-                          <div className="p-2.5 sm:p-3 space-y-1.5 flex-1 flex flex-col">
+                          {/* Content area */}
+                          <div className="p-4 space-y-3 flex-1 flex flex-col">
                             {/* Title */}
-                            <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2">
-                              {unit.property.title}
-                            </h3>
-
-                            {/* Property type and label */}
-                            <p className="text-xs text-gray-600 line-clamp-1">
-                              {getPropertyTypeDisplay(unit.property.type)} • {unit.label}
-                            </p>
-
-                            {/* Address */}
-                            <p className="text-xs text-gray-500 line-clamp-2 flex items-start gap-1 min-h-[2.5rem]">
-                              <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
-                              <span className="flex-1">{formatCompactAddress(unit.property)}</span>
-                            </p>
-
-                            {/* Reviews count */}
-                            <div className="text-xs text-gray-500">
-                              {unit.totalReviews > 0 ? (
-                                <span>{unit.totalReviews} {unit.totalReviews === 1 ? 'review' : 'reviews'}</span>
-                              ) : (
-                                <span className="text-gray-400">No reviews yet</span>
-                              )}
+                            <div>
+                              <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2 mb-1">
+                                {unit.property.title}
+                              </h3>
+                              <p className="text-xs text-gray-600 flex items-center gap-1.5">
+                                <Building className="h-3.5 w-3.5 text-gray-500" />
+                                <span>{getPropertyTypeDisplay(unit.property.type)} • {unit.label}</span>
+                              </p>
                             </div>
 
-                            {/* Price and view count in one row */}
-                            <div className="flex items-center justify-between pt-1 mt-auto border-t border-gray-100">
-                              <div className="flex items-baseline gap-1">
-                                <span className="font-bold text-gray-900 text-sm sm:text-base">₱{unit.targetPrice.toLocaleString()}</span>
-                                <span className="text-xs text-gray-500">/mo</span>
+                            {/* Address */}
+                            <div className="flex items-start gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
+                              <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                                {formatCompactAddress(unit.property)}
+                              </p>
+                            </div>
+
+                            {/* Rating Section */}
+                            {unit.avgRating !== null && unit.totalReviews > 0 ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                                  <div className="flex items-center gap-0.5">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <Star 
+                                        key={star} 
+                                        className={`h-3 w-3 ${
+                                          star <= Math.round(unit.avgRating!)
+                                            ? 'fill-amber-400 text-amber-400'
+                                            : 'fill-gray-200 text-gray-200'
+                                        }`} 
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="text-xs font-bold text-amber-700 ml-1">
+                                    {unit.avgRating.toFixed(1)}
+                                  </span>
+                                </div>
+                                <span className="text-xs text-gray-500">
+                                  ({unit.totalReviews} {unit.totalReviews === 1 ? 'review' : 'reviews'})
+                                </span>
                               </div>
-                              <div className="flex items-center gap-1 text-xs text-gray-500">
-                                <Eye className="h-3 w-3" />
-                                <span>{unit.viewCount}</span>
+                            ) : (
+                              <div className="text-xs text-gray-400">
+                                No reviews yet
+                              </div>
+                            )}
+
+                            {/* Viewers and Price Section */}
+                            <div className="pt-3 mt-auto border-t border-gray-100 space-y-2">
+                              {/* Viewers */}
+                              <div className="flex items-center gap-2">
+                                <div className="flex -space-x-1.5">
+                                  {[1, 2, 3, 4].map((index) => (
+                                    <img
+                                      key={index}
+                                      src={`https://i.pravatar.cc/150?img=${index + 10}`}
+                                      alt={`Viewer ${index}`}
+                                      className="w-6 h-6 rounded-full border-2 border-white object-cover"
+                                    />
+                                  ))}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  <span className="font-medium">{unit.viewCount}</span> viewed
+                                </div>
+                              </div>
+
+                              {/* Price */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="font-bold text-gray-900 text-lg">₱{unit.targetPrice.toLocaleString()}</span>
+                                  <span className="text-xs text-gray-500">/mo</span>
+                                </div>
+                                {unit.requiresScreening && (
+                                  <div className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700 font-medium">
+                                    Screening Required
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

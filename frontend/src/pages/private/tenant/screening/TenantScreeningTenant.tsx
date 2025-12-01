@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, CheckCircle, XCircle, Clock, User, AlertCircle, ArrowRight, Archive, ChevronUp, ChevronDown } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, Clock, User, AlertCircle, ArrowRight, Archive, ChevronUp, ChevronDown, RotateCcw, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
 import { getTenantScreeningInvitationsRequest } from '@/api/tenant/screeningApi';
-import ScreeningHeader from '@/components/ScreeningHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Types based on API response
@@ -174,19 +174,19 @@ const TenantScreeningTenant = () => {
   const navigate = useNavigate();
   const [invitations, setInvitations] = useState<ScreeningInvitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const [invitationToAccept, setInvitationToAccept] = useState<ScreeningInvitation | null>(null);
   const [activeTab, setActiveTab] = useState('current');
   const [statsExpanded, setStatsExpanded] = useState(true);
 
-  useEffect(() => {
-    fetchInvitations();
-  }, []);
-
-  const fetchInvitations = async () => {
+  const fetchInvitations = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
+      setRefreshing(true);
       setError(null);
       const response = await getTenantScreeningInvitationsRequest();
       setInvitations(response.data.data);
@@ -194,7 +194,20 @@ const TenantScreeningTenant = () => {
       setError('Failed to fetch screening invitations');
       console.error('Error fetching invitations:', err);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchInvitations();
+  }, [fetchInvitations]);
+
+  const handleRefresh = () => {
+    if (!refreshing) {
+      fetchInvitations({ silent: true });
     }
   };
 
@@ -285,7 +298,7 @@ const TenantScreeningTenant = () => {
             <AlertCircle className="w-8 h-8 sm:w-10 sm:h-10 text-red-500 mx-auto mb-2 sm:mb-3" />
             <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2">Error Loading Invitations</h3>
             <p className="text-gray-600 text-xs sm:text-sm mb-4">{error}</p>
-            <Button onClick={fetchInvitations} size="sm" className="text-xs sm:text-sm">Try Again</Button>
+            <Button onClick={() => fetchInvitations()} size="sm" className="text-xs sm:text-sm">Try Again</Button>
           </CardContent>
         </Card>
       </div>
@@ -293,13 +306,117 @@ const TenantScreeningTenant = () => {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
-        {/* Header - same style as landlord screening but without actions */}
-        <ScreeningHeader
-          title="Tenant Screening"
-          description="Manage your screening invitations from landlords"
-        />
+    <div className="min-h-screen space-y-6 p-4 sm:p-6">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="relative overflow-hidden rounded-2xl"
+      >
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-sky-200/80 via-cyan-200/75 to-emerald-200/70 opacity-95" />
+        <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -top-12 -left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-300/50 to-cyan-400/40 blur-3xl"
+            initial={{ opacity: 0.4, scale: 0.85 }}
+            animate={{ opacity: 0.7, scale: 1.05 }}
+            transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-tl from-emerald-200/40 to-cyan-200/35 blur-3xl"
+            initial={{ opacity: 0.3 }}
+            animate={{ opacity: 0.6 }}
+            transition={{ duration: 3.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          />
+
+          <div className="px-4 sm:px-6 py-5 space-y-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4 min-w-0">
+                <motion.div
+                  whileHover={{ scale: 1.05, rotate: [0, -3, 3, 0] }}
+                  className="relative flex-shrink-0"
+                >
+                  <div className="relative h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-600 via-cyan-600 to-emerald-600 text-white grid place-items-center shadow-xl shadow-cyan-500/30">
+                    <ShieldCheck className="h-5 w-5 relative z-10" />
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/15 to-transparent" />
+                  </div>
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 220 }}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-sky-600 border border-sky-100 shadow-sm grid place-items-center"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                  </motion.div>
+                  <motion.div
+                    className="absolute inset-0 rounded-2xl border-2 border-cyan-400/30"
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                </motion.div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
+                      Tenant Screening
+                    </h1>
+                    <motion.div
+                      animate={{ rotate: [0, 8, -8, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <Sparkles className="h-4 w-4 text-cyan-500" />
+                    </motion.div>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                    Manage your screening invitations from landlords
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                <Button
+                  variant="outline"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="h-11 rounded-xl border-slate-200 bg-white/85 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white disabled:opacity-70"
+                >
+                  {refreshing ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Refreshing
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4" />
+                      Refresh Data
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+              style={{ originX: 0 }}
+              className="relative h-1 w-full rounded-full overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/80 via-cyan-400/80 to-emerald-400/80" />
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                animate={{ x: ["-100%", "100%"] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+              />
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="space-y-6">
 
         {/* Stats Cards - shrinkable and responsive */}
         <Card className="shadow-sm border border-gray-200">
@@ -324,66 +441,50 @@ const TenantScreeningTenant = () => {
             }`}
           >
             <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {/* PENDING Status Card */}
-                <Card className={`${SCREENING_STATUS_THEME.PENDING.backgroundCard} ${SCREENING_STATUS_THEME.PENDING.border} hover:border-amber-300 transition-colors duration-200 cursor-default`}>
-                  <CardContent className="p-2 sm:p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-[9px] sm:text-[10px] font-medium ${SCREENING_STATUS_THEME.PENDING.textColor} uppercase tracking-wide truncate`}>Pending</p>
-                        <h3 className={`text-base sm:text-lg font-bold ${SCREENING_STATUS_THEME.PENDING.textColorDark} mt-0.5 truncate`}>{stats.pending}</h3>
-                      </div>
-                      <div className={`${SCREENING_STATUS_THEME.PENDING.iconBackground} text-white p-1 sm:p-1.5 rounded-lg flex-shrink-0`}>
-                        <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className={`rounded-xl ${SCREENING_STATUS_THEME.PENDING.borderCard} ${SCREENING_STATUS_THEME.PENDING.backgroundCard} p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)]`}>
+                  <div className={`h-10 w-10 rounded-lg grid place-items-center ${SCREENING_STATUS_THEME.PENDING.iconBackground}`}>
+                    <Clock className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className={`text-xs uppercase tracking-wide ${SCREENING_STATUS_THEME.PENDING.textColorLight}`}>Pending</p>
+                    <p className={`text-lg font-semibold ${SCREENING_STATUS_THEME.PENDING.textColorDark}`}>{stats.pending}</p>
+                  </div>
+                </div>
                 
                 {/* SUBMITTED Status Card */}
-                <Card className={`${SCREENING_STATUS_THEME.SUBMITTED.backgroundCard} ${SCREENING_STATUS_THEME.SUBMITTED.border} hover:border-indigo-300 transition-colors duration-200 cursor-default`}>
-                  <CardContent className="p-2 sm:p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-[9px] sm:text-[10px] font-medium ${SCREENING_STATUS_THEME.SUBMITTED.textColor} uppercase tracking-wide truncate`}>Submitted</p>
-                        <h3 className={`text-base sm:text-lg font-bold ${SCREENING_STATUS_THEME.SUBMITTED.textColorDark} mt-0.5 truncate`}>{stats.submitted}</h3>
-                      </div>
-                      <div className={`${SCREENING_STATUS_THEME.SUBMITTED.iconBackground} text-white p-1 sm:p-1.5 rounded-lg flex-shrink-0`}>
-                        <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className={`rounded-xl ${SCREENING_STATUS_THEME.SUBMITTED.borderCard} ${SCREENING_STATUS_THEME.SUBMITTED.backgroundCard} p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)]`}>
+                  <div className={`h-10 w-10 rounded-lg grid place-items-center ${SCREENING_STATUS_THEME.SUBMITTED.iconBackground}`}>
+                    <FileText className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className={`text-xs uppercase tracking-wide ${SCREENING_STATUS_THEME.SUBMITTED.textColorLight}`}>Submitted</p>
+                    <p className={`text-lg font-semibold ${SCREENING_STATUS_THEME.SUBMITTED.textColorDark}`}>{stats.submitted}</p>
+                  </div>
+                </div>
                 
                 {/* APPROVED Status Card */}
-                <Card className={`${SCREENING_STATUS_THEME.APPROVED.backgroundCard} ${SCREENING_STATUS_THEME.APPROVED.border} hover:border-emerald-300 transition-colors duration-200 cursor-default`}>
-                  <CardContent className="p-2 sm:p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-[9px] sm:text-[10px] font-medium ${SCREENING_STATUS_THEME.APPROVED.textColor} uppercase tracking-wide truncate`}>Approved</p>
-                        <h3 className={`text-base sm:text-lg font-bold ${SCREENING_STATUS_THEME.APPROVED.textColorDark} mt-0.5 truncate`}>{stats.approved}</h3>
-                      </div>
-                      <div className={`${SCREENING_STATUS_THEME.APPROVED.iconBackground} text-white p-1 sm:p-1.5 rounded-lg flex-shrink-0`}>
-                        <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className={`rounded-xl ${SCREENING_STATUS_THEME.APPROVED.borderCard} ${SCREENING_STATUS_THEME.APPROVED.backgroundCard} p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)]`}>
+                  <div className={`h-10 w-10 rounded-lg grid place-items-center ${SCREENING_STATUS_THEME.APPROVED.iconBackground}`}>
+                    <CheckCircle className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className={`text-xs uppercase tracking-wide ${SCREENING_STATUS_THEME.APPROVED.textColorLight}`}>Approved</p>
+                    <p className={`text-lg font-semibold ${SCREENING_STATUS_THEME.APPROVED.textColorDark}`}>{stats.approved}</p>
+                  </div>
+                </div>
                 
                 {/* REJECTED Status Card */}
-                <Card className={`${SCREENING_STATUS_THEME.REJECTED.backgroundCard} ${SCREENING_STATUS_THEME.REJECTED.border} hover:border-rose-300 transition-colors duration-200 cursor-default`}>
-                  <CardContent className="p-2 sm:p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-[9px] sm:text-[10px] font-medium ${SCREENING_STATUS_THEME.REJECTED.textColor} uppercase tracking-wide truncate`}>Rejected</p>
-                        <h3 className={`text-base sm:text-lg font-bold ${SCREENING_STATUS_THEME.REJECTED.textColorDark} mt-0.5 truncate`}>{stats.rejected}</h3>
-                      </div>
-                      <div className={`${SCREENING_STATUS_THEME.REJECTED.iconBackground} text-white p-1 sm:p-1.5 rounded-lg flex-shrink-0`}>
-                        <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className={`rounded-xl ${SCREENING_STATUS_THEME.REJECTED.borderCard} ${SCREENING_STATUS_THEME.REJECTED.backgroundCard} p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)]`}>
+                  <div className={`h-10 w-10 rounded-lg grid place-items-center ${SCREENING_STATUS_THEME.REJECTED.iconBackground}`}>
+                    <XCircle className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className={`text-xs uppercase tracking-wide ${SCREENING_STATUS_THEME.REJECTED.textColorLight}`}>Rejected</p>
+                    <p className={`text-lg font-semibold ${SCREENING_STATUS_THEME.REJECTED.textColorDark}`}>{stats.rejected}</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

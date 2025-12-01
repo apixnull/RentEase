@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  MapPin, 
-  Home, 
+import {
+  MapPin,
+  Home,
   Calendar,
   Lightbulb,
   AlertCircle,
@@ -19,7 +19,6 @@ import {
   XCircle,
   RotateCcw,
   Loader2,
-  Edit2
 } from 'lucide-react';
 import { getLandlordSpecificListingRequest, toggleListingVisibilityRequest } from '@/api/landlord/listingApi';
 import { toast } from 'sonner';
@@ -110,6 +109,16 @@ export const ListingDetails = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [showToggleConfirm, setShowToggleConfirm] = useState(false);
+  const simulatedTxnId = useMemo(() => {
+    if (!listingData) return null;
+    if (listingData.providerTxnId) {
+      return listingData.providerTxnId;
+    }
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
+    return `txn_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36)}`;
+  }, [listingData?.providerTxnId, listingData?.id]);
 
   const fetchListingData = async ({ silent }: { silent?: boolean } = {}) => {
     if (!listingId) return;
@@ -627,10 +636,10 @@ export const ListingDetails = () => {
                     </motion.div>
                     <div className="min-w-0 space-y-1">
                       <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-gray-900 truncate">
-                        {unit.label || 'Listing Details'}
+                        Unit: {unit.label || 'Listing Details'}
                       </h1>
                       <p className="text-sm text-gray-600 leading-5 truncate">
-                        {property.title || 'Untitled Property'}
+                        Property: {property.title || 'Untitled Property'}
                       </p>
                     </div>
                   </div>
@@ -677,8 +686,8 @@ export const ListingDetails = () => {
                     variant="outline"
                     className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
                   >
-                    <Edit2 className="h-4 w-4 mr-2" />
-                    Edit Unit
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Unit
                   </Button>
                   {/* Toggle Visibility Button - Only show for VISIBLE or HIDDEN status */}
                   {(listingData.lifecycleStatus === 'VISIBLE' || listingData.lifecycleStatus === 'HIDDEN') && (
@@ -1051,9 +1060,9 @@ export const ListingDetails = () => {
                         </div>
                         <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
                           <span className="text-sm text-slate-600">Transaction ID</span>
-                          {listingData.providerTxnId ? (
-                            <span className="text-xs font-mono text-slate-700 truncate max-w-[150px]" title={listingData.providerTxnId}>
-                              {listingData.providerTxnId}
+                          {simulatedTxnId ? (
+                            <span className="text-xs font-mono text-slate-700 truncate max-w-[150px]" title={simulatedTxnId}>
+                              {simulatedTxnId}
                             </span>
                           ) : (
                             <span className="text-sm italic text-slate-400">Not applicable</span>

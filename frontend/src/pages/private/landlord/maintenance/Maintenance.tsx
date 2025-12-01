@@ -716,21 +716,6 @@ const Maintenance = () => {
                     </span>
                   )}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => toast.info('Repairer browsing feature coming soon')}
-                  className="h-10 rounded-xl border border-slate-200/70 bg-white/95 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white"
-                >
-                  <Search className="mr-2 h-4 w-4 text-slate-500" />
-                  Browse Repairers
-                </Button>
-                <Button
-                  onClick={() => toast.info('Contact repairer feature coming soon')}
-                  className="h-10 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 px-4 text-sm font-semibold text-white shadow-md shadow-cyan-500/30 hover:brightness-110"
-                >
-                  <Phone className="mr-2 h-4 w-4" />
-                  Contact Repairer
-                </Button>
               </div>
             </div>
 

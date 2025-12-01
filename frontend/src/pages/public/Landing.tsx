@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { ChevronRight, Search, Heart, Star, MapPin, Zap, Home as HomeIcon, Users, Calendar, ShieldCheck, Check, Smartphone, Key } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Star, MapPin, Zap, Building, Key, MessageCircle, Users, FileText, Eye, Globe, Bot, Wrench, DollarSign, BarChart3, Shield } from "lucide-react";
 
 /* ****************** LANDING ****************** */
 const Landing = () => {
@@ -8,6 +9,7 @@ const Landing = () => {
       <HeroSection />
       <FeaturesSection />
       <HowItWorksSection />
+      <ForLandlordsSection />
       <CTASection />
     </div>
   );
@@ -15,25 +17,27 @@ const Landing = () => {
 
 /* ****************** CTA SECTION ****************** */
 const CTASection = () => {
+  const navigate = useNavigate();
+  
   return (
     <section className="py-16 bg-gradient-to-r from-emerald-600 to-sky-600 text-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <h2 className="text-2xl md:text-3xl font-bold mb-6">
-          Ready to Find Your Dream Rental?
+          Ready to Find Your Student Rental in Cebu?
         </h2>
         <p className="text-lg mb-10 max-w-2xl mx-auto">
-          Join thousands of satisfied renters and start your journey today
+          Join students and landlords across Cebu Province. Start your rental journey today.
         </p>
         
         <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <button className="px-6 py-3 bg-white text-emerald-600 rounded-xl font-bold shadow-md hover:shadow-lg transition-all">
+          <motion.button 
+            onClick={() => navigate("/auth/register")}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="px-6 py-3 bg-white text-emerald-600 rounded-xl font-bold shadow-md hover:shadow-lg transition-all"
+          >
             Get Started Now
-          </button>
-          <button className="px-6 py-3 bg-transparent border-2 border-white rounded-xl font-bold hover:bg-white/10 transition-all">
-            <span className="flex items-center justify-center">
-              Schedule a Demo <ChevronRight className="ml-2" size={20} />
-            </span>
-          </button>
+          </motion.button>
         </div>
       </div>
     </section>
@@ -44,10 +48,10 @@ const CTASection = () => {
 /* ****************** FEATURES SECTION ****************** */
 const FeaturesSection = () => {
   const features = [
-    { icon: Search, title: "Smart Search", desc: "AI-powered property matching" },
-    { icon: Heart, title: "Save Favorites", desc: "Bookmark properties you love" },
-    { icon: Star, title: "Verified Listings", desc: "100% authentic properties" },
-    { icon: MapPin, title: "Neighborhood Insights", desc: "Know the area before you rent" },
+    { icon: Bot, title: "AI Chatbot Search", desc: "Instead of typing searches, chat naturally with our AI assistant. Describe what you need and get instant property matches in Cebu." },
+    { icon: Eye, title: "Transparent Payments", desc: "Both tenants and landlords can see all payment history. Avoid losses and ensure fairness." },
+    { icon: MessageCircle, title: "Direct Communication", desc: "Chat directly with landlords. Ask questions and get responses quickly." },
+    { icon: Wrench, title: "Structured Maintenance Reports", desc: "Report unit issues easily. Unlike other informal platforms where requests get lost, your maintenance reports stay focused and visible to landlords." },
   ];
 
   return (
@@ -70,7 +74,7 @@ const FeaturesSection = () => {
             Why Choose <span className="text-emerald-600">RentEase</span>
           </h2>
           <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            Everything you need to find, tour, and secure your perfect rental
+            Complete transparency for both tenants and landlords. Fair, safe, and digital-first rental experience.
           </p>
         </div>
         
@@ -89,6 +93,25 @@ const FeaturesSection = () => {
             </motion.div>
           ))}
         </div>
+        
+        {/* Community Inclusion Section */}
+        <div className="mt-16 bg-gradient-to-r from-emerald-50 to-sky-50 rounded-2xl p-8 border border-emerald-100">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <div className="bg-emerald-100 p-4 rounded-full">
+              <Globe className="w-8 h-8 text-emerald-600" />
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                Building Digital Community Inclusion
+              </h3>
+              <p className="text-gray-700">
+                RentEase is more than a platform—we're helping the Cebu community embrace digital transformation. 
+                By moving rental processes online, we're making housing more accessible, transparent, and safe for everyone. 
+                Join us in building a better, more connected rental community in Cebu Province.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -96,19 +119,7 @@ const FeaturesSection = () => {
 
 /* ****************** HERO SECTION ****************** */
 const HeroSection = () => {
-  const stats = [
-    { icon: HomeIcon, value: "50K+", label: "Verified Properties" },
-    { icon: Users, value: "120+", label: "Cities Worldwide" },
-    { icon: Calendar, value: "98%", label: "Satisfaction Rate" },
-    { icon: ShieldCheck, value: "24/7", label: "Premium Support" }
-  ];
-
-  const features = [
-    { icon: Check, text: "Instant booking confirmation" },
-    { icon: Check, text: "Virtual property tours" },
-    { icon: Check, text: "Smart search filters" },
-    { icon: Check, text: "Secure payment system" }
-  ];
+  const navigate = useNavigate();
 
   return (
     <section className="relative min-h-screen flex items-center py-16 overflow-hidden">
@@ -169,34 +180,23 @@ const HeroSection = () => {
                 <Zap className="w-6 h-6 text-emerald-600" fill="currentColor" />
               </motion.span>
               <span className="text-sm font-medium text-gray-700">
-                The future of rental experience
+                The smart way to find rentals in Cebu
               </span>
             </div>
             
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              Find Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-sky-600">Dream Home</span> Without the Hassle
+              Your Perfect <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-sky-600">Student Rental</span> in Cebu, Right Here
             </h1>
             
             <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto lg:mx-0">
-              Discover thousands of verified properties, virtual tours, and move in with confidence. 
-              The smart way to find your perfect space.
+              Browse all available rentals in Cebu Province from anywhere. See everything upfront—transparent payments, direct landlord chat, and digital lease agreements. 
+              <span className="font-semibold text-gray-900"> Everything you need, all in one place.</span>
             </p>
-            
-            {/* Features list */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-10 max-w-xl">
-              {features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-3">
-                  <div className="bg-emerald-100 p-1.5 rounded-full mt-0.5">
-                    <feature.icon className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <span className="text-gray-700">{feature.text}</span>
-                </div>
-              ))}
-            </div>
             
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <motion.button
+                onClick={() => navigate("/auth/login")}
                 whileHover={{ 
                   scale: 1.05,
                   boxShadow: "0 10px 25px -5px rgba(16, 185, 129, 0.3)"
@@ -205,9 +205,13 @@ const HeroSection = () => {
                 className="px-7 py-4 bg-gradient-to-r from-emerald-600 to-sky-600 rounded-xl font-bold text-lg text-white shadow-lg flex items-center gap-2"
               >
                 <Search className="w-5 h-5" />
-                <span>Explore Properties</span>
+                <span>Find Units</span>
               </motion.button>
               <motion.button
+                onClick={() => {
+                  const element = document.getElementById('for-landlords');
+                  element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
                 whileHover={{ 
                   scale: 1.05,
                   backgroundColor: "#f9fafb"
@@ -215,16 +219,143 @@ const HeroSection = () => {
                 whileTap={{ scale: 0.95 }}
                 className="px-7 py-4 bg-white border border-gray-200 rounded-xl font-bold text-lg flex items-center gap-2"
               >
-                <span>How It Works</span>
-                <ChevronRight className="w-5 h-5" />
+                <Users className="w-5 h-5" />
+                <span>List Your Property</span>
               </motion.button>
+            </div>
+            
+            {/* Key Features - Transparency Focus */}
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
+              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-3 rounded-lg border border-gray-200">
+                <div className="bg-emerald-100 p-2 rounded-lg">
+                  <Eye className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Visible Payment Tracking</p>
+                  <p className="text-xs text-gray-600">Both parties see all transactions</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-3 rounded-lg border border-gray-200">
+                <div className="bg-emerald-100 p-2 rounded-lg">
+                  <MessageCircle className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Direct Communication</p>
+                  <p className="text-xs text-gray-600">Chat with landlords easily</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-3 rounded-lg border border-gray-200">
+                <div className="bg-emerald-100 p-2 rounded-lg">
+                  <FileText className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Visible Lease Agreement</p>
+                  <p className="text-xs text-gray-600">Fair & transparent terms</p>
+                </div>
+              </div>
             </div>
           </div>
           
-          {/* Right Content - Property Card */}
-          <div className="relative">
+          {/* Right Content - Unit Cards (Layered) */}
+          <div className="relative flex justify-center lg:justify-end" style={{ minHeight: '500px' }}>
+            {/* Background Card 1 */}
             <motion.div 
-              className="bg-white rounded-3xl shadow-xl overflow-hidden max-w-lg mx-auto border border-gray-100"
+              className="absolute bg-white rounded-2xl shadow-lg overflow-hidden max-w-sm w-full border border-gray-100"
+              style={{ 
+                zIndex: 1,
+                left: '-40px',
+                top: '40px',
+                opacity: 0.9,
+                transform: 'rotate(-3deg)',
+              }}
+              animate={{
+                y: [0, -10, 0],
+              }}
+              transition={{
+                duration: 4.5,
+                repeat: Infinity,
+                repeatType: "reverse" as const,
+                ease: "easeInOut",
+                delay: 0.5
+              }}
+            >
+              <div className="relative aspect-[4/3] bg-gray-50 overflow-hidden">
+                <img 
+                  src="https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+                  alt="Student apartment"
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-1">Cozy Boarding House</h3>
+                <p className="text-xs text-gray-600 mb-1.5">
+                  <Building className="w-3 h-3 inline mr-1" />
+                  Boarding House • Unit 2B
+                </p>
+                <div className="flex items-center text-gray-500 text-xs mb-3">
+                  <MapPin className="w-3 h-3 mr-1" />
+                  <span className="line-clamp-1">Mandaue City, Cebu</span>
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-bold text-gray-900 text-lg">₱6,500</span>
+                    <span className="text-xs text-gray-500">/mo</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Background Card 2 */}
+            <motion.div 
+              className="absolute bg-white rounded-2xl shadow-lg overflow-hidden max-w-sm w-full border border-gray-100"
+              style={{ 
+                zIndex: 2,
+                right: '-120px',
+                top: '40px',
+                opacity: 0.9,
+                transform: 'rotate(4deg)',
+              }}
+              animate={{
+                y: [0, -12, 0],
+              }}
+              transition={{
+                duration: 4.2,
+                repeat: Infinity,
+                repeatType: "reverse" as const,
+                ease: "easeInOut",
+                delay: 0.3
+              }}
+            >
+              <div className="relative aspect-[4/3] bg-gray-50 overflow-hidden">
+                <img 
+                  src="https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+                  alt="Student apartment"
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-1">Modern Condo Unit</h3>
+                <p className="text-xs text-gray-600 mb-1.5">
+                  <Building className="w-3 h-3 inline mr-1" />
+                  Condominium • Unit 5C
+                </p>
+                <div className="flex items-center text-gray-500 text-xs mb-3">
+                  <MapPin className="w-3 h-3 mr-1" />
+                  <span className="line-clamp-1">Lapu-Lapu City, Cebu</span>
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-bold text-gray-900 text-lg">₱12,000</span>
+                    <span className="text-xs text-gray-500">/mo</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Main Card (Front) */}
+            <motion.div 
+              className="relative bg-white rounded-2xl shadow-xl overflow-hidden max-w-sm w-full border border-gray-100"
+              style={{ zIndex: 3 }}
               animate={{
                 y: [0, -15, 0],
               }}
@@ -235,85 +366,71 @@ const HeroSection = () => {
                 ease: "easeInOut"
               }}
             >
-              {/* Property Image */}
-              <div className="relative h-72 overflow-hidden">
-                <div className="bg-gradient-to-br from-emerald-400/20 to-sky-500/30 absolute inset-0" />
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80')] bg-cover bg-center mix-blend-overlay" />
-                
-                {/* Badges */}
-                <div className="absolute top-4 left-4 flex gap-2">
-                  <div className="bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                    Verified
-                  </div>
-                  <div className="bg-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                    New Listing
-                  </div>
-                </div>
-                
-                {/* Price */}
-                <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-900">$1,850<span className="text-base font-normal">/mo</span></div>
-                </div>
+              {/* Unit Image */}
+              <div className="relative aspect-[4/3] bg-gray-50 overflow-hidden">
+                <img 
+                  src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+                  alt="Student apartment in Cebu"
+                  className="h-full w-full object-cover"
+                />
               </div>
               
-              {/* Property Details */}
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">Modern Downtown Loft</h3>
-                    <div className="flex items-center text-gray-600 mt-1">
-                      <MapPin className="w-4 h-4 mr-1.5" />
-                      <span>Downtown, San Francisco</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center bg-amber-50 px-2 py-1 rounded">
-                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    <span className="ml-1 text-amber-700 font-medium">4.9</span>
+              {/* Unit Details */}
+              <div className="p-4">
+                <div className="mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-1">Student-Friendly Apartment</h3>
+                  <p className="text-xs text-gray-600 mb-1.5">
+                    <Building className="w-3 h-3 inline mr-1" />
+                    Apartment • Unit 3A
+                  </p>
+                  <div className="flex items-center text-gray-500 text-xs">
+                    <MapPin className="w-3 h-3 mr-1" />
+                    <span className="line-clamp-1">Cebu City, Cebu Province</span>
                   </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-3 mb-5">
-                  {["2 Beds", "2 Baths", "1200 sqft", "Parking"].map((item, i) => (
-                    <div key={i} className="bg-gray-100 px-3 py-1.5 rounded-lg text-sm text-gray-700">
-                      {item}
+                {/* Rating Section */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star 
+                          key={star} 
+                          className={`w-3 h-3 ${star <= 4 ? 'fill-amber-400 text-amber-400' : 'fill-gray-200 text-gray-200'}`} 
+                        />
+                      ))}
                     </div>
-                  ))}
+                    <span className="text-xs font-bold text-amber-700 ml-1">4.5</span>
+                  </div>
+                  <span className="text-xs text-gray-500">(5)</span>
                 </div>
                 
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                  <div className="flex -space-x-2">
-                    {[1, 2, 3].map((item) => (
-                      <div 
-                        key={item} 
-                        className="w-8 h-8 rounded-full border-2 border-white bg-gray-200"
+                {/* Viewers Section */}
+                <div className="flex items-center gap-2 mb-3 pb-3 border-b border-gray-100">
+                  <div className="flex -space-x-1.5">
+                    {[1, 2, 3, 4].map((index) => (
+                      <img
+                        key={index}
+                        src={`https://i.pravatar.cc/150?img=${index + 10}`}
+                        alt={`Viewer ${index}`}
+                        className="w-6 h-6 rounded-full border-2 border-white object-cover"
                       />
                     ))}
                   </div>
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium">12 people</span> viewed today
+                  <div className="text-xs text-gray-600">
+                    <span className="font-medium">24</span> viewed
+                  </div>
+                </div>
+                
+                {/* Price Section */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-bold text-gray-900 text-lg">₱8,500</span>
+                    <span className="text-xs text-gray-500">/mo</span>
                   </div>
                 </div>
               </div>
             </motion.div>
-            
-            {/* Stats Grid */}
-            <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-xl mx-auto">
-              {stats.map((stat, index) => (
-                <motion.div 
-                  key={index}
-                  className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all"
-                  whileHover={{ y: -8, borderColor: "rgba(16, 185, 129, 0.3)" }}
-                >
-                  <div className="flex justify-center mb-3">
-                    <div className="bg-gradient-to-r from-emerald-500 to-sky-500 p-2 rounded-lg">
-                      <stat.icon className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                  <p className="text-xl font-bold text-center text-gray-800">{stat.value}</p>
-                  <p className="text-sm text-center text-gray-600">{stat.label}</p>
-                </motion.div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
@@ -324,10 +441,10 @@ const HeroSection = () => {
 /* ****************** HOW IT WORKS SECTION ****************** */
 const HowItWorksSection = () => {
   const steps = [
-    { icon: Search, title: "Search", desc: "Find properties that match your needs" },
-    { icon: Heart, title: "Save", desc: "Shortlist your favorite options" },
-    { icon: Smartphone, title: "Contact", desc: "Message owners directly" },
-    { icon: Key, title: "Move In", desc: "Sign digitally and move in" },
+    { icon: Bot, title: "AI-Powered Search", desc: "Chat with our AI assistant to find units. No need to type complex searches—just talk naturally." },
+    { icon: MessageCircle, title: "Chat Directly", desc: "Message landlords with questions. Get instant responses." },
+    { icon: Key, title: "Lease Transparently", desc: "View and sign digital lease agreements. Track payments together." },
+    { icon: Wrench, title: "Easy Maintenance", desc: "Report unit issues easily. Structured requests ensure landlords see them immediately." },
   ];
 
   return (
@@ -350,7 +467,7 @@ const HowItWorksSection = () => {
             How <span className="text-emerald-600">RentEase</span> Works
           </h2>
           <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            Simple steps to find and secure your perfect rental
+            A simple, safe, and transparent way to find and secure your rental in Cebu—all from the comfort of your home
           </p>
         </div>
         
@@ -373,6 +490,121 @@ const HowItWorksSection = () => {
               </div>
             </motion.div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ****************** FOR LANDLORDS SECTION ****************** */
+const ForLandlordsSection = () => {
+  const navigate = useNavigate();
+  
+  const features = [
+    { 
+      icon: Building, 
+      title: "Property & Unit Management", 
+      desc: "Manage your properties and units structuredly. Organize everything in one place." 
+    },
+    { 
+      icon: Zap, 
+      title: "Unit Advertisements", 
+      desc: "Create and manage advertisements for each unit to find prospective tenants and generate leads." 
+    },
+    { 
+      icon: DollarSign, 
+      title: "Financial Management", 
+      desc: "Record income and expenses. Know your current financial status at a glance." 
+    },
+    { 
+      icon: BarChart3, 
+      title: "Rent Payment Dashboard", 
+      desc: "See rent payments to be collected this month. Track all payments in one organized view." 
+    },
+    { 
+      icon: Shield, 
+      title: "AI-Powered Tenant Screening", 
+      desc: "Basic automated screening with simple AI helper to find reliable tenants." 
+    },
+    { 
+      icon: FileText, 
+      title: "Digital Lease Management", 
+      desc: "Manage leases digitally for your tenants. All agreements in one secure place." 
+    },
+    { 
+      icon: MessageCircle, 
+      title: "Transparent Communication", 
+      desc: "Communicate with tenants transparently. Direct messaging keeps everything clear." 
+    },
+    { 
+      icon: Wrench, 
+      title: "Maintenance Request Management", 
+      desc: "Handle maintenance requests efficiently. Structured system ensures nothing gets missed." 
+    },
+  ];
+
+  return (
+    <section id="for-landlords" className="py-16 bg-white relative">
+      <div className="absolute inset-0 overflow-hidden">
+        <motion.div 
+          className="absolute top-1/4 right-1/4 w-[600px] h-[600px] rounded-full bg-gradient-to-r from-emerald-100 to-sky-100 blur-3xl opacity-30"
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{
+            duration: 12,
+            repeat: Infinity,
+            repeatType: "reverse"
+          }}
+        />
+      </div>
+      
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-full mb-6">
+            <Users className="w-5 h-5 text-emerald-600" />
+            <span className="text-sm font-medium text-gray-700">For Landlords</span>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Everything You Need to <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-sky-600">Manage Your Rentals</span>
+          </h2>
+          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            Streamline your rental business with powerful tools designed for landlords in Cebu Province
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          {features.map((feature, index) => (
+            <motion.div 
+              key={index}
+              className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-md hover:shadow-xl transition-all border border-gray-100"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -8, borderColor: "rgba(16, 185, 129, 0.3)" }}
+            >
+              <div className="bg-emerald-50 p-3 rounded-lg inline-block mb-4">
+                <feature.icon className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h3 className="text-lg font-bold mb-2 text-gray-900">{feature.title}</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">{feature.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+        
+        {/* CTA for Landlords */}
+        <div className="text-center">
+          <motion.button
+            onClick={() => navigate("/auth/register")}
+            whileHover={{ 
+              scale: 1.05,
+              boxShadow: "0 10px 25px -5px rgba(16, 185, 129, 0.3)"
+            }}
+            whileTap={{ scale: 0.95 }}
+            className="px-8 py-4 bg-gradient-to-r from-emerald-600 to-sky-600 rounded-xl font-bold text-lg text-white shadow-lg flex items-center gap-2 mx-auto"
+          >
+            <Users className="w-5 h-5" />
+            <span>Start Managing Your Properties</span>
+          </motion.button>
         </div>
       </div>
     </section>

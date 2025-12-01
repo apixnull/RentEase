@@ -83,14 +83,18 @@ const CreateUnit = () => {
     amenities: [] as string[],
     mainImage: null as File | null,
     mainImagePreview: "",
+    mainImageUrl: "",
     otherImages: [] as File[],
     otherImagesPreviews: [] as string[],
+    otherImageUrls: [] as string[],
     targetPrice: "",
     leaseRules: [] as LeaseRule[],
     newLeaseRule: "",
     newLeaseRuleCategory: "general",
     requiresScreening: false,
   });
+
+  const [imageInputMode, setImageInputMode] = useState<"file" | "url">("file");
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -211,11 +215,90 @@ const CreateUnit = () => {
           ...prev,
           mainImage: file,
           mainImagePreview: URL.createObjectURL(file),
+          mainImageUrl: "",
         }));
       } else {
         toast.error("Please select a valid image file");
       }
     }
+  };
+
+  // Handle main image URL
+  const handleMainImageUrlChange = (url: string) => {
+    setFormData((prev) => {
+      let preview = "";
+      if (url.trim()) {
+        try {
+          new URL(url.trim());
+          preview = url.trim();
+        } catch {
+          preview = "";
+        }
+      }
+      return {
+        ...prev,
+        mainImageUrl: url,
+        mainImage: null,
+        mainImagePreview: preview,
+      };
+    });
+  };
+
+  // Handle image mode change
+  const handleImageModeChange = (mode: "file" | "url") => {
+    setImageInputMode(mode);
+    setFormData((prev) => ({
+      ...prev,
+      mainImage: null,
+      mainImagePreview: "",
+      mainImageUrl: "",
+      otherImages: [],
+      otherImagesPreviews: [],
+      otherImageUrls: [],
+    }));
+  };
+
+  // Handle other image URLs
+  const handleOtherImageUrlChange = (index: number, url: string) => {
+    setFormData((prev) => {
+      const newUrls = [...prev.otherImageUrls];
+      const newPreviews = [...prev.otherImagesPreviews];
+      
+      // Ensure arrays are long enough
+      while (newUrls.length <= index) {
+        newUrls.push("");
+        newPreviews.push("");
+      }
+      
+      newUrls[index] = url;
+      // Set preview to URL if valid, otherwise empty
+      try {
+        if (url.trim()) {
+          new URL(url.trim());
+          newPreviews[index] = url.trim();
+        } else {
+          newPreviews[index] = "";
+        }
+      } catch {
+        newPreviews[index] = "";
+      }
+      
+      return {
+        ...prev,
+        otherImageUrls: newUrls.slice(0, 6),
+        otherImagesPreviews: newPreviews.slice(0, 6),
+      };
+    });
+  };
+
+
+  // Remove other image URL
+  const removeOtherImageUrl = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      otherImageUrls: prev.otherImageUrls.filter((_, i) => i !== index),
+      otherImagesPreviews: prev.otherImagesPreviews.filter((_, i) => i !== index),
+    }));
   };
 
   // Handle additional images selection
@@ -255,6 +338,7 @@ const CreateUnit = () => {
       ),
     }));
   };
+
 
   const addLeaseRule = () => {
     if (formData.newLeaseRule.trim() && formData.leaseRules.length < 10) {
@@ -318,13 +402,24 @@ const CreateUnit = () => {
         }
         return true;
       case 3:
-        if (!formData.mainImage) {
-          toast.error("Please upload a main image for the unit");
-          return false;
-        }
-        if (formData.otherImages.length !== 6) {
-          toast.error("Please upload exactly 6 additional images");
-          return false;
+        if (imageInputMode === "file") {
+          if (!formData.mainImage) {
+            toast.error("Please upload a main image for the unit");
+            return false;
+          }
+          if (formData.otherImages.length !== 6) {
+            toast.error("Please upload exactly 6 additional images");
+            return false;
+          }
+        } else {
+          if (!formData.mainImageUrl.trim()) {
+            toast.error("Please enter a main image URL for the unit");
+            return false;
+          }
+          if (formData.otherImageUrls.length !== 6 || formData.otherImageUrls.some(url => !url.trim())) {
+            toast.error("Please enter exactly 6 additional image URLs");
+            return false;
+          }
         }
         return true;
       case 4:
@@ -445,30 +540,36 @@ const CreateUnit = () => {
     try {
       // First upload all images to Supabase using the actual unitId
       let mainImageUrl = "";
-      const otherImageUrls: string[] = [];
+      let otherImageUrls: string[] = [];
 
-      // Upload main image
-      if (formData.mainImage) {
-        mainImageUrl = await uploadImageToSupabase(
-          formData.mainImage,
-          unitId,
-          "main"
-        );
-      }
-
-      // Upload other images
-      if (formData.otherImages.length > 0) {
-        for (let i = 0; i < formData.otherImages.length; i++) {
-          const imageUrl = await uploadImageToSupabase(
-            formData.otherImages[i],
+      if (imageInputMode === "file") {
+        // Upload main image
+        if (formData.mainImage) {
+          mainImageUrl = await uploadImageToSupabase(
+            formData.mainImage,
             unitId,
-            `image_${i + 1}`
+            "main"
           );
-          otherImageUrls.push(imageUrl);
         }
-      }
 
-      uploadedImages = true;
+        // Upload other images
+        if (formData.otherImages.length > 0) {
+          for (let i = 0; i < formData.otherImages.length; i++) {
+            const imageUrl = await uploadImageToSupabase(
+              formData.otherImages[i],
+              unitId,
+              `image_${i + 1}`
+            );
+            otherImageUrls.push(imageUrl);
+          }
+        }
+        uploadedImages = true;
+      } else {
+        // Use URLs directly
+        mainImageUrl = formData.mainImageUrl.trim();
+        otherImageUrls = formData.otherImageUrls.filter(url => url.trim());
+        uploadedImages = false; // No files to rollback
+      }
 
       // Prepare the complete unit data with image URLs and the unitId
       const completeUnitData = {
@@ -795,6 +896,35 @@ const CreateUnit = () => {
               {/* Step 3: Photos */}
               {currentStep === 3 && (
                 <div className="space-y-6">
+                  {/* Image Input Mode Toggle */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-sm font-semibold text-gray-900">Image Source:</span>
+                    <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => handleImageModeChange("file")}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                          imageInputMode === "file"
+                            ? "bg-white text-emerald-600 shadow-sm"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        Upload File
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleImageModeChange("url")}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                          imageInputMode === "url"
+                            ? "bg-white text-emerald-600 shadow-sm"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        Image URL
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Main Image Section */}
                   <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
                     <div className="flex items-center gap-3 mb-4">
@@ -809,61 +939,87 @@ const CreateUnit = () => {
                       </div>
                     </div>
 
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleMainImageChange}
-                      accept="image/*"
-                      className="hidden"
-                    />
+                    {imageInputMode === "file" ? (
+                      <>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleMainImageChange}
+                          accept="image/*"
+                          className="hidden"
+                        />
 
-                    {!formData.mainImagePreview ? (
-                      <div
-                        className="border-3 border-dashed border-green-300 rounded-xl p-12 text-center cursor-pointer hover:border-green-400 transition-colors bg-white"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <Camera className="h-12 w-12 text-green-400 mx-auto mb-4" />
-                        <h4 className="font-semibold text-gray-900 text-lg mb-2">
-                          Add a Cover Photo
-                        </h4>
-                        <p className="text-gray-600">
-                          Choose your best photo that shows the unit's main
-                          feature
-                        </p>
-                        <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Upload Cover Photo
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="bg-white rounded-xl p-4 border-2 border-green-200">
-                        <div className="flex items-center gap-4">
-                          <img
-                            src={formData.mainImagePreview}
-                            alt="Main preview"
-                            className="w-24 h-24 object-cover rounded-lg"
-                          />
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-900">
-                              Cover Photo Selected
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {formData.mainImage?.name}
-                            </p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            onClick={() =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                mainImage: null,
-                                mainImagePreview: "",
-                              }))
-                            }
+                        {!formData.mainImagePreview ? (
+                          <div
+                            className="border-3 border-dashed border-green-300 rounded-xl p-12 text-center cursor-pointer hover:border-green-400 transition-colors bg-white"
+                            onClick={() => fileInputRef.current?.click()}
                           >
-                            Change Photo
-                          </Button>
-                        </div>
+                            <Camera className="h-12 w-12 text-green-400 mx-auto mb-4" />
+                            <h4 className="font-semibold text-gray-900 text-lg mb-2">
+                              Add a Cover Photo
+                            </h4>
+                            <p className="text-gray-600">
+                              Choose your best photo that shows the unit's main
+                              feature
+                            </p>
+                            <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload Cover Photo
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="bg-white rounded-xl p-4 border-2 border-green-200">
+                            <div className="flex items-center gap-4">
+                              <img
+                                src={formData.mainImagePreview}
+                                alt="Main preview"
+                                className="w-24 h-24 object-cover rounded-lg"
+                              />
+                              <div className="flex-1">
+                                <p className="font-semibold text-gray-900">
+                                  Cover Photo Selected
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  {formData.mainImage?.name}
+                                </p>
+                              </div>
+                              <Button
+                                variant="outline"
+                                onClick={() =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    mainImage: null,
+                                    mainImagePreview: "",
+                                  }))
+                                }
+                              >
+                                Change Photo
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="space-y-3">
+                        <Input
+                          type="url"
+                          value={formData.mainImageUrl}
+                          onChange={(e) => handleMainImageUrlChange(e.target.value)}
+                          placeholder="https://example.com/image.jpg"
+                          className="h-11 w-full"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Enter a direct link to an image (e.g., from Imgur, Cloudinary, or any image hosting service)
+                        </p>
+                        {formData.mainImagePreview && (
+                          <div className="bg-white rounded-xl p-4 border-2 border-green-200">
+                            <img
+                              src={formData.mainImagePreview}
+                              alt="Main preview"
+                              className="w-full h-48 object-cover rounded-lg"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -882,61 +1038,112 @@ const CreateUnit = () => {
                       </div>
                     </div>
 
-                    <input
-                      type="file"
-                      ref={otherImagesInputRef}
-                      onChange={handleOtherImagesChange}
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                    />
+                    {imageInputMode === "file" ? (
+                      <>
+                        <input
+                          type="file"
+                          ref={otherImagesInputRef}
+                          onChange={handleOtherImagesChange}
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                        />
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                      {formData.otherImagesPreviews.map((preview, index) => (
-                        <div key={index} className="relative group">
-                          <img
-                            src={preview}
-                            alt={`Additional ${index + 1}`}
-                            className="w-full h-32 object-cover rounded-lg"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 h-6 w-6 bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
-                            onClick={() => removeOtherImage(index)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                          <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                            {index + 1}
-                          </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                          {formData.otherImagesPreviews.map((preview, index) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={preview}
+                                alt={`Additional ${index + 1}`}
+                                className="w-full h-32 object-cover rounded-lg"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-2 right-2 h-6 w-6 bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
+                                onClick={() => removeOtherImage(index)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                              <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                                {index + 1}
+                              </div>
+                            </div>
+                          ))}
+
+                          {Array.from({
+                            length: 6 - formData.otherImages.length,
+                          }).map((_, index) => (
+                            <div
+                              key={`empty-${index}`}
+                              className="border-2 border-dashed border-gray-300 rounded-lg h-32 flex items-center justify-center cursor-pointer hover:border-green-400 transition-colors bg-white"
+                              onClick={() => otherImagesInputRef.current?.click()}
+                            >
+                              <Plus className="h-8 w-8 text-gray-400" />
+                            </div>
+                          ))}
                         </div>
-                      ))}
 
-                      {Array.from({
-                        length: 6 - formData.otherImages.length,
-                      }).map((_, index) => (
-                        <div
-                          key={`empty-${index}`}
-                          className="border-2 border-dashed border-gray-300 rounded-lg h-32 flex items-center justify-center cursor-pointer hover:border-green-400 transition-colors bg-white"
+                        <Button
+                          type="button"
+                          variant="outline"
                           onClick={() => otherImagesInputRef.current?.click()}
+                          disabled={formData.otherImages.length >= 6}
+                          className="w-full"
                         >
-                          <Plus className="h-8 w-8 text-gray-400" />
+                          <Upload className="h-4 w-4 mr-2" />
+                          Add More Photos ({formData.otherImages.length}/6)
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {Array.from({ length: 6 }).map((_, index) => (
+                            <div key={index} className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-700">
+                                  Image {index + 1} URL
+                                </label>
+                                {formData.otherImageUrls[index] && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeOtherImageUrl(index)}
+                                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                              <Input
+                                type="url"
+                                value={formData.otherImageUrls[index] || ""}
+                                onChange={(e) => handleOtherImageUrlChange(index, e.target.value)}
+                                placeholder={`https://example.com/image${index + 1}.jpg`}
+                                className="h-10"
+                              />
+                              {formData.otherImagesPreviews[index] && (
+                                <div className="mt-2">
+                                  <img
+                                    src={formData.otherImagesPreviews[index]}
+                                    alt={`Preview ${index + 1}`}
+                                    className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => otherImagesInputRef.current?.click()}
-                      disabled={formData.otherImages.length >= 6}
-                      className="w-full"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Add More Photos ({formData.otherImages.length}/6)
-                    </Button>
+                        <p className="text-xs text-gray-500">
+                          Enter direct links to 6 images (e.g., from Imgur, Cloudinary, or any image hosting service)
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1250,7 +1457,9 @@ const CreateUnit = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Photos</span>
                   <span className="font-semibold">
-                    {formData.otherImages.length + (formData.mainImage ? 1 : 0)}
+                    {imageInputMode === "file"
+                      ? formData.otherImages.length + (formData.mainImage ? 1 : 0)
+                      : formData.otherImageUrls.filter(url => url.trim()).length + (formData.mainImageUrl.trim() ? 1 : 0)}
                     /7
                   </span>
                 </div>

@@ -1,12 +1,12 @@
-import { Outlet, Link, NavLink, useLocation } from "react-router-dom"
+import { Outlet, Link, NavLink, useLocation, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Zap, Home, Info, Sparkles, DollarSign, 
-  Mail, Phone, MapPin, Heart, ShieldCheck,
-  CreditCard, Headphones, Gift, Github, Youtube,
-  Linkedin, Facebook, LogIn, UserPlus, Menu, X
+  Mail, Phone, MapPin, Heart, Github, Youtube,
+  Linkedin, Facebook, LogIn, UserPlus, Menu, X, Cookie, LayoutDashboard
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 /* ****************** PUBLIC LAYOUT  ****************** */
 const PublicLayout = () => {
@@ -15,6 +15,7 @@ const PublicLayout = () => {
     <Navbar />
     <Outlet />
     <Footer />
+    <CookieConsent />
     </>
   )
 }
@@ -23,12 +24,29 @@ const PublicLayout = () => {
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
 
   // Active link check
   const isActive = (path: string) => location.pathname === path;
+
+  // Get dashboard route based on user role
+  const getDashboardRoute = () => {
+    if (!user) return "/";
+    switch (user.role) {
+      case "ADMIN":
+        return "/admin";
+      case "LANDLORD":
+        return "/landlord";
+      case "TENANT":
+        return "/tenant";
+      default:
+        return "/";
+    }
+  };
 
   return (
     <header className="w-full px-4 py-3 bg-white/70 backdrop-blur-sm sticky top-0 z-50 border-b border-emerald-100 shadow-sm">
@@ -91,27 +109,53 @@ function Navbar() {
             </NavLink>
           </motion.div>
           
+          {/* Pricing */}
+          <motion.div whileHover={{ y: -2 }}>
+            <NavLink 
+              to="/pricing" 
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                isActive("/pricing") ? "text-emerald-600 font-semibold" : "text-gray-600 hover:text-emerald-600"
+              }`}
+            >
+              <DollarSign className="w-5 h-5" />
+              Pricing
+            </NavLink>
+          </motion.div>
           
-          {/* Auth Buttons */}
+          {/* Auth Buttons or Dashboard */}
           <div className="flex gap-2 ml-4">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <NavLink 
-                to="/auth/login" 
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-emerald-500 text-emerald-600 hover:bg-emerald-50"
-              >
-                <LogIn className="w-4 h-4" />
-                Login
-              </NavLink>
-            </motion.div>
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <NavLink 
-                to="/auth/register" 
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-gradient-to-r from-emerald-600 to-sky-600 text-white hover:shadow-md"
-              >
-                <UserPlus className="w-4 h-4" />
-                Register
-              </NavLink>
-            </motion.div>
+            {user ? (
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <button
+                  onClick={() => navigate(getDashboardRoute())}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-gradient-to-r from-emerald-600 to-sky-600 text-white hover:shadow-md"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  Dashboard
+                </button>
+              </motion.div>
+            ) : (
+              <>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <NavLink 
+                    to="/auth/login" 
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-emerald-500 text-emerald-600 hover:bg-emerald-50"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Login
+                  </NavLink>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <NavLink 
+                    to="/auth/register" 
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-gradient-to-r from-emerald-600 to-sky-600 text-white hover:shadow-md"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Register
+                  </NavLink>
+                </motion.div>
+              </>
+            )}
           </div>
         </div>
 
@@ -190,37 +234,75 @@ function Navbar() {
                 </NavLink>
               </motion.div>
               
+              {/* Pricing */}
+              <motion.div
+                initial={{ x: -20 }}
+                animate={{ x: 0 }}
+                transition={{ delay: 0.25 }}
+              >
+                <NavLink 
+                  to="/pricing" 
+                  className={`flex items-center gap-3 py-2 px-3 rounded-lg text-sm ${
+                    isActive("/pricing") ? "text-emerald-600 font-semibold bg-emerald-50" : "text-gray-600"
+                  }`}
+                  onClick={closeMenu}
+                >
+                  <DollarSign className="w-5 h-5" />
+                  Pricing
+                </NavLink>
+              </motion.div>
               
-              {/* Auth Buttons */}
+              {/* Auth Buttons or Dashboard */}
               <div className="flex flex-col gap-2 mt-2 pt-3 border-t border-emerald-100">
-                <motion.div
-                  initial={{ y: 10 }}
-                  animate={{ y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <NavLink 
-                    to="/auth/login" 
-                    className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm border border-emerald-500 text-emerald-600 hover:bg-emerald-50"
-                    onClick={closeMenu}
+                {user ? (
+                  <motion.div
+                    initial={{ y: 10 }}
+                    animate={{ y: 0 }}
+                    transition={{ delay: 0.3 }}
                   >
-                    <LogIn className="w-4 h-4" />
-                    Login
-                  </NavLink>
-                </motion.div>
-                <motion.div
-                  initial={{ y: 10 }}
-                  animate={{ y: 0 }}
-                  transition={{ delay: 0.35 }}
-                >
-                  <NavLink 
-                    to="/auth/register" 
-                    className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm bg-gradient-to-r from-emerald-600 to-sky-600 text-white hover:shadow-md"
-                    onClick={closeMenu}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Register
-                  </NavLink>
-                </motion.div>
+                    <button
+                      onClick={() => {
+                        navigate(getDashboardRoute());
+                        closeMenu();
+                      }}
+                      className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm bg-gradient-to-r from-emerald-600 to-sky-600 text-white hover:shadow-md w-full"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      Dashboard
+                    </button>
+                  </motion.div>
+                ) : (
+                  <>
+                    <motion.div
+                      initial={{ y: 10 }}
+                      animate={{ y: 0 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      <NavLink 
+                        to="/auth/login" 
+                        className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm border border-emerald-500 text-emerald-600 hover:bg-emerald-50"
+                        onClick={closeMenu}
+                      >
+                        <LogIn className="w-4 h-4" />
+                        Login
+                      </NavLink>
+                    </motion.div>
+                    <motion.div
+                      initial={{ y: 10 }}
+                      animate={{ y: 0 }}
+                      transition={{ delay: 0.35 }}
+                    >
+                      <NavLink 
+                        to="/auth/register" 
+                        className="flex items-center gap-2 justify-center py-2 px-4 rounded-lg text-sm bg-gradient-to-r from-emerald-600 to-sky-600 text-white hover:shadow-md"
+                        onClick={closeMenu}
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Register
+                      </NavLink>
+                    </motion.div>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
@@ -334,63 +416,8 @@ const Footer = () => {
             </ul>
           </motion.div>
           
-          {/* **************************** NEWSLETTER **************************** */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            <h3 className="text-xl font-bold mb-6 pb-2 border-b-2 border-emerald-500 inline-block">
-              Newsletter
-            </h3>
-            <p className="text-emerald-100/90 mb-4">
-              Subscribe to our newsletter for the latest updates and offers.
-            </p>
-            <form className="flex flex-col space-y-3">
-              <input 
-                type="email" 
-                placeholder="Your email address" 
-                className="px-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white"
-                aria-label="Email address"
-              />
-              <button
-                className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-sky-600 rounded-lg font-medium hover:shadow-lg transition-shadow"
-              >
-                Subscribe
-              </button>
-            </form>
-          </motion.div>
         </div>
         
-        {/* **************************** TRUST BADGES **************************** */}
-        <motion.div 
-          className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12 border-t border-white/10 pt-10"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-        >
-          {[
-            { icon: ShieldCheck, title: "Secure Payments", desc: "SSL encrypted transactions" },
-            { icon: CreditCard, title: "Flexible Payments", desc: "Multiple payment options" },
-            { icon: Headphones, title: "24/7 Support", desc: "Always here to help" },
-            { icon: Gift, title: "Special Offers", desc: "Exclusive member benefits" },
-          ].map((item, index) => (
-            <div 
-              key={index}
-              className="flex items-center p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
-            >
-              <div className="bg-emerald-900/40 p-3 rounded-lg mr-4">
-                <item.icon className="w-8 h-8 text-emerald-400" />
-              </div>
-              <div>
-                <h4 className="font-bold">{item.title}</h4>
-                <p className="text-sm text-emerald-100/80">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </motion.div>
         
         {/* **************************** COPYRIGHT **************************** */}
         <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center">
@@ -412,9 +439,20 @@ const Footer = () => {
         </div>
         
         {/* **************************** MADE WITH LOVE **************************** */}
-        <div className="flex justify-center mt-8 text-emerald-100/70 text-sm">
-          Made with <Heart className="w-4 h-4 mx-1 text-red-500 fill-current" /> by RentEase Team
-        </div>
+        <motion.div 
+          className="flex justify-center items-center mt-8"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex items-center gap-2 px-6 py-3 bg-white/5 rounded-full border border-white/10">
+            <span className="text-emerald-100/80 text-sm">Made with</span>
+            <Heart className="w-4 h-4 text-red-500 fill-current animate-pulse" />
+            <span className="text-emerald-100/80 text-sm">by</span>
+            <span className="font-bold bg-gradient-to-r from-emerald-400 to-sky-400 bg-clip-text text-transparent">RentEase Team</span>
+          </div>
+        </motion.div>
       </div>
     </motion.footer>
   );
@@ -422,5 +460,58 @@ const Footer = () => {
 
 
 
+
+/* ****************** COOKIE CONSENT ****************** */
+const CookieConsent = () => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const consent = localStorage.getItem('cookieConsent');
+    if (!consent) {
+      setIsVisible(true);
+    }
+  }, []);
+
+  const handleAccept = () => {
+    localStorage.setItem('cookieConsent', 'accepted');
+    setIsVisible(false);
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 100, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-gray-200 shadow-2xl"
+      >
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-start gap-4 flex-1">
+            <div className="bg-emerald-100 p-2 rounded-lg">
+              <Cookie className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 mb-1">We use cookies</h3>
+              <p className="text-sm text-gray-600">
+                We use cookies to enhance your browsing experience and analyze our traffic. By clicking "Accept", you consent to our use of cookies.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleAccept}
+              className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-sky-600 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+            >
+              Accept
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 export default PublicLayout
