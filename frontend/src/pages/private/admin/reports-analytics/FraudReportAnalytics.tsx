@@ -314,7 +314,6 @@ const FraudReportAnalytics = () => {
     
     const summaryData = [
       ['Metric', 'Value'],
-      ['Total Reports', metrics.totalReports.toString()],
       [`Reports Created (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, totalReportsCreated.toString()],
     ];
     
@@ -355,16 +354,12 @@ const FraudReportAnalytics = () => {
       return [dateLabel, (item.count || 0).toString()];
     });
     
-    const reportsTotal = totalReportsCreated;
-    
     autoTable(doc, {
       startY: yPos,
       head: [['Date', 'Count']],
       body: reportsTableData,
-      foot: [['Total', reportsTotal.toString()]],
       theme: 'striped',
       headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      footStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
       styles: { fontSize: 9 },
       margin: { left: margin, right: margin },
     });
@@ -397,6 +392,9 @@ const FraudReportAnalytics = () => {
           report.id.substring(0, 8) + '...',
           dateStr,
           report.propertyTitle || 'N/A',
+          report.unitLabel || 'N/A',
+          report.ownerName || 'N/A',
+          report.ownerEmail || 'N/A',
           report.reporterName || 'N/A',
           report.reason.replace(/_/g, ' '),
         ];
@@ -407,29 +405,32 @@ const FraudReportAnalytics = () => {
       
       autoTable(doc, {
         startY: yPos,
-        head: [['Report ID', 'Report Date', 'Property', 'Reporter', 'Reason']],
+        head: [['Report ID', 'Report Date', 'Property', 'Unit', 'Owner Name', 'Owner Email', 'Reporter', 'Reason']],
         body: breakdownData,
         theme: 'striped',
         headStyles: { 
           fillColor: [16, 185, 129], 
           textColor: 255, 
           fontStyle: 'bold',
-          fontSize: 9,
+          fontSize: 8,
         },
-        bodyStyles: { fontSize: 8 },
+        bodyStyles: { fontSize: 7 },
         alternateRowStyles: { fillColor: [249, 250, 251] },
         columnStyles: {
-          0: { cellWidth: 35, halign: 'left' },
-          1: { cellWidth: 45 },
-          2: { cellWidth: 60 },
-          3: { cellWidth: 50 },
-          4: { cellWidth: 50 },
+          0: { cellWidth: 30, halign: 'left' },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 40 },
+          5: { cellWidth: 40 },
+          6: { cellWidth: 40 },
+          7: { cellWidth: 35 },
         },
         margin: { left: margin, right: margin },
         styles: { 
           overflow: 'linebreak', 
           cellPadding: 2,
-          fontSize: 8,
+          fontSize: 7,
           lineWidth: 0.1,
         },
         tableWidth: availableWidth,
@@ -505,6 +506,9 @@ const FraudReportAnalytics = () => {
         reason: report.reason,
         createdAt: new Date(report.createdAt),
         propertyTitle: report.propertyTitle,
+        unitLabel: report.unitLabel,
+        ownerName: report.ownerName,
+        ownerEmail: report.ownerEmail,
         reporterName: report.reporterName,
         reporterEmail: report.reporterEmail,
       }))
@@ -767,6 +771,8 @@ const FraudReportAnalytics = () => {
                   <TableHead className="w-[100px]">Report ID</TableHead>
                   <TableHead>Report Date</TableHead>
                   <TableHead>Property</TableHead>
+                  <TableHead>Unit</TableHead>
+                  <TableHead>Owner</TableHead>
                   <TableHead>Reporter</TableHead>
                   <TableHead>Reason</TableHead>
                 </TableRow>
@@ -788,6 +794,15 @@ const FraudReportAnalytics = () => {
                     </TableCell>
                     <TableCell className="font-medium">
                       {report.propertyTitle}
+                    </TableCell>
+                    <TableCell>
+                      {report.unitLabel}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{report.ownerName}</span>
+                        <span className="text-xs text-muted-foreground">{report.ownerEmail}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">

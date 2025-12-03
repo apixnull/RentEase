@@ -238,11 +238,48 @@ export const forgotPassword = async (req, res) => {
       const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
       if (diffDays < 3) {
+        const remainingDays = Math.ceil(3 - diffDays);
+        const remainingHours = Math.ceil((3 - diffDays) * 24);
         return res.status(429).json({
           message:
-            "You can only change your password once every 3 days. Please try again later.",
+            `You can only change your password once every 3 days. Please try again in ${remainingDays} day${remainingDays > 1 ? 's' : ''}.`,
+          remainingDays: remainingDays,
+          remainingHours: remainingHours,
         });
       }
+    }
+
+    // ✅ Check daily request limit (prevent multiple requests in same day)
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const todayKey = `password_reset_request:${user.email}:${today.toISOString().split('T')[0]}`;
+    const lastRequest = await redis.get(todayKey);
+
+    if (lastRequest) {
+      // Request already made today - calculate time until next day (midnight)
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      const msUntilMidnight = tomorrow.getTime() - now.getTime();
+      const hoursUntilMidnight = Math.ceil(msUntilMidnight / (1000 * 60 * 60));
+      const minutesUntilMidnight = Math.ceil(msUntilMidnight / (1000 * 60));
+      
+      let timeMessage = "";
+      if (hoursUntilMidnight >= 24) {
+        timeMessage = `${Math.floor(hoursUntilMidnight / 24)} day${Math.floor(hoursUntilMidnight / 24) > 1 ? 's' : ''}`;
+      } else if (hoursUntilMidnight > 1) {
+        timeMessage = `${hoursUntilMidnight} hour${hoursUntilMidnight > 1 ? 's' : ''}`;
+      } else {
+        timeMessage = `${minutesUntilMidnight} minute${minutesUntilMidnight > 1 ? 's' : ''}`;
+      }
+      
+      return res.status(429).json({
+        message:
+          `You have already requested a password reset today. Please try again in ${timeMessage}.`,
+        hoursUntilNext: hoursUntilMidnight,
+        minutesUntilNext: minutesUntilMidnight,
+      });
     }
 
     // Generate secure token
@@ -252,6 +289,13 @@ export const forgotPassword = async (req, res) => {
     // Store reset request in Redis (expires in 10 minutes)
     await redis.hset(key, { email: user.email });
     await redis.expire(key, RESET_PASSWORD_TTL); // 10 minutes
+
+    // Track daily request (expires at midnight + 1 hour buffer)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(1, 0, 0, 0); // 1 AM next day
+    const ttlSeconds = Math.ceil((tomorrow.getTime() - new Date().getTime()) / 1000);
+    await redis.setex(todayKey, ttlSeconds, new Date().toISOString());
 
     // Build reset URL (frontend route)
     const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password/${token}`;
@@ -483,6 +527,7 @@ export const getUserInfo = async (req, res) => {
         lastLogin: true,
         lastPasswordChange: true,
         hasSeenOnboarding: true,
+        createdAt: true,
       },
     });
 
@@ -496,6 +541,7 @@ export const getUserInfo = async (req, res) => {
       birthdate: user.birthdate?.toISOString(),
       lastLogin: user.lastLogin?.toISOString(),
       lastPasswordChange: user.lastPasswordChange?.toISOString(),
+      createdAt: user.createdAt?.toISOString(),
     };
 
     return res.status(200).json({ user: formattedUser });

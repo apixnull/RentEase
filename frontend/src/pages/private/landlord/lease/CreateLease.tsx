@@ -54,6 +54,7 @@ import {
   getPropertiesWithUnitsAndTenantsRequest,
 } from "@/api/landlord/leaseApi";
 import { supabase } from "@/lib/supabaseClient";
+import { privateApi } from "@/api/axios";
 
 // Interfaces based on API responses
 interface Tenant {
@@ -123,7 +124,7 @@ const CreateLease = () => {
     rentAmount: "",
     securityDeposit: "",
     dueDate: "1",
-    dueDateOption: "FIRST" as "FIRST" | "MATCH_START",
+    dueDateOption: "MATCH_START" as "FIRST" | "MATCH_START",
 
     // Step 3: Documents
     leaseDocumentUrl: "",
@@ -137,7 +138,8 @@ const CreateLease = () => {
   const [calculatedEndDate, setCalculatedEndDate] = useState<string>("");
   const [rentAmountError, setRentAmountError] = useState("");
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
-  const [proratedAmount, setProratedAmount] = useState<number | null>(null);
+  // Prorated amount calculation kept for future use (coming soon feature)
+  const [_proratedAmount, setProratedAmount] = useState<number | null>(null);
   const [showAllSuggestedTenants, setShowAllSuggestedTenants] = useState(false);
   const [showAllSearchResults, setShowAllSearchResults] = useState(false);
 
@@ -157,6 +159,8 @@ const CreateLease = () => {
           ...parsedData,
           securityDeposit: parsedData.securityDeposit || "",
           leaseTermMonths: parsedData.leaseTermMonths || "12",
+          // Reset to MATCH_START if FIRST is selected (coming soon feature)
+          dueDateOption: parsedData.dueDateOption === "FIRST" ? "MATCH_START" : (parsedData.dueDateOption || "MATCH_START"),
         });
       } catch (error) {
         console.error("Failed to parse saved form data:", error);
@@ -377,7 +381,10 @@ const CreateLease = () => {
 
   // Auto-update due date based on selected option
   useEffect(() => {
-    if (!formData.startDate) return;
+    if (!formData.startDate) {
+      setProratedAmount(null);
+      return;
+    }
 
     const startDate = new Date(formData.startDate);
     
@@ -386,7 +393,7 @@ const CreateLease = () => {
       const dayOfMonth = startDate.getDate();
       const safeDay = Math.min(dayOfMonth, 28); // Cap at 28 to avoid month-end issues
       setFormData((prev) => ({ ...prev, dueDate: safeDay.toString() }));
-      setProratedAmount(null); // No proration needed
+      setProratedAmount(null); // No proration needed when due date matches start date
     } else {
       // Option 1: Always 1st (most common in apartments/condos/professional rentals)
       setFormData((prev) => ({ ...prev, dueDate: "1" }));
@@ -403,16 +410,18 @@ const CreateLease = () => {
           const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
           
           // Calculate days from start date to end of month (inclusive)
+          // Example: Start on Jan 15, total days = 31, days in partial month = 31 - 15 + 1 = 17
           const daysInPartialMonth = totalDaysInMonth - startDay + 1;
           
           // Calculate prorated amount: (days in partial month / total days) * monthly rent
+          // This gives the tenant's share for the partial first month
           const prorated = (daysInPartialMonth / totalDaysInMonth) * rentAmount;
           setProratedAmount(Math.round(prorated * 100) / 100); // Round to 2 decimal places
         } else {
           setProratedAmount(null);
         }
       } else {
-        setProratedAmount(null); // No proration needed if start is on 1st
+        setProratedAmount(null); // No proration needed if start is on 1st or rent is 0
       }
     }
   }, [formData.dueDateOption, formData.startDate, formData.rentAmount]);
@@ -481,27 +490,64 @@ const CreateLease = () => {
   };
 
   const uploadLeaseDocument = async (file: File): Promise<string> => {
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-      const filePath = `lease-documents/${fileName}`;
+    // Check if using local storage (development mode or explicit flag)
+    const useLocalStorage =
+      import.meta.env.VITE_USE_LOCAL_STORAGE === "true" ||
+      import.meta.env.MODE === "development";
 
-      const { error } = await supabase.storage
-        .from("rentease-images")
-        .upload(filePath, file);
+    if (useLocalStorage) {
+      // Local storage mode: Upload to backend endpoint
+      try {
+        const formData = new FormData();
+        formData.append("document", file);
 
-      if (error) {
-        throw new Error(`Upload failed: ${error.message}`);
+        const response = await privateApi.post("/upload/document", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        const mockUrl = response.data.url; // e.g., "/local-images/lease_documents/uuid.pdf"
+
+        // In development, prepend backend URL to make it accessible
+        if (import.meta.env.MODE === "development") {
+          const backendUrl = "http://localhost:5000";
+          return `${backendUrl}${mockUrl}`;
+        }
+
+        // In production with local storage, return as-is
+        return mockUrl;
+      } catch (error: any) {
+        console.error("Local upload error:", error);
+        const errorMsg =
+          error.response?.data?.error || "Failed to upload document to local storage";
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
       }
+    } else {
+      // Supabase storage mode (production)
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const filePath = `lease-documents/${fileName}`;
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+        const { error } = await supabase.storage
+          .from("rentease-images")
+          .upload(filePath, file);
 
-      return publicUrl;
-    } catch (error) {
-      console.error("Error uploading lease document:", error);
-      throw new Error("Failed to upload lease document. Please try again.");
+        if (error) {
+          throw new Error(`Upload failed: ${error.message}`);
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+
+        return publicUrl;
+      } catch (error) {
+        console.error("Error uploading lease document:", error);
+        throw new Error("Failed to upload lease document. Please try again.");
+      }
     }
   };
 
@@ -547,7 +593,7 @@ const CreateLease = () => {
           : null,
         dueDate: parseInt(formData.dueDate),
         leaseDocumentUrl: leaseDocumentUrl || null,
-        proratedAmount: proratedAmount || null, // Include prorated amount if applicable
+        proratedAmount: null, // Prorated rent feature coming soon
       };
       
       // Only include rentAmount if it's greater than 0
@@ -1537,55 +1583,7 @@ const CreateLease = () => {
                         
                         {/* Two Due Date Options */}
                         <div className="space-y-2">
-                          {/* Option 1: Always 1st (Most Common) */}
-                          <div
-                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                              formData.dueDateOption === "FIRST"
-                                ? "border-blue-500 bg-blue-50"
-                                : "border-slate-200 bg-white hover:border-slate-300"
-                            }`}
-                            onClick={() => handleInputChange("dueDateOption", "FIRST")}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                                formData.dueDateOption === "FIRST"
-                                  ? "border-blue-500 bg-blue-500"
-                                  : "border-slate-300 bg-white"
-                              }`}>
-                                {formData.dueDateOption === "FIRST" && (
-                                  <div className="h-2 w-2 rounded-full bg-white" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-sm font-semibold text-slate-900">
-                                    Always 1st of the Month
-                                  </span>
-                                  <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
-                                    Most Common
-                                  </Badge>
-                                </div>
-                                <p className="text-xs text-slate-600 mb-2">
-                                  Standard for apartments, condos, and professional rentals. Rent due on the 1st every month.
-                                </p>
-                                {formData.dueDateOption === "FIRST" && formData.startDate && new Date(formData.startDate).getDate() !== 1 && proratedAmount && (
-                                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-amber-800 font-medium">First Month Prorated:</span>
-                                      <span className="text-amber-700 font-semibold">
-                                        ₱{proratedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                      </span>
-                                    </div>
-                                    <p className="text-amber-700 text-[10px] mt-1">
-                                      Partial month from {format(new Date(formData.startDate), "MMM d")} to end of month
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Option 2: Match Start Date */}
+                          {/* Option 1: Match Start Date (Recommended) */}
                           <div
                             className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
                               formData.dueDateOption === "MATCH_START"
@@ -1609,8 +1607,8 @@ const CreateLease = () => {
                                   <span className="text-sm font-semibold text-slate-900">
                                     Match Start Date
                                   </span>
-                                  <Badge variant="secondary" className="text-[10px] bg-purple-100 text-purple-700">
-                                    Flexible
+                                  <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
+                                    Recommended
                                   </Badge>
                                 </div>
                                 <p className="text-xs text-slate-600">
@@ -1627,6 +1625,41 @@ const CreateLease = () => {
                                     </span>
                                   </div>
                                 )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Option 2: Always 1st (Coming Soon) - Disabled */}
+                          <div
+                            className={`p-3 rounded-xl border-2 transition-all opacity-60 cursor-not-allowed ${
+                              formData.dueDateOption === "FIRST"
+                                ? "border-slate-300 bg-slate-100"
+                                : "border-slate-200 bg-slate-50"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                formData.dueDateOption === "FIRST"
+                                  ? "border-slate-400 bg-slate-300"
+                                  : "border-slate-300 bg-slate-100"
+                              }`}>
+                                {formData.dueDateOption === "FIRST" && (
+                                  <div className="h-2 w-2 rounded-full bg-slate-500" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-semibold text-slate-600">
+                                    Always 1st of the Month
+                                  </span>
+                                  <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-700">
+                                    Coming Soon
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-slate-500 mb-2">
+                                  Standard for apartments, condos, and professional rentals. Rent due on the 1st every month.
+                                  <span className="text-amber-600 font-medium ml-1">(Prorated rent feature coming soon)</span>
+                                </p>
                               </div>
                             </div>
                           </div>

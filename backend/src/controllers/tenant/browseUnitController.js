@@ -159,6 +159,9 @@ export const searchListings = async (req, res) => {
     const whereClause = {
       lifecycleStatus: "VISIBLE",
       expiresAt: { gte: new Date() },
+      landlord: {
+        isDisabled: false, // exclude listings from disabled landlords
+      },
     };
 
     // Build unit filters
@@ -432,6 +435,9 @@ export const getVisibleListingsForTenant = async (req, res) => {
     const whereClause = {
       lifecycleStatus: "VISIBLE",
       expiresAt: { gte: new Date() }, // not expired
+      landlord: {
+        isDisabled: false, // exclude listings from disabled landlords
+      },
     };
 
     // Build unit filters
@@ -617,6 +623,9 @@ export const getSpecificListing = async (req, res) => {
         id: listingId,
         lifecycleStatus: "VISIBLE",
         expiresAt: { gte: new Date() },
+        landlord: {
+          isDisabled: false, // exclude listings from disabled landlords
+        },
       },
       select: {
         id: true,
@@ -1005,6 +1014,9 @@ Return JSON only, no commentary.
         const whereClause = {
           lifecycleStatus: "VISIBLE",
           expiresAt: { gte: new Date() },
+          landlord: {
+            isDisabled: false, // exclude listings from disabled landlords
+          },
         };
 
         const unitFilters = {};

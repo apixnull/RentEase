@@ -69,13 +69,18 @@ const lastNames = [
   "Soto", "Hernandez", "Valdez", "Campos", "Santiago", "Villanueva", "Fuentes", "Espinoza"
 ];
 
-// Generate random date within a year range (not in the future)
-function getRandomDateInYear(year) {
+// Generate random date within a specific month (not in the future)
+function getRandomDateInMonth(year, month) {
   const now = new Date();
-  const startDate = new Date(year, 0, 1); // January 1
-  const endDate = year === now.getFullYear() 
-    ? now // If current year, use current date
-    : new Date(year, 11, 31, 23, 59, 59); // December 31
+  const startDate = new Date(year, month, 1); // First day of month
+  
+  // If current month, use current date as end; otherwise use last day of month
+  let endDate;
+  if (year === now.getFullYear() && month === now.getMonth()) {
+    endDate = now; // Current date
+  } else {
+    endDate = new Date(year, month + 1, 0, 23, 59, 59); // Last day of month
+  }
   
   const startTime = startDate.getTime();
   const endTime = endDate.getTime();
@@ -155,146 +160,236 @@ function generateUserAgent() {
 
 async function main() {
   console.log("🌱 Starting user seeding...");
-  console.log("📊 Creating 20 users in 2024 and 30 users in 2025...");
+  console.log("📊 Creating 30 users in 2025, distributed across all months (Jan-Dec)...");
 
   const defaultPassword = "@Apix12345";
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
   const now = new Date();
+  const year = 2025;
+  const totalUsers = 30;
 
-  // Helper function to create users for a given year
-  const createUsersForYear = async (year, count) => {
-    console.log(`\n📅 Creating ${count} users for ${year}...`);
+  // Allocate users across months: at least 1 per month (12 users), remaining 18 distributed
+  const monthAllocations = new Array(12).fill(1); // Start with 1 user per month
+  const remainingUsers = totalUsers - 12; // 18 remaining users
+  
+  // Distribute remaining users randomly across months
+  for (let i = 0; i < remainingUsers; i++) {
+    const randomMonth = Math.floor(Math.random() * 12);
+    monthAllocations[randomMonth]++;
+  }
 
-    for (let i = 0; i < count; i++) {
-      // Generate random name
-      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-      const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-      const middleName = Math.random() > 0.7 ? firstNames[Math.floor(Math.random() * firstNames.length)] : null;
-      
-      // Generate unique email
-      let email = generateEmail(firstName, lastName, i);
-      let emailExists = true;
-      let attempts = 0;
-      
-      // Ensure email is unique
-      while (emailExists && attempts < 10) {
-        const existing = await prisma.user.findUnique({ where: { email } });
-        if (!existing) {
-          emailExists = false;
-        } else {
-          email = generateEmail(firstName, lastName, i + attempts);
-          attempts++;
-        }
+  console.log("\n📅 User allocation by month:");
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  monthAllocations.forEach((count, month) => {
+    console.log(`   ${monthNames[month]}: ${count} user(s)`);
+  });
+
+  let userIndex = 0;
+  let hasTodayUser = false; // Track if we've created a user with today's date
+  let loginMonthCoverage = new Array(12).fill(false); // Track which months have login records
+  let hasTodayLogin = false; // Track if we've created a login with today's date
+
+  // Helper function to create a single user
+  const createUser = async (month, useToday = false) => {
+    // Generate random name
+    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+    const middleName = Math.random() > 0.7 ? firstNames[Math.floor(Math.random() * firstNames.length)] : null;
+    
+    // Generate unique email
+    let email = generateEmail(firstName, lastName, userIndex);
+    let emailExists = true;
+    let attempts = 0;
+    
+    // Ensure email is unique
+    while (emailExists && attempts < 10) {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (!existing) {
+        emailExists = false;
+      } else {
+        email = generateEmail(firstName, lastName, userIndex + attempts);
+        attempts++;
       }
+    }
 
-      // Random role (60% TENANT, 40% LANDLORD)
-      const role = Math.random() < 0.6 ? "TENANT" : "LANDLORD";
-      
-      // Random verification status (80% verified)
-      const isVerified = Math.random() < 0.8;
-      
-      // Random disabled status (5% disabled)
-      const isDisabled = Math.random() < 0.05;
-      
-      // Generate random date within the year (not in the future)
-      const createdAt = getRandomDateInYear(year);
-      
-      // Random last login (if verified, 70% chance of having logged in)
-      let lastLogin = null;
-      if (isVerified && Math.random() < 0.7) {
-        // Last login should be after creation date but before now
-        const daysSinceCreation = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24));
-        if (daysSinceCreation > 0) {
-          const loginDaysAgo = Math.floor(Math.random() * Math.min(daysSinceCreation, 30));
-          lastLogin = new Date(createdAt);
-          lastLogin.setDate(lastLogin.getDate() + loginDaysAgo);
-        }
+    // Random role (60% TENANT, 40% LANDLORD)
+    const role = Math.random() < 0.6 ? "TENANT" : "LANDLORD";
+    
+    // Random verification status (80% verified)
+    const isVerified = Math.random() < 0.8;
+    
+    // Random disabled status (5% disabled)
+    const isDisabled = Math.random() < 0.05;
+    
+    // Generate date: use today if requested and not already used, otherwise random date in month
+    let createdAt;
+    if (useToday && !hasTodayUser && year === now.getFullYear() && month === now.getMonth()) {
+      createdAt = new Date(now); // Use today's date
+      hasTodayUser = true;
+    } else {
+      createdAt = getRandomDateInMonth(year, month);
+    }
+    
+    // Random last login (if verified, 70% chance of having logged in)
+    let lastLogin = null;
+    if (isVerified && Math.random() < 0.7) {
+      // Last login should be after creation date but before now
+      const daysSinceCreation = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24));
+      if (daysSinceCreation > 0) {
+        const loginDaysAgo = Math.floor(Math.random() * Math.min(daysSinceCreation, 30));
+        lastLogin = new Date(createdAt);
+        lastLogin.setDate(lastLogin.getDate() + loginDaysAgo);
       }
+    }
 
-      // Generate birthdate and gender
-      const birthdate = generateBirthdate();
-      const gender = generateGender();
-      const avatarUrl = generateAvatarUrl();
-      const bio = generateBio();
+    // Generate birthdate and gender
+    const birthdate = generateBirthdate();
+    const gender = generateGender();
+    const avatarUrl = generateAvatarUrl();
+    const bio = generateBio();
 
-      try {
-        const user = await prisma.user.create({
-          data: {
-            email,
-            passwordHash,
-            role,
-            firstName,
-            middleName,
-            lastName,
-            birthdate,
-            gender,
-            avatarUrl,
-            bio,
-            phoneNumber: Math.random() > 0.3 ? generatePhoneNumber() : null,
-            isVerified,
-            isDisabled,
-            createdAt,
-            lastLogin,
-            hasSeenOnboarding: true,
-          },
+    try {
+      const user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          role,
+          firstName,
+          middleName,
+          lastName,
+          birthdate,
+          gender,
+          avatarUrl,
+          bio,
+          phoneNumber: Math.random() > 0.3 ? generatePhoneNumber() : null,
+          isVerified,
+          isDisabled,
+          createdAt,
+          lastLogin,
+          hasSeenOnboarding: true,
+        },
+      });
+
+      // Create login records for this user (only for 2025, distributed across all months)
+      if (isVerified && lastLogin && year === 2025) {
+        // Determine the range of months from user creation to last login
+        const userCreationMonth = createdAt.getMonth();
+        const lastLoginMonth = lastLogin.getMonth();
+        const currentMonth = now.getMonth();
+        const endMonth = year === now.getFullYear() ? currentMonth : lastLoginMonth;
+        
+        // Calculate number of months to cover
+        const monthsToCover = [];
+        for (let m = userCreationMonth; m <= endMonth; m++) {
+          monthsToCover.push(m);
+        }
+        
+        // If user spans across year boundary, handle it
+        if (userCreationMonth > endMonth) {
+          for (let m = userCreationMonth; m < 12; m++) {
+            monthsToCover.push(m);
+          }
+          for (let m = 0; m <= endMonth; m++) {
+            monthsToCover.push(m);
+          }
+        }
+        
+        // Allocate logins: at least 1 per month in the range, remaining distributed
+        const numLogins = Math.floor(Math.random() * 15) + 5; // 5-20 logins total
+        const loginMonthAllocations = new Array(12).fill(0);
+        
+        // Ensure at least 1 login per month in the covered range
+        const minLoginsPerMonth = Math.min(1, Math.floor(numLogins / monthsToCover.length));
+        monthsToCover.forEach(month => {
+          loginMonthAllocations[month] = minLoginsPerMonth;
         });
-
-        // Create login records for this user
-        if (isVerified && lastLogin) {
-          const numLogins = Math.floor(Math.random() * 15) + 5; // 5-20 logins
-          const loginRecords = [];
+        
+        // Distribute remaining logins randomly across covered months
+        const allocatedSoFar = minLoginsPerMonth * monthsToCover.length;
+        const remainingLogins = numLogins - allocatedSoFar;
+        for (let i = 0; i < remainingLogins; i++) {
+          const randomMonth = monthsToCover[Math.floor(Math.random() * monthsToCover.length)];
+          loginMonthAllocations[randomMonth]++;
+        }
+        
+        const loginRecords = [];
+        
+        // Create login records for each month
+        for (let loginMonth = 0; loginMonth < 12; loginMonth++) {
+          const loginsInMonth = loginMonthAllocations[loginMonth];
           
-          const loginStartDate = createdAt;
-          const loginEndDate = lastLogin;
-          const daysSinceCreation = Math.floor((loginEndDate - loginStartDate) / (1000 * 60 * 60 * 24));
+          if (loginsInMonth === 0) continue; // Skip months with no logins
           
-          if (daysSinceCreation > 0) {
-            for (let loginIndex = 0; loginIndex < numLogins; loginIndex++) {
-              const loginDaysAgo = Math.floor(Math.random() * daysSinceCreation);
-              const loggedInAt = new Date(loginStartDate);
-              loggedInAt.setDate(loggedInAt.getDate() + loginDaysAgo);
-              
-              // Ensure loggedInAt is not in the future
-              if (loggedInAt <= now) {
-                loginRecords.push({
-                  userId: user.id,
-                  ipAddress: generateIpAddress(),
-                  userAgent: generateUserAgent(),
-                  loggedInAt,
-                });
-              }
+          // Ensure login month is within valid range (after creation, before/at lastLogin)
+          const monthStart = new Date(year, loginMonth, 1);
+          const monthEnd = new Date(year, loginMonth + 1, 0, 23, 59, 59);
+          const actualMonthEnd = (year === now.getFullYear() && loginMonth === now.getMonth()) 
+            ? now 
+            : (monthEnd > lastLogin ? lastLogin : monthEnd);
+          
+          if (monthStart < createdAt || actualMonthEnd < createdAt) continue;
+          
+          for (let loginIndex = 0; loginIndex < loginsInMonth; loginIndex++) {
+            let loggedInAt;
+            
+            // Use today's date for the last login in the current month (if we're in 2025 and current month)
+            if (loginIndex === loginsInMonth - 1 && 
+                !hasTodayLogin && 
+                year === now.getFullYear() && 
+                loginMonth === now.getMonth()) {
+              loggedInAt = new Date(now);
+              hasTodayLogin = true;
+            } else {
+              // Generate random date within the month, but after user creation
+              const startTime = Math.max(monthStart.getTime(), createdAt.getTime());
+              const endTime = actualMonthEnd.getTime();
+              const randomTime = startTime + Math.random() * (endTime - startTime);
+              loggedInAt = new Date(randomTime);
+            }
+            
+            // Ensure loggedInAt is not in the future and is after user creation
+            if (loggedInAt <= now && loggedInAt >= createdAt && loggedInAt <= lastLogin) {
+              loginRecords.push({
+                userId: user.id,
+                ipAddress: generateIpAddress(),
+                userAgent: generateUserAgent(),
+                loggedInAt,
+              });
+              // Mark this month as having login records
+              loginMonthCoverage[loginMonth] = true;
             }
           }
-
-          // Create login records in batch
-          if (loginRecords.length > 0) {
-            await prisma.userLogin.createMany({
-              data: loginRecords,
-            });
-          }
         }
-      } catch (error) {
-        console.error(`❌ Error creating user (${email}):`, error.message);
+
+        // Create login records in batch
+        if (loginRecords.length > 0) {
+          await prisma.userLogin.createMany({
+            data: loginRecords,
+          });
+        }
       }
+
+      userIndex++;
+      return true;
+    } catch (error) {
+      console.error(`❌ Error creating user (${email}):`, error.message);
+      return false;
     }
   };
 
-  // Create users for 2024
-  await createUsersForYear(2024, 20);
+  // Create users for each month
+  for (let month = 0; month < 12; month++) {
+    const count = monthAllocations[month];
+    console.log(`\n📅 Creating ${count} user(s) for ${monthNames[month]} ${year}...`);
+    
+    for (let i = 0; i < count; i++) {
+      // Use today's date for the last user in the current month (if we're in 2025 and current month)
+      const useToday = (i === count - 1) && (year === now.getFullYear()) && (month === now.getMonth()) && !hasTodayUser;
+      await createUser(month, useToday);
+    }
+  }
 
-  // Create users for 2025
-  await createUsersForYear(2025, 30);
-
-  // Count created users by year
-  const createdCount2024 = await prisma.user.count({
-    where: {
-      createdAt: {
-        gte: new Date(2024, 0, 1),
-        lt: new Date(2025, 0, 1),
-      },
-    },
-  });
-
+  // Count created users in 2025
   const createdCount2025 = await prisma.user.count({
     where: {
       createdAt: {
@@ -304,9 +399,43 @@ async function main() {
     },
   });
 
-  console.log(`\n✅ Successfully created ${createdCount2024} users in 2024!`);
-  console.log(`✅ Successfully created ${createdCount2025} users in 2025!`);
-  console.log(`📝 Default password for all seeded users: ${defaultPassword}`);
+  // Count login records in 2025
+  const loginCount2025 = await prisma.userLogin.count({
+    where: {
+      loggedInAt: {
+        gte: new Date(2025, 0, 1),
+        lt: new Date(2026, 0, 1),
+      },
+    },
+  });
+
+  console.log(`\n✅ Successfully created ${createdCount2025} users in 2025!`);
+  console.log(`✅ Successfully created ${loginCount2025} login records in 2025!`);
+  
+  // Show login record coverage by month
+  console.log("\n📊 Login record coverage by month:");
+  for (let month = 0; month < 12; month++) {
+    const monthStart = new Date(2025, month, 1);
+    const monthEnd = (year === now.getFullYear() && month === now.getMonth())
+      ? now
+      : new Date(2025, month + 1, 0, 23, 59, 59);
+    
+    const monthLoginCount = await prisma.userLogin.count({
+      where: {
+        loggedInAt: {
+          gte: monthStart,
+          lte: monthEnd,
+        },
+      },
+    });
+    const status = monthLoginCount > 0 ? "✅" : "❌";
+    console.log(`   ${status} ${monthNames[month]}: ${monthLoginCount} login record(s)`);
+  }
+  
+  console.log(`\n📝 Default password for all seeded users: ${defaultPassword}`);
+  if (hasTodayLogin) {
+    console.log(`📅 Latest login record: Today (${now.toLocaleDateString()})`);
+  }
 }
 
 main()

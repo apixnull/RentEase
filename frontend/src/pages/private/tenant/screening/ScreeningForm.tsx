@@ -301,7 +301,7 @@ const BasicInfoStep = ({ formData, handleInputChange }: { formData: FormData; ha
 
           <div className="space-y-2">
             <Label htmlFor="monthlyIncome">
-              {formData.employmentStatus === 'STUDENT' ? 'Monthly Budget ($)' : 'Monthly Income (₱)'}
+              {formData.employmentStatus === 'STUDENT' ? 'Monthly Budget (₱)' : 'Monthly Income (₱)'}
             </Label>
             <Input
               id="monthlyIncome"

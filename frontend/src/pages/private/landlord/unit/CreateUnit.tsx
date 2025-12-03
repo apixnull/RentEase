@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { getAmenitiesRequest } from "@/api/landlord/propertyApi";
 import { supabase } from "@/lib/supabaseClient";
+import { privateApi } from "@/api/axios";
 import { createUnitRequest } from "@/api/landlord/unitApi";
 import { motion } from "framer-motion";
 
@@ -454,36 +455,73 @@ const CreateUnit = () => {
     );
   };
 
-  // Function to upload image to Supabase with new folder structure
+  // Function to upload image (dual-mode: local for development, Supabase for production)
   const uploadImageToSupabase = async (
     file: File,
     unitId: string,
     fileName: string
   ): Promise<string> => {
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fullFileName = `${fileName}.${fileExt}`;
-      const filePath = `unit_images/${unitId}/${fullFileName}`;
+    // Check if using local storage (development mode or explicit flag)
+    const useLocalStorage =
+      import.meta.env.VITE_USE_LOCAL_STORAGE === "true" ||
+      import.meta.env.MODE === "development";
 
-      const { error } = await supabase.storage
-        .from("rentease-images")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
+    if (useLocalStorage) {
+      // Local storage mode: Upload to backend endpoint
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const response = await privateApi.post("/upload/unit-image", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         });
 
-      if (error) {
-        throw error;
+        const mockUrl = response.data.url; // e.g., "/local-images/unit_images/uuid.jpg"
+
+        // In development, prepend backend URL to make it accessible
+        if (import.meta.env.MODE === "development") {
+          const backendUrl = "http://localhost:5000";
+          return `${backendUrl}${mockUrl}`;
+        }
+
+        // In production with local storage, return as-is
+        return mockUrl;
+      } catch (error: any) {
+        console.error("Local upload error:", error);
+        const errorMsg =
+          error.response?.data?.error || "Failed to upload image to local storage";
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
       }
+    } else {
+      // Supabase storage mode (production)
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fullFileName = `${fileName}.${fileExt}`;
+        const filePath = `unit_images/${unitId}/${fullFileName}`;
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+        const { error } = await supabase.storage
+          .from("rentease-images")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
 
-      return publicUrl;
-    } catch (error) {
-      console.error("Error uploading image to Supabase:", error);
-      throw new Error(`Failed to upload image: ${error}`);
+        if (error) {
+          throw error;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+
+        return publicUrl;
+      } catch (error) {
+        console.error("Error uploading image to Supabase:", error);
+        throw new Error(`Failed to upload image: ${error}`);
+      }
     }
   };
 

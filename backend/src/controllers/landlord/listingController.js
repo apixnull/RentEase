@@ -1,6 +1,9 @@
 import prisma from "../../libs/prismaClient.js";
 import axios from "axios";
 import { activateListing } from "../../services/listingActivationService.js";
+import { sendEmail } from "../../services/email/emailSender.js";
+import { listingReceiptTemplate } from "../../services/email/templates/listingReceipt.js";
+import { createNotification } from "../notificationController.js";
 
 // -----------------------------------------------------------------------------
 // GET LANDLORD LISTINGS (with Property + Unit details)
@@ -641,6 +644,96 @@ export const getListingByUnitIdForSuccess = async (req, res) => {
     }
 
     console.log("✅ Found listing:", listing.id, "paymentDate:", listing.paymentDate);
+
+    // Fetch landlord details for email
+    const landlord = await prisma.user.findUnique({
+      where: { id: landlordId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    // Send receipt email to landlord
+    if (landlord && landlord.email) {
+      try {
+        const landlordName = `${landlord.firstName || ""} ${landlord.lastName || ""}`.trim() || "Landlord";
+        const paymentDateFormatted = listing.paymentDate
+          ? new Date(listing.paymentDate).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : new Date().toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            });
+
+        const emailResult = await sendEmail({
+          to: landlord.email,
+          subject: `Payment Receipt - Listing for ${listing.unit.property.title}`,
+          html: listingReceiptTemplate(
+            landlordName,
+            listing.paymentAmount,
+            paymentDateFormatted,
+            listing.unit.property.title,
+            listing.unit.label,
+            listing.id,
+            listing.isFeatured,
+            listing.providerName || "GCASH"
+          ),
+        });
+
+        if (emailResult.success) {
+          console.log(`✅ Receipt email sent to landlord: ${landlord.email}`);
+        } else {
+          console.error(`❌ Failed to send receipt email:`, emailResult.error);
+        }
+      } catch (emailError) {
+        console.error("❌ Error sending receipt email:", emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
+    // Notify all admin users about the new listing
+    try {
+      const adminUsers = await prisma.user.findMany({
+        where: {
+          role: "ADMIN",
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const notificationMessage = `New listing created: ${listing.unit.property.title} - ${listing.unit.label}${listing.isFeatured ? " (Featured)" : ""}`;
+
+      // Create notifications for all admins
+      const notificationPromises = adminUsers.map((admin) =>
+        createNotification(
+          admin.id,
+          "LISTING",
+          notificationMessage,
+          {
+            listingId: listing.id,
+            unitId: listing.unit.id,
+            propertyId: listing.unit.property.id,
+            status: "WAITING_REVIEW",
+          }
+        )
+      );
+
+      await Promise.all(notificationPromises);
+      console.log(`✅ Notifications sent to ${adminUsers.length} admin(s) about new listing`);
+    } catch (notificationError) {
+      console.error("❌ Error creating admin notifications:", notificationError);
+      // Don't fail the request if notifications fail
+    }
 
     return res.status(200).json({
       listingId: listing.id,

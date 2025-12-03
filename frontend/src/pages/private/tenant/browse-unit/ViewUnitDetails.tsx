@@ -1347,6 +1347,7 @@ const ViewUnitDetails = () => {
   const [fraudReportFormOpen, setFraudReportFormOpen] = useState(false);
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [reportCooldownSeconds, setReportCooldownSeconds] = useState<number>(0);
 
   useEffect(() => {
     const fetchListingDetails = async () => {
@@ -1366,6 +1367,45 @@ const ViewUnitDetails = () => {
 
     fetchListingDetails();
   }, [listingId]);
+
+  // Check session storage for fraud report cooldown
+  useEffect(() => {
+    if (!listingId) return;
+
+    const storageKey = `fraudReportCooldown_${listingId}`;
+    const storedTime = sessionStorage.getItem(storageKey);
+    
+    if (storedTime) {
+      const submissionTime = parseInt(storedTime, 10);
+      const now = Date.now();
+      const elapsed = Math.floor((now - submissionTime) / 1000); // seconds
+      const cooldownDuration = 5 * 60; // 5 minutes in seconds
+      const remaining = Math.max(0, cooldownDuration - elapsed);
+      
+      setReportCooldownSeconds(remaining);
+    }
+  }, [listingId]);
+
+  // Update cooldown timer every second
+  useEffect(() => {
+    if (reportCooldownSeconds <= 0) return;
+
+    const timer = setInterval(() => {
+      setReportCooldownSeconds((prev) => {
+        if (prev <= 1) {
+          // Clear session storage when cooldown expires
+          if (listingId) {
+            const storageKey = `fraudReportCooldown_${listingId}`;
+            sessionStorage.removeItem(storageKey);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [reportCooldownSeconds, listingId]);
 
   // Record unit view after 20 seconds
   useEffect(() => {
@@ -1524,6 +1564,11 @@ I'd like to schedule a viewing. Please let me know about availability!`;
         details: reportData.details,
       });
       setReportSubmitted(true);
+      
+      // Store submission time in session storage (5 minute cooldown)
+      const storageKey = `fraudReportCooldown_${listing.id}`;
+      sessionStorage.setItem(storageKey, Date.now().toString());
+      setReportCooldownSeconds(5 * 60); // 5 minutes in seconds
     } catch (error: any) {
       console.error("Error submitting fraud report:", error);
       toast.error(error?.response?.data?.error || "Failed to submit report. Please try again.");
@@ -1531,6 +1576,15 @@ I'd like to schedule a viewing. Please let me know about availability!`;
       setSubmittingReport(false);
     }
   };
+
+  // Format cooldown time as MM:SS
+  const formatCooldownTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const isReportButtonDisabled = reportCooldownSeconds > 0;
 
   if (loading) {
     return (
@@ -1813,11 +1867,19 @@ I'd like to schedule a viewing. Please let me know about availability!`;
                       onClick={() => setFraudReportFormOpen(true)}
                       variant="outline"
                       size="sm"
-                      className="h-7 px-2.5 text-xs font-medium bg-white/80 hover:bg-red-50 border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 shadow-sm transition-all"
+                      disabled={isReportButtonDisabled}
+                      className="h-7 px-2.5 text-xs font-medium bg-white/80 hover:bg-red-50 border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/80"
+                      title={isReportButtonDisabled ? `Please wait ${formatCooldownTime(reportCooldownSeconds)} before reporting again` : "Report fraudulent listing"}
                     >
                       <Flag className="h-3 w-3 mr-1" />
-                      <span className="hidden sm:inline">Report</span>
-                      <span className="sm:hidden">Flag</span>
+                      {isReportButtonDisabled ? (
+                        <span className="hidden sm:inline">Wait {formatCooldownTime(reportCooldownSeconds)}</span>
+                      ) : (
+                        <>
+                          <span className="hidden sm:inline">Report</span>
+                          <span className="sm:hidden">Flag</span>
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>

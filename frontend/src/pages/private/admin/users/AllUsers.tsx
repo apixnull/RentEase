@@ -540,7 +540,7 @@ const AllUsers = () => {
                               <span className="text-xs text-red-600 font-medium">Blocked</span>
                             )}
                             {!user.isVerified && !user.isDisabled && (
-                              <span className="text-xs text-gray-500">Active</span>
+                              <span className="text-xs text-yellow-600 font-medium">Unverified</span>
                             )}
                           </div>
                         </TableCell>

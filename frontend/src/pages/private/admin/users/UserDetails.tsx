@@ -17,6 +17,8 @@ import {
   Loader2,
   Sparkles,
   UserCog,
+  Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -34,7 +36,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getUserDetailsRequest, updateUserStatusRequest, type LandlordOffense, type UserDetails } from '@/api/admin/userApi';
+import { getUserDetailsRequest, updateUserStatusRequest, deleteLandlordOffenseRequest, type LandlordOffense, type UserDetails } from '@/api/admin/userApi';
 
 const roleThemes: Record<string, string> = {
   ADMIN: 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 border border-purple-200',
@@ -75,6 +77,7 @@ const UserDetailsPage = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'block' | 'unblock' | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deletingOffenseId, setDeletingOffenseId] = useState<string | null>(null);
 
   const fetchDetails = useCallback(
     async ({ silent = false } = {}) => {
@@ -185,6 +188,27 @@ const renderInfoGrid = (
       setActionLoading(false);
       setConfirmAction(null);
     }
+  };
+
+  const handleDeleteOffense = async (offenseId: string) => {
+    if (!confirm('Are you sure you want to delete this offense? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingOffenseId(offenseId);
+    try {
+      await deleteLandlordOffenseRequest(offenseId);
+      toast.success('Offense deleted successfully.');
+      await fetchDetails({ silent: true });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to delete offense.');
+    } finally {
+      setDeletingOffenseId(null);
+    }
+  };
+
+  const handleNavigateToListing = (listingId: string) => {
+    navigate(`/admin/listing/${listingId}/details`);
   };
 
   if (loading) {
@@ -607,6 +631,7 @@ const renderInfoGrid = (
                     <TableHead className="text-xs font-semibold text-slate-600">Detected</TableHead>
                     <TableHead className="text-xs font-semibold text-slate-600">Source</TableHead>
                     <TableHead className="text-xs font-semibold text-slate-600">Description & Notes</TableHead>
+                    <TableHead className="text-xs font-semibold text-slate-600 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -625,14 +650,20 @@ const renderInfoGrid = (
                       </TableCell>
                       <TableCell className="text-slate-700">
                         {offense.listing ? (
-                          <div className="flex flex-col">
-                            <span className="font-mono text-xs">
-                              #{offense.listing.id.slice(0, 8)}
-                            </span>
-                            <span className="text-[11px] text-slate-500">
+                          <button
+                            onClick={() => handleNavigateToListing(offense.listing!.id)}
+                            className="flex flex-col items-start group cursor-pointer hover:bg-blue-50 rounded-md px-2 py-1.5 -mx-2 -my-1.5 transition-all duration-200"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-xs text-blue-600 group-hover:text-blue-700 underline underline-offset-2 decoration-dotted group-hover:decoration-solid transition-all">
+                                #{offense.listing.id.slice(0, 8)}
+                              </span>
+                              <ExternalLink className="h-3.5 w-3.5 text-blue-500 group-hover:text-blue-600 transition-colors" />
+                            </div>
+                            <span className="text-[11px] text-slate-500 group-hover:text-slate-600 transition-colors">
                               {offense.listing.lifecycleStatus}
                             </span>
-                          </div>
+                          </button>
                         ) : (
                           '—'
                         )}
@@ -657,6 +688,21 @@ const renderInfoGrid = (
                             Updated {formatDate(offense.updatedAt)}
                           </span>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteOffense(offense.id)}
+                          disabled={deletingOffenseId === offense.id}
+                        >
+                          {deletingOffenseId === offense.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

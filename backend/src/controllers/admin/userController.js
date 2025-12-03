@@ -1,4 +1,5 @@
 import prisma from "../../libs/prismaClient.js";
+import redis from "../../libs/redisClient.js";
 
 const toIso = (value) => (value ? value.toISOString() : null);
 
@@ -142,6 +143,7 @@ export const getUserDetails = async (req, res) => {
 // ADMIN — UPDATE USER STATUS
 // ----------------------------------------------------------------------------
 // Blocks or unblocks a user account
+// When blocking, destroys all active sessions to force immediate logout
 // ============================================================================
 export const updateUserStatus = async (req, res) => {
   const { userId } = req.params;
@@ -158,6 +160,38 @@ export const updateUserStatus = async (req, res) => {
       select: { id: true, isDisabled: true },
     });
 
+    // If blocking, destroy all active sessions for this user to force immediate logout
+    if (action === "block") {
+      try {
+        // Get all session keys from Redis
+        const sessionKeys = await redis.keys("sess:*");
+        let destroyedCount = 0;
+
+        // Check each session and destroy if it belongs to the blocked user
+        for (const key of sessionKeys) {
+          try {
+            const sessionData = await redis.get(key);
+            if (sessionData) {
+              const session = typeof sessionData === "string" ? JSON.parse(sessionData) : sessionData;
+              // Check if this session belongs to the blocked user
+              if (session?.user?.id === userId) {
+                await redis.del(key);
+                destroyedCount++;
+              }
+            }
+          } catch (err) {
+            // Skip invalid session data
+            console.warn(`⚠️ Failed to process session ${key}:`, err.message);
+          }
+        }
+
+        console.log(`✅ Destroyed ${destroyedCount} session(s) for blocked user ${userId}`);
+      } catch (redisError) {
+        // Log error but don't fail the request - user is still blocked in DB
+        console.error("❌ Error destroying sessions:", redisError);
+      }
+    }
+
     return res.status(200).json({
       user: updated,
       message: `User ${action === "block" ? "blocked" : "unblocked"} successfully.`,
@@ -169,6 +203,44 @@ export const updateUserStatus = async (req, res) => {
     console.error("❌ Error in updateUserStatus:", error);
     return res.status(500).json({
       error: "Failed to update user status.",
+      details: error.message,
+    });
+  }
+};
+
+// ============================================================================
+// ADMIN — DELETE LANDLORD OFFENSE
+// ----------------------------------------------------------------------------
+// Deletes a specific landlord offense record
+// ============================================================================
+export const deleteLandlordOffense = async (req, res) => {
+  const { offenseId } = req.params;
+
+  try {
+    // Verify offense exists
+    const offense = await prisma.landlordOffense.findUnique({
+      where: { id: offenseId },
+    });
+
+    if (!offense) {
+      return res.status(404).json({ error: "Offense not found." });
+    }
+
+    // Delete the offense
+    await prisma.landlordOffense.delete({
+      where: { id: offenseId },
+    });
+
+    return res.status(200).json({
+      message: "Offense deleted successfully.",
+    });
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "Offense not found." });
+    }
+    console.error("❌ Error in deleteLandlordOffense:", error);
+    return res.status(500).json({
+      error: "Failed to delete offense.",
       details: error.message,
     });
   }

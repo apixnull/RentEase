@@ -89,6 +89,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin/properties": { name: "All Properties" },
   "/admin/listing": { name: "Listing Management" },
   "/admin/listing/:id/details": { name: "Details", parent: "/admin/listing" },
+  "/admin/fraud-reports": { name: "Fraud Reports" },
   "/admin/payments": { name: "All Payments" },
   "/admin/logs": { name: "System Logs" },
   "/admin/alerts": { name: "Alerts" },
@@ -495,6 +496,7 @@ const Header = ({
   }, []);
 
   const handleRealtimeNotification = useCallback((newNotification: Notification) => {
+    console.log("📬 AdminLayout received notification:", newNotification);
     setNotifications((prev) => {
       const updated = [newNotification, ...prev];
       return updated.slice(0, MAX_VISIBLE_NOTIFICATIONS);
@@ -552,12 +554,15 @@ const Header = ({
 
   const getNotificationLink = (notification: Notification): string => {
     const type = notification.type?.toUpperCase() || "SYSTEM";
+    console.log("🔗 Getting notification link for type:", type, "notification:", notification);
+    
     switch (type) {
       case "USER":
         return "/admin/users";
       case "LISTING":
         return "/admin/listing";
       case "FRAUD":
+        console.log("✅ FRAUD notification detected, navigating to /admin/fraud-reports");
         return "/admin/fraud-reports";
       case "ALERT":
         return "/admin/alerts";
@@ -748,6 +753,7 @@ const Header = ({
                           key={notification.id}
                           to={getNotificationLink(notification)}
                           onClick={() => {
+                            console.log("🔔 Notification clicked:", notification.type, "->", getNotificationLink(notification));
                             if (!notification.read) {
                               handleMarkAsRead(notification.id);
                             }

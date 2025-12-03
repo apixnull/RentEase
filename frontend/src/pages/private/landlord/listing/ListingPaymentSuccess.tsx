@@ -260,7 +260,7 @@ const ListingPaymentSuccess = () => {
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
-                        onClick={() => navigate('/privacy-policy')}
+                        onClick={() => navigate('/terms-privacy')}
                         className="flex items-center gap-2 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                       >
                         <HelpCircle className="h-3 w-3" />

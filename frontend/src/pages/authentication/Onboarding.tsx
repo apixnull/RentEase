@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useNavigate } from "react-router-dom";
+import { privateApi } from "@/api/axios";
 import { supabase } from "@/lib/supabaseClient";
 import { onboardingRequest } from "@/api/authApi";
 import { v4 as uuidv4 } from "uuid";
@@ -260,31 +261,69 @@ const Onboarding = () => {
   const uploadAvatarToSupabase = async (): Promise<string | null> => {
     if (!avatarFile || !user?.id) return null;
 
-    const fileExtension = avatarFile.name.split(".").pop() || "jpg";
-    const filePath = `avatars/${uuidv4()}.${fileExtension}`;
+    // Check if using local storage (development mode or explicit flag)
+    const useLocalStorage =
+      import.meta.env.VITE_USE_LOCAL_STORAGE === "true" ||
+      import.meta.env.MODE === "development";
 
-    try {
-      const { error } = await supabase.storage
-        .from("rentease-images")
-        .upload(filePath, avatarFile, { cacheControl: "3600", upsert: true });
+    if (useLocalStorage) {
+      // Local storage mode: Upload to backend endpoint
+      try {
+        const formData = new FormData();
+        formData.append("image", avatarFile);
 
-      if (error) {
-        console.error("Upload failed:", error);
-        setAvatarError("Upload failed. Check bucket permissions.");
-        toast.error("Upload failed. Check bucket permissions.");
+        const response = await privateApi.post("/upload/avatar", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        const mockUrl = response.data.url; // e.g., "/local-images/avatars/uuid.jpg"
+
+        // In development, prepend backend URL to make it accessible
+        if (import.meta.env.MODE === "development") {
+          const backendUrl = "http://localhost:5000";
+          return `${backendUrl}${mockUrl}`;
+        }
+
+        // In production with local storage, return as-is
+        return mockUrl;
+      } catch (error: any) {
+        console.error("Local upload error:", error);
+        const errorMsg =
+          error.response?.data?.error || "Failed to upload image to local storage";
+        setAvatarError(errorMsg);
+        toast.error(errorMsg);
         return null;
       }
+    } else {
+      // Supabase storage mode (production)
+      const fileExtension = avatarFile.name.split(".").pop() || "jpg";
+      const filePath = `avatars/${uuidv4()}.${fileExtension}`;
 
-      const { data: publicData } = supabase.storage
-        .from("rentease-images")
-        .getPublicUrl(filePath);
+      try {
+        const { error } = await supabase.storage
+          .from("rentease-images")
+          .upload(filePath, avatarFile, { cacheControl: "3600", upsert: true });
 
-      return publicData?.publicUrl || null;
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      setAvatarError("Unexpected error. See console.");
-      toast.error("Unexpected error while uploading avatar");
-      return null;
+        if (error) {
+          console.error("Upload failed:", error);
+          setAvatarError("Upload failed. Check bucket permissions.");
+          toast.error("Upload failed. Check bucket permissions.");
+          return null;
+        }
+
+        const { data: publicData } = supabase.storage
+          .from("rentease-images")
+          .getPublicUrl(filePath);
+
+        return publicData?.publicUrl || null;
+      } catch (err) {
+        console.error("Unexpected error:", err);
+        setAvatarError("Unexpected error. See console.");
+        toast.error("Unexpected error while uploading avatar");
+        return null;
+      }
     }
   };
 

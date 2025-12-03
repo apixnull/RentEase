@@ -1172,7 +1172,7 @@ export const ListingDetails = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => navigate('/privacy-policy')}
+                                onClick={() => navigate('/terms-privacy')}
                                 className="flex items-center gap-2 text-xs border-red-300 text-red-700 hover:bg-red-100"
                               >
                                 <HelpCircle className="h-3 w-3" />

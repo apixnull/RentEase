@@ -32,6 +32,14 @@ SMTP_PASS=your-app-password
 SMTP_FROM=RentEase <your-email@gmail.com>
 ```
 
+### Optional Variables
+
+#### USE_LOCAL_STORAGE
+- **Description**: Enable local file storage for image uploads (development only)
+- **Default**: Automatically enabled when `NODE_ENV=development`
+- **Usage**: Set to `true` to force local storage, or `false` to use Supabase even in development
+- **Note**: Local storage saves files to `backend/public/uploads/` and serves them at `/local-images/` route
+
 ### Optional Override
 
 If you set `FRONTEND_URL`, it will override the automatic environment detection.

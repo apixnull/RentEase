@@ -124,7 +124,7 @@ const PropertyUnitSection = ({ unitProperty, landlordInfo, loading = false }: Pr
 
             <div className="mt-4">
               <Link
-                to={`/admin/landlords/${landlord.id}/activity`}
+                to={`/admin/users/${landlord.id}`}
                 className="text-sm text-emerald-700 hover:text-emerald-800 underline underline-offset-2"
               >
                 See landlord activity record

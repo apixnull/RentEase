@@ -353,6 +353,10 @@ const ListingAnalytics = () => {
           type: isFeatured ? 'Featured' : isStandard ? 'Standard' : 'Unknown',
           isFeatured,
           isStandard,
+          unitLabel: listing.unitLabel,
+          propertyTitle: listing.propertyTitle,
+          ownerName: listing.ownerName,
+          ownerEmail: listing.ownerEmail,
         };
       })
       .sort((a: any, b: any) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort by newest first
@@ -435,59 +439,59 @@ const ListingAnalytics = () => {
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(100, 100, 100);
     doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 20;
-    
-    // Total Earnings - Prominent Display (Most Important)
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(16, 185, 129); // emerald-500
-    doc.text('Total Earnings', pageWidth / 2, yPos, { align: 'center' });
     yPos += 8;
     
-    doc.setFontSize(24);
+    // Total Earnings - Simple and Formal
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('Total Earnings', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 6;
+    
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
     const earningsText = `PHP ${metrics.totalEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     doc.text(earningsText, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 15;
-    
-    // Divider line after earnings
-    doc.setDrawColor(200, 200, 200);
-    doc.line(14, yPos, pageWidth - 14, yPos);
-    yPos += 15;
+    yPos += 6;
     
     // Summary Metrics Section
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Summary Metrics (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, margin, yPos);
-    yPos += 8;
+    doc.text('Summary Metrics', margin, yPos);
+    yPos += 5;
+    
+    const periodLabelFormatted = `(${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`;
     
     const summaryData = [
       ['Metric', 'Value'],
-      ['Total Listings', metrics.totalListings.toString()],
-      ['Waiting Review', metrics.waitingReview.toString()],
-      ['Active Listings', metrics.activeListings.toString()],
-      ['Expired', metrics.expired.toString()],
-      ['Flagged', metrics.flagged.toString()],
-      ['Blocked', metrics.blocked.toString()],
-      ['Featured Listings', featuredMetrics.count.toString()],
-      ['Featured Earnings', `PHP ${featuredMetrics.earnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-      ['Standard Listings', standardMetrics.count.toString()],
-      ['Standard Earnings', `PHP ${standardMetrics.earnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      [`Total Listings ${periodLabelFormatted}`, metrics.totalListings.toString()],
+      [`Waiting Review ${periodLabelFormatted}`, metrics.waitingReview.toString()],
+      [`Active Listings ${periodLabelFormatted}`, metrics.activeListings.toString()],
+      [`Expired ${periodLabelFormatted}`, metrics.expired.toString()],
+      [`Flagged ${periodLabelFormatted}`, metrics.flagged.toString()],
+      [`Blocked ${periodLabelFormatted}`, metrics.blocked.toString()],
+      [`Featured Listings ${periodLabelFormatted}`, featuredMetrics.count.toString()],
+      [`Featured Earnings ${periodLabelFormatted}`, `PHP ${featuredMetrics.earnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      [`Standard Listings ${periodLabelFormatted}`, standardMetrics.count.toString()],
+      [`Standard Earnings ${periodLabelFormatted}`, `PHP ${standardMetrics.earnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
     ];
     
     autoTable(doc, {
       startY: yPos,
       head: [summaryData[0]],
       body: summaryData.slice(1),
-      theme: 'striped',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 10 },
+      theme: 'plain',
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', lineWidth: 0, lineColor: [255, 255, 255], fontSize: 9 },
+      bodyStyles: { lineWidth: 0, lineColor: [255, 255, 255], fontSize: 8 },
+      styles: { fontSize: 8, lineWidth: 0, lineColor: [255, 255, 255], cellPadding: 2 },
       margin: { left: margin, right: margin },
+      tableLineWidth: 0,
+      tableLineColor: [255, 255, 255],
     });
     
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (doc as any).lastAutoTable.finalY + 10;
     
     // Check if we need a new page
     if (yPos > doc.internal.pageSize.getHeight() - 40) {
@@ -514,84 +518,13 @@ const ListingAnalytics = () => {
       return [dateLabel, (item.count || 0).toString()];
     });
     
-    // Calculate totals
-    const listingsTotal = totalListingsCreated;
-    
     autoTable(doc, {
       startY: yPos,
       head: [['Date', 'Count']],
       body: listingsTableData,
-      foot: [['Total', listingsTotal.toString()]],
       theme: 'striped',
       headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      footStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
       styles: { fontSize: 9 },
-      margin: { left: margin, right: margin },
-    });
-    
-    yPos = (doc as any).lastAutoTable.finalY + 15;
-    
-    // Check if we need a new page
-    if (yPos > doc.internal.pageSize.getHeight() - 40) {
-      doc.addPage();
-      yPos = margin;
-    }
-    
-    // Status Breakdown Section
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Listing Status Breakdown', margin, yPos);
-    yPos += 8;
-    
-    const statusBreakdown = [
-      ['Status', 'Count'],
-      ['Waiting Review', metrics.waitingReview.toString()],
-      ['Active Listings', metrics.activeListings.toString()],
-      ['Expired', metrics.expired.toString()],
-      ['Flagged', metrics.flagged.toString()],
-      ['Blocked', metrics.blocked.toString()],
-      ['Total', metrics.totalListings.toString()],
-    ];
-    
-    autoTable(doc, {
-      startY: yPos,
-      head: [statusBreakdown[0]],
-      body: statusBreakdown.slice(1, -1),
-      foot: [statusBreakdown[statusBreakdown.length - 1]],
-      theme: 'striped',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      footStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 10 },
-      margin: { left: margin, right: margin },
-    });
-    
-    yPos = (doc as any).lastAutoTable.finalY + 15;
-    
-    // Check if we need a new page
-    if (yPos > doc.internal.pageSize.getHeight() - 40) {
-      doc.addPage();
-      yPos = margin;
-    }
-    
-    // Featured vs Standard Section
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Featured vs Standard Listings', margin, yPos);
-    yPos += 8;
-    
-    const featuredData = [
-      ['Type', 'Listings'],
-      ['Featured', metrics.featuredListings.toString()],
-      ['Standard', metrics.standardListings.toString()],
-    ];
-    
-    autoTable(doc, {
-      startY: yPos,
-      head: [featuredData[0]],
-      body: featuredData.slice(1),
-      theme: 'striped',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 10 },
       margin: { left: margin, right: margin },
     });
     
@@ -619,9 +552,14 @@ const ListingAnalytics = () => {
           minute: '2-digit',
         });
         
+        const propertyAndUnit = `${listing.propertyTitle || 'N/A'} - ${listing.unitLabel || 'N/A'}`;
+        const owner = `${listing.ownerName || 'N/A'}\n${listing.ownerEmail || 'N/A'}`;
+        
         return [
           listing.id.substring(0, 8) + '...',
           dateStr,
+          propertyAndUnit,
+          owner,
           `PHP ${listing.paymentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           listing.type,
           listing.status.replace(/_/g, ' '),
@@ -633,29 +571,31 @@ const ListingAnalytics = () => {
       
       autoTable(doc, {
         startY: yPos,
-        head: [['Listing ID', 'Payment Date', 'Payment Amount', 'Type', 'Status']],
+        head: [['Listing ID', 'Payment Date', 'Property & Unit', 'Owner', 'Payment Amount', 'Type', 'Status']],
         body: breakdownData,
         theme: 'striped',
         headStyles: { 
           fillColor: [16, 185, 129], 
           textColor: 255, 
           fontStyle: 'bold',
-          fontSize: 9,
+          fontSize: 7,
         },
-        bodyStyles: { fontSize: 8 },
+        bodyStyles: { fontSize: 6 },
         alternateRowStyles: { fillColor: [249, 250, 251] },
         columnStyles: {
-          0: { cellWidth: 35, halign: 'left' },
-          1: { cellWidth: 50 },
-          2: { cellWidth: 40, halign: 'right' },
-          3: { cellWidth: 35, halign: 'center' },
-          4: { cellWidth: 50, halign: 'center' },
+          0: { cellWidth: 28, halign: 'left' },
+          1: { cellWidth: 42 },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 50 },
+          4: { cellWidth: 32, halign: 'right' },
+          5: { cellWidth: 28, halign: 'center' },
+          6: { cellWidth: 30, halign: 'center' },
         },
         margin: { left: margin, right: margin },
         styles: { 
           overflow: 'linebreak', 
-          cellPadding: 2,
-          fontSize: 8,
+          cellPadding: 1.5,
+          fontSize: 6,
           lineWidth: 0.1,
         },
         tableWidth: availableWidth,
@@ -707,15 +647,6 @@ const ListingAnalytics = () => {
       );
       doc.setTextColor(0, 0, 0);
     }
-    
-    // Currency note
-    doc.setPage(1);
-    yPos = doc.internal.pageSize.getHeight() - 30;
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Note: All amounts are in Philippine Peso (PHP)', margin, yPos);
-    doc.setTextColor(0, 0, 0);
     
     // Save PDF
     const fileName = `listing-analytics-report-${periodLabel.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
@@ -1020,88 +951,6 @@ const ListingAnalytics = () => {
         </CardContent>
       </Card>
 
-      {/* Featured vs Standard Comparison Chart */}
-      <Card className="pt-0">
-        <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
-          <div className="grid flex-1 gap-1">
-            <CardTitle>Featured vs Standard Listings</CardTitle>
-            <CardDescription>
-              Number of listings that availed featured (PHP 150) vs standard (PHP 100) payment plans for {periodLabel}
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-          <ChartContainer config={featuredChartConfig} className="aspect-auto h-[300px] w-full">
-            <BarChart data={featuredComparisonData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="type"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                style={{
-                  fontSize: '12px',
-                  fill: 'hsl(var(--foreground))',
-                  fontWeight: 500,
-                }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                style={{
-                  fontSize: '12px',
-                  fill: 'hsl(var(--muted-foreground))',
-                }}
-              />
-              <ChartTooltip
-                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }}
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(value) => value}
-                    formatter={(value) => [`${value} listings`, 'Listings']}
-                    indicator="line"
-                  />
-                }
-              />
-              <Bar
-                dataKey="count"
-                radius={[8, 8, 0, 0]}
-                name="Listings"
-              >
-                {featuredComparisonData.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={entry.type === 'Featured' 
-                      ? 'hsl(45, 93%, 47%)' // Yellow-500 for Featured
-                      : 'hsl(199, 89%, 48%)' // Blue-600 for Standard
-                    }
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ChartContainer>
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="rounded-lg bg-yellow-50 p-4 border border-yellow-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Star className="h-4 w-4 text-yellow-600" />
-                <span className="text-sm font-semibold text-yellow-900">Featured (PHP 150)</span>
-              </div>
-              <div className="text-2xl font-bold text-yellow-900">{metrics.featuredListings}</div>
-              <p className="text-xs text-yellow-700 mt-1">Listings purchased</p>
-            </div>
-            <div className="rounded-lg bg-blue-50 p-4 border border-blue-200">
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-semibold text-blue-900">Standard (PHP 100)</span>
-              </div>
-              <div className="text-2xl font-bold text-blue-900">{metrics.standardListings}</div>
-              <p className="text-xs text-blue-700 mt-1">Listings purchased</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Listing Transactions Breakdown */}
       <Card className="pt-0">
         <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
@@ -1121,11 +970,13 @@ const ListingAnalytics = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px]">Listing ID</TableHead>
-                  <TableHead>Payment Date</TableHead>
-                  <TableHead className="text-right">Payment Amount</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[70px]">Listing ID</TableHead>
+                  <TableHead className="w-[130px]">Payment Date</TableHead>
+                  <TableHead className="w-[150px]">Property & Unit</TableHead>
+                  <TableHead className="w-[150px]">Owner</TableHead>
+                  <TableHead className="w-[110px] text-right">Payment Amount</TableHead>
+                  <TableHead className="w-[90px]">Type</TableHead>
+                  <TableHead className="w-[110px]">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1134,7 +985,7 @@ const ListingAnalytics = () => {
                     <TableCell className="font-mono text-xs">
                       {listing.id.substring(0, 8)}...
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-xs">
                       {listing.createdAt.toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
@@ -1143,7 +994,19 @@ const ListingAnalytics = () => {
                         minute: '2-digit',
                       })}
                     </TableCell>
-                    <TableCell className="text-right font-semibold">
+                    <TableCell className="text-xs">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{listing.propertyTitle}</span>
+                        <span className="text-xs text-muted-foreground">{listing.unitLabel}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{listing.ownerName}</span>
+                        <span className="text-xs text-muted-foreground">{listing.ownerEmail}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-sm">
                       PHP {listing.paymentAmount.toLocaleString('en-US', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -1151,7 +1014,7 @@ const ListingAnalytics = () => {
                     </TableCell>
                     <TableCell>
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
                           listing.type === 'Featured'
                             ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
                             : listing.type === 'Standard'
@@ -1165,7 +1028,7 @@ const ListingAnalytics = () => {
                     </TableCell>
                     <TableCell>
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
                           listing.status === 'VISIBLE'
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                             : listing.status === 'WAITING_REVIEW'

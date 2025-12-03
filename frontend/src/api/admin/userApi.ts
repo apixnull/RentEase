@@ -69,3 +69,7 @@ export const updateUserStatusRequest = async (
   return privateApi.patch(apiRoutes.admin(`/users/${userId}/status`), { action });
 };
 
+export const deleteLandlordOffenseRequest = async (offenseId: string) => {
+  return privateApi.delete(apiRoutes.admin(`/users/offenses/${offenseId}`));
+};
+

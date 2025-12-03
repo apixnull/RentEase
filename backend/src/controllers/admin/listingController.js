@@ -14,6 +14,9 @@ export const getAllListingsForAdmin = async (req, res) => {
         lifecycleStatus: {
           not: "WAITING_PAYMENT", // exclude unpaid/incomplete listings
         },
+        landlord: {
+          isDisabled: false, // exclude listings owned by disabled landlords
+        },
       },
       orderBy: { createdAt: "desc" },
       select: {

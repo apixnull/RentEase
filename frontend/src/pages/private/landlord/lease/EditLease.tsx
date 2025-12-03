@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ import {
   getPropertiesWithUnitsRequest,
 } from "@/api/landlord/leaseApi";
 import { supabase } from "@/lib/supabaseClient";
+import { privateApi } from "@/api/axios";
 
 interface Lease {
   id: string;
@@ -106,8 +107,6 @@ const EditLease = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>([]);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
-  const [matchDueDateToStart, setMatchDueDateToStart] = useState(false);
-  const lastProcessedStartDateRef = useRef<string>("");
 
   const [formData, setFormData] = useState({
     propertyId: "",
@@ -119,6 +118,7 @@ const EditLease = () => {
     rentAmount: "",
     securityDeposit: "",
     dueDate: "1",
+    dueDateOption: "MATCH_START" as "FIRST" | "MATCH_START",
     leaseDocumentUrl: "",
     leaseDocumentFile: null as File | null,
     documentOption: "link" as "link" | "upload",
@@ -189,6 +189,13 @@ const EditLease = () => {
           }
         }
 
+        // Determine due date option based on existing due date
+        // If due date is 1, it might be "FIRST" option, otherwise it's "MATCH_START"
+        // For now, default to MATCH_START since FIRST is coming soon
+        const dueDateOption = leaseData.dueDate === 1 ? "FIRST" : "MATCH_START";
+        // Always use MATCH_START if FIRST is selected (coming soon feature)
+        const finalDueDateOption = dueDateOption === "FIRST" ? "MATCH_START" : dueDateOption;
+
         // Populate form with existing lease data - ensure propertyId and unitId are set correctly as strings
         setFormData({
           propertyId: String(leaseData.propertyId || ""),
@@ -200,6 +207,7 @@ const EditLease = () => {
           rentAmount: leaseData.rentAmount.toString(),
           securityDeposit: leaseData.securityDeposit?.toString() || "",
           dueDate: leaseData.dueDate.toString(),
+          dueDateOption: finalDueDateOption,
           leaseDocumentUrl: leaseData.leaseDocumentUrl || "",
           leaseDocumentFile: null,
           documentOption: leaseData.leaseDocumentUrl ? "link" : "upload",
@@ -287,30 +295,24 @@ const EditLease = () => {
     }
   }, [formData.startDate, formData.leaseTermMonths]);
 
-  // Auto-update due date to match lease start date when option is enabled
+  // Auto-update due date based on selected option
   useEffect(() => {
-    if (matchDueDateToStart && formData.startDate) {
-      const startDate = new Date(formData.startDate);
-      const dayOfMonth = startDate.getDate();
-      const safeDay = Math.min(dayOfMonth, 28);
-      
-      const startDateChanged = lastProcessedStartDateRef.current !== formData.startDate;
-      
-      if (startDateChanged) {
-        lastProcessedStartDateRef.current = formData.startDate;
-        if (formData.dueDate !== safeDay.toString()) {
-          setFormData((prev) => ({ ...prev, dueDate: safeDay.toString() }));
-        }
-      } else if (formData.dueDate !== safeDay.toString()) {
-        if (lastProcessedStartDateRef.current === "") {
-          lastProcessedStartDateRef.current = formData.startDate;
-          setFormData((prev) => ({ ...prev, dueDate: safeDay.toString() }));
-        }
-      }
-    } else {
-      lastProcessedStartDateRef.current = "";
+    if (!formData.startDate) {
+      return;
     }
-  }, [matchDueDateToStart, formData.startDate, formData.dueDate]);
+
+    const startDate = new Date(formData.startDate);
+    
+    if (formData.dueDateOption === "MATCH_START") {
+      // Option: Match start date (common in small rentals/boarding houses)
+      const dayOfMonth = startDate.getDate();
+      const safeDay = Math.min(dayOfMonth, 28); // Cap at 28 to avoid month-end issues
+      setFormData((prev) => ({ ...prev, dueDate: safeDay.toString() }));
+    } else {
+      // Option: Always 1st (coming soon - disabled)
+      setFormData((prev) => ({ ...prev, dueDate: "1" }));
+    }
+  }, [formData.dueDateOption, formData.startDate]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -334,27 +336,64 @@ const EditLease = () => {
   };
 
   const uploadLeaseDocument = async (file: File): Promise<string> => {
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-      const filePath = `lease-documents/${fileName}`;
+    // Check if using local storage (development mode or explicit flag)
+    const useLocalStorage =
+      import.meta.env.VITE_USE_LOCAL_STORAGE === "true" ||
+      import.meta.env.MODE === "development";
 
-      const { error } = await supabase.storage
-        .from("rentease-images")
-        .upload(filePath, file);
+    if (useLocalStorage) {
+      // Local storage mode: Upload to backend endpoint
+      try {
+        const formData = new FormData();
+        formData.append("document", file);
 
-      if (error) {
-        throw new Error(`Upload failed: ${error.message}`);
+        const response = await privateApi.post("/upload/document", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        const mockUrl = response.data.url; // e.g., "/local-images/lease_documents/uuid.pdf"
+
+        // In development, prepend backend URL to make it accessible
+        if (import.meta.env.MODE === "development") {
+          const backendUrl = "http://localhost:5000";
+          return `${backendUrl}${mockUrl}`;
+        }
+
+        // In production with local storage, return as-is
+        return mockUrl;
+      } catch (error: any) {
+        console.error("Local upload error:", error);
+        const errorMsg =
+          error.response?.data?.error || "Failed to upload document to local storage";
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
       }
+    } else {
+      // Supabase storage mode (production)
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const filePath = `lease-documents/${fileName}`;
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+        const { error } = await supabase.storage
+          .from("rentease-images")
+          .upload(filePath, file);
 
-      return publicUrl;
-    } catch (error) {
-      console.error("Error uploading lease document:", error);
-      throw new Error("Failed to upload lease document. Please try again.");
+        if (error) {
+          throw new Error(`Upload failed: ${error.message}`);
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+
+        return publicUrl;
+      } catch (error) {
+        console.error("Error uploading lease document:", error);
+        throw new Error("Failed to upload lease document. Please try again.");
+      }
     }
   };
 
@@ -1122,75 +1161,93 @@ const EditLease = () => {
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="dueDate" className="text-xs font-medium flex items-center gap-1">
+                      <Label className="text-xs font-medium flex items-center gap-1">
                         <Calendar className="w-3 h-3 text-blue-600" />
-                        Due Date <span className="text-red-500">*</span>
+                        Rent Due Date <span className="text-red-500">*</span>
                       </Label>
-                      <div className="flex items-stretch gap-1.5">
-                        <div className="flex-1">
-                          <Select
-                            value={formData.dueDate}
-                            onValueChange={(value) => handleInputChange("dueDate", value)}
-                            disabled={matchDueDateToStart}
-                          >
-                            <SelectTrigger className="h-8 text-xs rounded-xl border-slate-300">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                                <SelectItem key={day} value={day.toString()}>
-                                  {day}
-                                  {day === 1 && "st"}
-                                  {day === 2 && "nd"}
-                                  {day === 3 && "rd"}
-                                  {day > 3 && "th"}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      
+                      {/* Two Due Date Options */}
+                      <div className="space-y-2">
+                        {/* Option 1: Match Start Date (Recommended) */}
+                        <div
+                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                            formData.dueDateOption === "MATCH_START"
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          }`}
+                          onClick={() => handleInputChange("dueDateOption", "MATCH_START")}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                              formData.dueDateOption === "MATCH_START"
+                                ? "border-blue-500 bg-blue-500"
+                                : "border-slate-300 bg-white"
+                            }`}>
+                              {formData.dueDateOption === "MATCH_START" && (
+                                <div className="h-2 w-2 rounded-full bg-white" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-semibold text-slate-900">
+                                  Match Start Date
+                                </span>
+                                <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
+                                  Recommended
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-slate-600">
+                                Common for small rentals and boarding houses. Rent due on the same day each month as the start date.
+                              </p>
+                              {formData.dueDateOption === "MATCH_START" && formData.startDate && (
+                                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                                  <span className="text-green-800 font-medium">
+                                    Due date: {new Date(formData.startDate).getDate()}
+                                    {new Date(formData.startDate).getDate() === 1 && "st"}
+                                    {new Date(formData.startDate).getDate() === 2 && "nd"}
+                                    {new Date(formData.startDate).getDate() === 3 && "rd"}
+                                    {new Date(formData.startDate).getDate() > 3 && "th"} of each month
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setMatchDueDateToStart(!matchDueDateToStart);
-                          }}
-                          className={`flex items-center justify-center gap-1.5 px-3 h-8 rounded-xl border transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                            matchDueDateToStart
-                              ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-blue-600 shadow-md shadow-blue-200/50"
-                              : "bg-white text-gray-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
+
+                        {/* Option 2: Always 1st (Coming Soon) - Disabled */}
+                        <div
+                          className={`p-3 rounded-xl border-2 transition-all opacity-60 cursor-not-allowed ${
+                            formData.dueDateOption === "FIRST"
+                              ? "border-slate-300 bg-slate-100"
+                              : "border-slate-200 bg-slate-50"
                           }`}
                         >
-                          <div className={`h-3.5 w-3.5 rounded border-2 flex items-center justify-center ${
-                            matchDueDateToStart
-                              ? "border-white bg-white/20"
-                              : "border-slate-400 bg-white"
-                          }`}>
-                            {matchDueDateToStart && (
-                              <span className="text-white text-[10px] font-bold">✓</span>
-                            )}
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                              formData.dueDateOption === "FIRST"
+                                ? "border-slate-400 bg-slate-300"
+                                : "border-slate-300 bg-slate-100"
+                            }`}>
+                              {formData.dueDateOption === "FIRST" && (
+                                <div className="h-2 w-2 rounded-full bg-slate-500" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-semibold text-slate-600">
+                                  Always 1st of the Month
+                                </span>
+                                <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-700">
+                                  Coming Soon
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-slate-500 mb-2">
+                                Standard for apartments, condos, and professional rentals. Rent due on the 1st every month.
+                                <span className="text-amber-600 font-medium ml-1">(Prorated rent feature coming soon)</span>
+                              </p>
+                            </div>
                           </div>
-                          <span className="text-xs font-semibold">
-                            {matchDueDateToStart ? "✓ Matched" : "Match from Start"}
-                          </span>
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Info className="w-3 h-3" />
-                        {matchDueDateToStart && formData.startDate ? (
-                          <span className="text-green-600 font-medium">
-                            Due date matches start date: {new Date(formData.startDate).getDate()}
-                            {new Date(formData.startDate).getDate() === 1 && "st"}
-                            {new Date(formData.startDate).getDate() === 2 && "nd"}
-                            {new Date(formData.startDate).getDate() === 3 && "rd"}
-                            {new Date(formData.startDate).getDate() > 3 && "th"} of each month
-                            {new Date(formData.startDate).getDate() > 28 && (
-                              <span className="text-amber-600"> (adjusted to 28th for consistency)</span>
-                            )}
-                          </span>
-                        ) : (
-                          "Monthly payment due date (1st-28th only)"
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>

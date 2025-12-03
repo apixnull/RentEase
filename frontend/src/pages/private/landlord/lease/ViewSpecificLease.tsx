@@ -60,6 +60,8 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { cancelLeaseRequest, getLeaseByIdRequest, terminateLeaseRequest, completeLeaseRequest, addLandlordNoteRequest, updateLandlordNoteRequest, deleteLandlordNoteRequest } from '@/api/landlord/leaseApi';
 import { createPaymentRequest, markPaymentAsPaidRequest, updatePaymentRequest, deletePaymentRequest } from '@/api/landlord/paymentApi';
 import { toast } from 'sonner';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Complete Color Schema for Lease Statuses
 const LEASE_STATUS_THEME = {
@@ -518,6 +520,7 @@ const ViewSpecificLease = () => {
     note: null,
   });
   const [newNote, setNewNote] = useState({ note: '', category: 'OTHER' as LandlordNote['category'] });
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const handleSettingsModalChange = (open: boolean) => {
     setSettingsModalOpen(open);
@@ -1142,6 +1145,329 @@ const ViewSpecificLease = () => {
 
   const currentUser = useAuthStore((state) => state.user);
 
+  // Format currency for PDF (explicit PHP prefix)
+  const formatCurrencyForPDF = (amount: number) => {
+    return `PHP ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Generate PDF for lease
+  const generateLeasePDF = () => {
+    if (!lease || !currentUser) return;
+
+    try {
+      setGeneratingPdf(true);
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      let yPos = margin;
+
+      // RentEase Branding Header
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(16, 185, 129); // emerald-500
+      doc.text('RentEase', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Property Management Platform', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+
+      // Divider line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, yPos, pageWidth - 14, yPos);
+      yPos += 12;
+
+      // Lease Title
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      const leaseTitle = lease.leaseNickname || `${lease.tenant.firstName} ${lease.tenant.lastName} - ${lease.unit.label}`;
+      doc.text('Lease Agreement Details', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 8;
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(leaseTitle, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+
+      // Generated At timestamp
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 100, 100);
+      const generatedAt = new Date().toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.text(`Generated at: ${generatedAt}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 8;
+
+      // Status Badge
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Status: ${lease.status}`, 14, yPos);
+      yPos += 8;
+
+      // Lease Information Section
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Lease Information', 14, yPos);
+      yPos += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const leaseInfo = [
+        [`Lease Type:`, getLeaseTypeDisplay(lease.leaseType)],
+        [`Start Date:`, formatDate(lease.startDate)],
+        [`End Date:`, lease.endDate ? formatDate(lease.endDate) : 'No end date'],
+        [`Rent Amount:`, formatCurrencyForPDF(lease.rentAmount)],
+        [`Security Deposit:`, lease.securityDeposit ? formatCurrencyForPDF(lease.securityDeposit) : 'None'],
+        [`Payment Interval:`, getIntervalDisplay(lease.interval)],
+        [`Due Date:`, `${getOrdinalSuffix(lease.dueDate)} each ${getIntervalDisplay(lease.interval)}`],
+      ];
+
+      leaseInfo.forEach(([label, value]) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, yPos);
+        yPos += 6;
+      });
+
+      yPos += 5;
+
+      // Property & Unit Information
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Property & Unit', 14, yPos);
+      yPos += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const propertyInfo = [
+        [`Property:`, lease.property.title],
+        [`Address:`, `${lease.property.street}, ${lease.property.barangay}, ${lease.property.city.name}, ${lease.property.zipCode}`],
+        [`Unit:`, lease.unit.label],
+        [`Unit Status:`, lease.unit.unitCondition],
+      ];
+
+      propertyInfo.forEach(([label, value]) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(value, pageWidth - 80);
+        doc.text(lines, 70, yPos);
+        yPos += lines.length * 6;
+      });
+
+      yPos += 5;
+
+      // Parties Involved Section
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Parties Involved', 14, yPos);
+      yPos += 8;
+
+      // Landlord Information
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Landlord', 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const landlordName = currentUser.firstName && currentUser.lastName 
+        ? `${currentUser.firstName} ${currentUser.lastName}`
+        : 'Landlord';
+      const landlordInfo = [
+        [`Name:`, landlordName],
+        [`Email:`, currentUser.email || 'Not provided'],
+        [`Phone:`, currentUser.phoneNumber || 'Not provided'],
+      ];
+
+      landlordInfo.forEach(([label, value]) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, yPos);
+        yPos += 6;
+      });
+
+      yPos += 4;
+
+      // Tenant Information
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Tenant', 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const tenantInfo = [
+        [`Name:`, `${lease.tenant.firstName} ${lease.tenant.lastName}`],
+        [`Email:`, lease.tenant.email],
+        [`Phone:`, lease.tenant.phoneNumber || 'Not provided'],
+      ];
+
+      tenantInfo.forEach(([label, value]) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, yPos);
+        yPos += 6;
+      });
+
+      // Payments Section (if not pending)
+      if (lease.status !== 'PENDING' && lease.payments.length > 0) {
+        yPos += 5;
+        if (yPos > 240) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Payment Summary', 14, yPos);
+        yPos += 8;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const paymentSummary = [
+          [`Total Expected:`, formatCurrencyForPDF(totalExpected)],
+          [`Total Collected:`, formatCurrencyForPDF(totalPaid)],
+          [`Outstanding:`, formatCurrencyForPDF(outstandingAmount)],
+          [`Overdue:`, formatCurrencyForPDF(overdueAmount)],
+        ];
+
+        paymentSummary.forEach(([label, value]) => {
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, 14, yPos);
+          doc.setFont('helvetica', 'normal');
+          doc.text(value, 70, yPos);
+          yPos += 6;
+        });
+
+        // Payment Table
+        if (lease.payments.length > 0) {
+          yPos += 5;
+          if (yPos > 200) {
+            doc.addPage();
+            yPos = 20;
+          }
+
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Payment History', 14, yPos);
+          yPos += 8;
+
+          const tableData = lease.payments.map(payment => [
+            formatCurrencyForPDF(payment.amount),
+            formatDate(payment.dueDate),
+            payment.status,
+            payment.paidAt ? formatDate(payment.paidAt) : 'N/A',
+            payment.method || 'N/A',
+            payment.timingStatus || 'N/A',
+            payment.type || 'RENT',
+          ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [['Amount', 'Due Date', 'Status', 'Paid Date', 'Method', 'Timing', 'Type']],
+            body: tableData,
+            theme: 'striped',
+            headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 8 },
+            margin: { left: 14, right: 14 },
+          });
+
+          yPos = (doc as any).lastAutoTable.finalY + 10;
+        }
+      }
+
+      // Add footer with RentEase credit on all pages
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        
+        const pageHeight = doc.internal.pageSize.getHeight();
+        doc.setDrawColor(200, 200, 200);
+        doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(16, 185, 129);
+        doc.text('RentEase', pageWidth / 2, pageHeight - 12, { align: 'center' });
+        
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100, 100, 100);
+        doc.text('Generated by RentEase - Property Management Platform', pageWidth / 2, pageHeight - 6, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+      }
+
+      // Generate filename
+      const leaseName = (lease.leaseNickname || `${lease.tenant.firstName}-${lease.tenant.lastName}-${lease.unit.label}`).replace(/\s+/g, '-');
+      const filename = `Lease-${leaseName}-${new Date().toISOString().split('T')[0]}.pdf`;
+
+      // Save PDF
+      doc.save(filename);
+      
+      toast.success('PDF generated successfully');
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen p-4 sm:p-6">
@@ -1328,13 +1654,34 @@ const ViewSpecificLease = () => {
                   </div>
                 </div>
                 
-                {/* Status Badge and Refresh Button */}
+                {/* Status Badge and Action Buttons */}
                 <div className="flex flex-col items-end gap-2 flex-shrink-0">
                   <Badge className={`${themeColor} flex items-center gap-1.5 text-xs sm:text-sm px-3 py-1.5 border shadow-sm font-medium`}>
                     {getStatusIcon(lease.status)}
                     {lease.status}
                   </Badge>
                   <div className="flex flex-col sm:flex-row gap-2">
+                    {lease.status !== 'PENDING' && (
+                      <Button
+                        onClick={generateLeasePDF}
+                        variant="outline"
+                        size="sm"
+                        disabled={generatingPdf}
+                        className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
+                      >
+                        {generatingPdf ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4 mr-2" />
+                            Download PDF
+                          </>
+                        )}
+                      </Button>
+                    )}
                     <Button
                       onClick={() => handleSettingsModalChange(true)}
                       variant="outline"
@@ -1706,23 +2053,12 @@ const ViewSpecificLease = () => {
               {/* Property & Unit Information */}
               <Card className="bg-gradient-to-br from-blue-50/20 to-indigo-50/20 border border-blue-100/50">
                 <CardHeader className="bg-white/90 border-b border-blue-100/50">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-gray-700">
-                      <div className="p-1.5 rounded-lg bg-blue-500 text-white">
-                        <Home className="h-4 w-4 sm:h-5 sm:w-5" />
-                      </div>
-                      Property & Unit
-                    </CardTitle>
-                    <Button
-                      onClick={() => navigate(`/landlord/properties/${lease.propertyId}`)}
-                      variant="outline"
-                      size="sm"
-                      className="border-blue-200 text-blue-700 hover:bg-blue-50"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      View Details
-                    </Button>
-                  </div>
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-gray-700">
+                    <div className="p-1.5 rounded-lg bg-blue-500 text-white">
+                      <Home className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </div>
+                    Property & Unit
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

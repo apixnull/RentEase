@@ -17,13 +17,21 @@ import {
   AlertCircle,
   Clock,
   Send,
+  Calendar,
 } from 'lucide-react';
 import { triggerPaymentRemindersRequest } from '@/api/admin/paymentReminderApi';
+import { triggerListingExpirationRequest } from '@/api/admin/listingExpirationApi';
 
 const AdminSettings = () => {
   const [loading, setLoading] = useState(false);
   const [lastRunResult, setLastRunResult] = useState<{
     sentCount: number;
+    errorCount: number;
+    timestamp: Date;
+  } | null>(null);
+  const [expirationLoading, setExpirationLoading] = useState(false);
+  const [lastExpirationResult, setLastExpirationResult] = useState<{
+    processedCount: number;
     errorCount: number;
     timestamp: Date;
   } | null>(null);
@@ -52,6 +60,33 @@ const AdminSettings = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTriggerListingExpiration = async () => {
+    try {
+      setExpirationLoading(true);
+      const response = await triggerListingExpirationRequest();
+      
+      if (response.data.success) {
+        setLastExpirationResult({
+          processedCount: response.data.processedCount,
+          errorCount: response.data.errorCount,
+          timestamp: new Date(),
+        });
+        toast.success(
+          `Listing expiration processed successfully! Processed: ${response.data.processedCount}, Errors: ${response.data.errorCount}`
+        );
+      } else {
+        toast.error('Failed to trigger listing expiration');
+      }
+    } catch (error: any) {
+      console.error('Error triggering listing expiration:', error);
+      toast.error(
+        error?.response?.data?.error || 'Failed to trigger listing expiration'
+      );
+    } finally {
+      setExpirationLoading(false);
     }
   };
 
@@ -181,6 +216,115 @@ const AdminSettings = () => {
               <>
                 <Send className="h-4 w-4 mr-2" />
                 Trigger Payment Reminders Now
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Listing Expiration Section */}
+      <Card className="border border-gray-200 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-gray-500 to-gray-600 text-white grid place-items-center">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle>Listing Expiration System</CardTitle>
+              <CardDescription>
+                Manually trigger listing expiration process and notify landlords
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-gray-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-semibold text-gray-900 mb-1">
+                  How it works
+                </h4>
+                <ul className="text-sm text-gray-800 space-y-1 list-disc list-inside">
+                  <li>
+                    Checks for listings that expired today (expiresAt = today)
+                  </li>
+                  <li>
+                    Updates listing status from VISIBLE or HIDDEN to EXPIRED
+                  </li>
+                  <li>
+                    Sends email notification to landlords about expired listings
+                  </li>
+                  <li>
+                    Only processes listings that are still active (not already EXPIRED, BLOCKED, etc.)
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {lastExpirationResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-green-50 border border-green-200 rounded-lg p-4"
+            >
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-semibold text-green-900 mb-2">
+                    Last Run Results
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-green-700 font-medium">
+                        Processed:
+                      </span>{' '}
+                      <span className="text-green-900 font-bold">
+                        {lastExpirationResult.processedCount}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-green-700 font-medium">
+                        Errors:
+                      </span>{' '}
+                      <span className="text-green-900 font-bold">
+                        {lastExpirationResult.errorCount}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
+                    <Clock className="h-3 w-3" />
+                    <span>
+                      {lastExpirationResult.timestamp.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          <Button
+            onClick={handleTriggerListingExpiration}
+            disabled={expirationLoading}
+            className="w-full sm:w-auto bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-md"
+            size="lg"
+          >
+            {expirationLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Trigger Listing Expiration Now
               </>
             )}
           </Button>

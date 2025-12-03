@@ -280,19 +280,23 @@ const UserAnalytics = () => {
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       
-      // Filter users to only include those created in the current month (not previous month's last day)
+      // Filter users to only include those created in the current month
+      // Use same logic as filteredUsersForBreakdown to ensure consistency
       const filteredUsers = usersInPeriod.filter((u: any) => {
         const createdAt = new Date(u.createdAt);
         // Only include if it's within the current month boundaries
-        return createdAt >= start && createdAt <= end && 
-               createdAt.getMonth() === now.getMonth() && 
-               createdAt.getFullYear() === now.getFullYear();
+        return createdAt >= start && createdAt <= end;
       });
       
-      // Group by day
+      // Group by day using local date to avoid timezone issues
       const dailyMap = new Map<string, number>();
       filteredUsers.forEach((u: any) => {
-        const dateKey = new Date(u.createdAt).toISOString().split('T')[0];
+        const createdAt = new Date(u.createdAt);
+        // Use local date string (YYYY-MM-DD) to match the date keys we'll generate
+        const year = createdAt.getFullYear();
+        const month = String(createdAt.getMonth() + 1).padStart(2, '0');
+        const day = String(createdAt.getDate()).padStart(2, '0');
+        const dateKey = `${year}-${month}-${day}`;
         const current = dailyMap.get(dateKey) || 0;
         dailyMap.set(dateKey, current + 1);
       });
@@ -308,7 +312,11 @@ const UserAnalytics = () => {
         const dateMonth = currentDate.getMonth();
         const dateYear = currentDate.getFullYear();
         if (dateMonth === currentMonthForUsers && dateYear === currentYearForUsers) {
-          const dateKey = currentDate.toISOString().split('T')[0];
+          // Use local date string to match the grouping above
+          const year = currentDate.getFullYear();
+          const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+          const day = String(currentDate.getDate()).padStart(2, '0');
+          const dateKey = `${year}-${month}-${day}`;
           dailyData.push({
             date: dateKey,
             count: dailyMap.get(dateKey) || 0,
@@ -323,7 +331,7 @@ const UserAnalytics = () => {
       
       // Final filter to ensure no dates outside current month
       return dailyData.filter(item => {
-        const itemDate = new Date(item.date);
+        const itemDate = new Date(item.date + 'T00:00:00'); // Parse as local date
         return itemDate.getMonth() === currentMonthForUsers && itemDate.getFullYear() === currentYearForUsers;
       });
     } else if (timeFilter === 'year') {
@@ -468,15 +476,14 @@ const UserAnalytics = () => {
     
     const summaryData = [
       ['Metric', 'Value'],
-      [`Total Users (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.totalUsers.toString()],
-      [`Total Tenants (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.tenants.toString()],
-      [`Total Landlords (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.landlords.toString()],
-      ['Total Logins (All Time)', allTimeMetrics.totalLogins.toString()],
+      [`Total Registered (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.totalUsers.toString()],
+      [`Total Registered Tenants (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.tenants.toString()],
+      [`Total Registered Landlords (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.landlords.toString()],
       [`Total Logins (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredTotal.toString()],
+      ...(timeFilter === 'all' ? [['Total Logins (All Time)', allTimeMetrics.totalLogins.toString()]] : []),
       [`Verified Users (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.verified.toString()],
       [`Not Verified Users (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.notVerified.toString()],
       [`Blocked Users (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.blocked.toString()],
-      ['Registered This Month', filteredMetrics.registeredThisMonth.toString()],
     ];
     
     autoTable(doc, {
@@ -590,21 +597,28 @@ const UserAnalytics = () => {
       return [dateLabel, (item.count || 0).toString()];
     });
     
-    // Calculate totals and averages for logins
+    // Calculate totals for logins
     const loginsTotal = filteredTotal;
-    const loginsAverage = processedLoginsData.length > 0 ? (loginsTotal / processedLoginsData.length).toFixed(1) : '0.0';
-    const loginsMax = processedLoginsData.length > 0 ? Math.max(...processedLoginsData.map((item: any) => item.count || 0)) : 0;
     
     autoTable(doc, {
       startY: yPos,
       head: [['Date', 'Count']],
       body: loginsTableData,
-      foot: [['Total', loginsTotal.toString()]],
       theme: 'striped',
       headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      footStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
       styles: { fontSize: 9 },
       margin: { left: margin, right: margin },
+    });
+    
+    // Add total row manually at the end
+    yPos = (doc as any).lastAutoTable.finalY;
+    autoTable(doc, {
+      startY: yPos,
+      body: [['Total', loginsTotal.toString()]],
+      theme: 'striped',
+      bodyStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+      margin: { left: margin, right: margin },
+      showHead: 'never',
     });
     
     yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -634,59 +648,28 @@ const UserAnalytics = () => {
       return [dateLabel, (item.count || 0).toString()];
     });
     
-    // Calculate totals and averages for users created
+    // Calculate totals for users created
     const usersTotal = totalUsersCreated;
-    const usersAverage = dailyUsersCreated.length > 0 ? (usersTotal / dailyUsersCreated.length).toFixed(1) : '0.0';
-    const usersMax = dailyUsersCreated.length > 0 ? Math.max(...dailyUsersCreated.map((item: any) => item.count || 0)) : 0;
     
     autoTable(doc, {
       startY: yPos,
       head: [['Date', 'Count']],
       body: usersTableData,
-      foot: [['Total', usersTotal.toString()]],
       theme: 'striped',
       headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      footStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
       styles: { fontSize: 9 },
       margin: { left: margin, right: margin },
     });
     
-    yPos = (doc as any).lastAutoTable.finalY + 15;
-    
-    // Check if we need a new page
-    if (yPos > doc.internal.pageSize.getHeight() - 40) {
-      doc.addPage();
-      yPos = margin;
-    }
-    
-    // Summary Statistics Section
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('Summary Statistics', margin, yPos);
-    yPos += 8;
-    
-    const summaryStats = [
-      ['Statistic', 'Value'],
-      ['Total Logins (All Time)', allTimeMetrics.totalLogins.toString()],
-      [`Total Logins (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredTotal.toString()],
-      [`Total Users (${periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)})`, filteredMetrics.totalUsers.toString()],
-      ['Total Users Created (Period)', usersTotal.toString()],
-      ['Registered This Month', filteredMetrics.registeredThisMonth.toString()],
-      [`Average ${loginsChartTitle.toLowerCase()}`, loginsAverage],
-      ['Average Users Created per Period', usersAverage],
-      ['Peak Logins (Period)', loginsMax.toString()],
-      ['Peak Users Created (Period)', usersMax.toString()],
-    ];
-    
+    // Add total row manually at the end
+    yPos = (doc as any).lastAutoTable.finalY;
     autoTable(doc, {
       startY: yPos,
-      head: [summaryStats[0]],
-      body: summaryStats.slice(1),
+      body: [['Total', usersTotal.toString()]],
       theme: 'striped',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 10 },
+      bodyStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 9 },
       margin: { left: margin, right: margin },
+      showHead: 'never',
     });
     
     yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -848,13 +831,16 @@ const UserAnalytics = () => {
       
       yPos = (doc as any).lastAutoTable.finalY + 10;
       
+      // Add summary text
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
       if (filteredUsersForBreakdown.length > 50) {
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Showing first 50 of ${filteredUsersForBreakdown.length} users`, margin, yPos);
-        yPos += 10;
+        doc.text(`Total Created Users: ${filteredUsersForBreakdown.length} (Showing first 50)`, margin, yPos);
+      } else {
+        doc.text(`Total Created Users: ${filteredUsersForBreakdown.length}`, margin, yPos);
       }
+      yPos += 10;
     } else {
       doc.setFontSize(11);
       doc.text('No users created for the selected period.', margin, yPos);
@@ -1224,7 +1210,7 @@ const UserAnalytics = () => {
         <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-purple-700">
-              Total Users {timeFilter === 'month' ? '(This Month)' : timeFilter === 'year' ? '(This Year)' : '(All Time)'}
+              Total Registered {timeFilter === 'month' ? '(This Month)' : timeFilter === 'year' ? '(This Year)' : '(All Time)'}
             </CardTitle>
             <Users className="h-4 w-4 text-purple-600" />
           </CardHeader>
@@ -1253,7 +1239,7 @@ const UserAnalytics = () => {
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-emerald-700">
-              Total Tenants {timeFilter === 'month' ? '(This Month)' : timeFilter === 'year' ? '(This Year)' : '(All Time)'}
+              Total Registered Tenants {timeFilter === 'month' ? '(This Month)' : timeFilter === 'year' ? '(This Year)' : '(All Time)'}
             </CardTitle>
             <Home className="h-4 w-4 text-emerald-600" />
           </CardHeader>
@@ -1271,7 +1257,7 @@ const UserAnalytics = () => {
         <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-blue-700">
-              Total Landlords {timeFilter === 'month' ? '(This Month)' : timeFilter === 'year' ? '(This Year)' : '(All Time)'}
+              Total Registered Landlords {timeFilter === 'month' ? '(This Month)' : timeFilter === 'year' ? '(This Year)' : '(All Time)'}
             </CardTitle>
             <Building2 className="h-4 w-4 text-blue-600" />
           </CardHeader>

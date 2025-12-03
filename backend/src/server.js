@@ -6,6 +6,7 @@ import http from "http";
 import { setIoInstance } from "./services/socketService.js";
 import prisma from "./libs/prismaClient.js";
 import { startPaymentReminderCron } from "./services/paymentReminderCron.js";
+import { startListingExpirationCron } from "./services/listingExpirationCron.js";
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
 
@@ -218,6 +219,9 @@ server.listen(PORT, () => {
   
   // Start payment reminder cron job
   startPaymentReminderCron();
+  
+  // Start listing expiration cron job
+  startListingExpirationCron();
 });
 
 // Export io instance for use in controllers

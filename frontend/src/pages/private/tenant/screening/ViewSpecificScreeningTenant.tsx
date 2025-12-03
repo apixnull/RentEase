@@ -273,6 +273,25 @@ const ViewSpecificScreeningTenant = () => {
     }
   };
 
+  const handleAcceptInvitation = () => {
+    if (screeningId) {
+      navigate(`/tenant/screening/${screeningId}/fill`);
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+
+  const formatRole = (role?: string | null) => {
+    if (!role) return 'Landlord';
+    return role
+      .toLowerCase()
+      .split(/[\s_]+/)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  };
+
   // Status-based color scheme functions - Uses theme where applicable
   const getStatusHeaderClasses = (status: string) => {
     const theme = getStatusTheme(status);
@@ -414,7 +433,8 @@ const ViewSpecificScreeningTenant = () => {
     }).format(income);
   };
 
-  const getNoiseLevelText = (level: string) => {
+  const getNoiseLevelText = (level: string | null | undefined) => {
+    if (!level) return "Not specified";
     switch (level) {
       case "LOW":
         return "Low";
@@ -428,7 +448,8 @@ const ViewSpecificScreeningTenant = () => {
     }
   };
 
-  const getNoiseLevelColor = (level: string) => {
+  const getNoiseLevelColor = (level: string | null | undefined) => {
+    if (!level) return "text-slate-700 bg-slate-50 border border-slate-200/70";
     switch (level) {
       case "LOW":
         return "text-emerald-700 bg-emerald-50 border border-emerald-200/70";
@@ -657,6 +678,127 @@ const ViewSpecificScreeningTenant = () => {
 
   const headerClasses = getStatusHeaderClasses(screening.status);
 
+  // If status is PENDING, show invitation card instead of detailed view
+  if (screening.status === "PENDING") {
+    const theme = getStatusTheme("PENDING");
+    return (
+      <div className="min-h-screen space-y-6 p-4 sm:p-6">
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="relative overflow-hidden rounded-2xl"
+          >
+            <div className="absolute inset-0 -z-10 bg-gradient-to-r from-amber-200/80 via-orange-200/75 to-amber-200/70 opacity-95" />
+            <div className="relative m-[1px] rounded-[16px] bg-white/85 backdrop-blur-lg border border-white/60 shadow-lg">
+              <div className="px-4 sm:px-6 py-5">
+                <div className="flex items-center gap-4">
+                  <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white grid place-items-center shadow-xl">
+                    <Clock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
+                      Screening Invitation
+                    </h1>
+                    <p className="text-sm text-slate-600">
+                      You have been invited to complete tenant screening
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Invitation Card */}
+          <Card className={`shadow-md ${theme.borderCard} ${theme.backgroundCard}`}>
+            <CardContent className="p-4 sm:p-6">
+              {/* Invitation Message */}
+              <div className={`mb-4 pb-4 border-b ${theme.border}`}>
+                <p className={`${theme.textColor} text-sm sm:text-base font-medium leading-relaxed`}>
+                  You have been invited by <span className="font-semibold">{screening.landlord.name}</span> to complete tenant screening.
+                </p>
+              </div>
+
+              {/* Landlord Information */}
+              <div className="flex items-center gap-4 mb-6">
+                <Avatar className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 border-2 border-amber-200">
+                  {screening.landlord.avatarUrl ? (
+                    <AvatarImage src={screening.landlord.avatarUrl} />
+                  ) : null}
+                  <AvatarFallback className="bg-amber-50 text-amber-600 text-lg font-semibold">
+                    {getInitials(screening.landlord.name)}
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <h3 className="font-semibold text-gray-900 text-base sm:text-lg">
+                      {screening.landlord.name}
+                    </h3>
+                    <Badge
+                      variant="outline"
+                      className="text-xs uppercase tracking-wide border-amber-200 text-amber-700 bg-amber-50/60"
+                    >
+                      {formatRole(screening.landlord.role)}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Mail className="h-4 w-4 text-amber-500" />
+                    <span>{screening.landlord.email}</span>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    Invited on {formatShortDate(screening.createdAt)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="mb-6">
+                <Badge className={`flex items-center gap-2 text-sm border ${theme.badge}`}>
+                  <Clock className="h-4 w-4" />
+                  {screening.status}
+                </Badge>
+              </div>
+
+              {/* Information Box */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                <h4 className="font-semibold text-amber-800 mb-2 text-sm sm:text-base">About the Screening Process</h4>
+                <p className="text-amber-700 text-xs sm:text-sm mb-3">
+                  Complete your background information to meet rental criteria.
+                </p>
+                <ul className="text-amber-700 text-xs sm:text-sm space-y-2">
+                  <li className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-1.5 flex-shrink-0" />
+                    <span>Questions about employment, income, and rental history</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-1.5 flex-shrink-0" />
+                    <span>Takes 10-15 minutes to complete</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-1.5 flex-shrink-0" />
+                    <span>Information securely processed by landlord</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Accept Button */}
+              <Button
+                onClick={handleAcceptInvitation}
+                className={`w-full bg-gradient-to-r ${SCREENING_STATUS_THEME.APPROVED.gradientButton} text-white text-sm sm:text-base font-semibold h-12 sm:h-14 shadow-md shadow-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/40 transition-all duration-200 rounded-lg gap-2`}
+              >
+                <CheckCircle className="w-5 h-5" />
+                Accept & Start Screening
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen space-y-6 p-4 sm:p-6">
       <div className="space-y-6">
@@ -733,7 +875,6 @@ const ViewSpecificScreeningTenant = () => {
                       <motion.div
                         className={cn(
                           "absolute inset-0 rounded-2xl border-2 opacity-30",
-                          screening.status === "PENDING" ? "border-amber-400" :
                           screening.status === "SUBMITTED" ? "border-indigo-400" :
                           screening.status === "APPROVED" ? "border-emerald-400" :
                           "border-rose-400"
@@ -842,8 +983,7 @@ const ViewSpecificScreeningTenant = () => {
                         {screening.status}
                       </Badge>
                       <p className="text-xs text-slate-500 mt-1">
-                        {screening.status === "PENDING" ? formatShortDate(screening.createdAt) :
-                         screening.status === "SUBMITTED" && screening.submitted ? formatShortDate(screening.submitted) :
+                        {screening.status === "SUBMITTED" && screening.submitted ? formatShortDate(screening.submitted) :
                          (screening.status === "APPROVED" || screening.status === "REJECTED") && screening.reviewedAt ? formatShortDate(screening.reviewedAt) :
                          formatShortDate(screening.createdAt)}
                       </p>
@@ -853,7 +993,6 @@ const ViewSpecificScreeningTenant = () => {
                   {/* Status Explanation */}
                   <div className={cn("mt-3 pt-3 border-t rounded-lg p-3", theme.border, theme.backgroundCard.replace('bg-gradient-to-br', 'bg'))}>
                     <p className={cn("text-sm leading-relaxed", theme.textColor)}>
-                      {screening.status === "PENDING" && "The landlord has initiated a screening invitation. Please complete and submit your screening information."}
                       {screening.status === "SUBMITTED" && `You have submitted this information to landlord ${screening.landlord.name} for tenant screening. Wait for the landlord to review your information.`}
                       {screening.status === "APPROVED" && "The landlord has approved this tenant screening. Congratulations! You can now proceed with the next steps in your rental journey."}
                       {screening.status === "REJECTED" && "We're sorry, but your application was not approved at this time. Don't worry - there are many other rental opportunities available."}
@@ -888,11 +1027,11 @@ const ViewSpecificScreeningTenant = () => {
                         description: string;
                       }> = [];
 
-                      // Always show PENDING step
+                      // Always show PENDING step (as completed since we're past PENDING status)
                       timelineSteps.push({
                         label: 'Invitation Initiated',
                         date: screening.createdAt,
-                        status: screening.status === 'PENDING' ? 'active' : 'completed',
+                        status: 'completed',
                         icon: User,
                         stepType: 'PENDING',
                         description: 'The landlord initiated a screening invitation for you.'
@@ -1082,7 +1221,7 @@ const ViewSpecificScreeningTenant = () => {
                     <div>
                       <p className="text-xs uppercase tracking-wide text-slate-500">Employment status</p>
                       <p className="mt-1 text-sm font-medium text-slate-900 capitalize">
-                        {screening.tenantInfo.employmentStatus.toLowerCase()}
+                        {screening.tenantInfo.employmentStatus?.toLowerCase() || "—"}
                       </p>
                     </div>
                   </div>

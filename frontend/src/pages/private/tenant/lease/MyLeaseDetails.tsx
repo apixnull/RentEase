@@ -48,9 +48,13 @@ import {
 } from 'lucide-react';
 import { getLeaseDetailsRequest, handleTenantLeaseActionRequest } from '@/api/tenant/leaseApi';
 import { getAllTenantMaintenanceRequestsRequest, createMaintenanceRequestRequest, cancelMaintenanceRequestRequest } from '@/api/tenant/maintenanceApi';
+import { privateApi } from '@/api/axios';
 import { supabase } from '@/lib/supabaseClient';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { toast } from 'sonner';
 
 // Complete Color Schema for Lease Statuses
 const LEASE_STATUS_THEME = {
@@ -331,6 +335,7 @@ const MyLeaseDetails = () => {
     isOpen: false,
     request: null,
   });
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Load active tab from session storage on component mount
   useEffect(() => {
@@ -422,32 +427,68 @@ const MyLeaseDetails = () => {
     );
   };
 
-  // Upload photo to Supabase
+  // Upload photo (dual-mode: local for development, Supabase for production)
   const uploadMaintenancePhoto = async (file: File): Promise<string> => {
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${generateUUID()}.${fileExt}`;
-      const filePath = `maintenance_request/${fileName}`;
+    // Check if using local storage (development mode or explicit flag)
+    const useLocalStorage =
+      import.meta.env.VITE_USE_LOCAL_STORAGE === "true" ||
+      import.meta.env.MODE === "development";
 
-      const { error } = await supabase.storage
-        .from("rentease-images")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
+    if (useLocalStorage) {
+      // Local storage mode: Upload to backend endpoint
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const response = await privateApi.post("/upload/maintenance-image", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         });
 
-      if (error) {
-        throw error;
+        const mockUrl = response.data.url; // e.g., "/local-images/maintenance_request/uuid.jpg"
+
+        // In development, prepend backend URL to make it accessible
+        if (import.meta.env.MODE === "development") {
+          const backendUrl = "http://localhost:5000";
+          return `${backendUrl}${mockUrl}`;
+        }
+
+        // In production with local storage, return as-is (backend should handle full URL)
+        return mockUrl;
+      } catch (error: any) {
+        console.error("Local upload error:", error);
+        throw new Error(
+          error.response?.data?.error || "Failed to upload photo to local storage"
+        );
       }
+    } else {
+      // Supabase storage mode (production)
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${generateUUID()}.${fileExt}`;
+        const filePath = `maintenance_request/${fileName}`;
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+        const { error } = await supabase.storage
+          .from("rentease-images")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
 
-      return publicUrl;
-    } catch (error) {
-      console.error("Error uploading maintenance photo:", error);
-      throw new Error(`Failed to upload photo: ${error}`);
+        if (error) {
+          throw error;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+
+        return publicUrl;
+      } catch (error) {
+        console.error("Error uploading maintenance photo to Supabase:", error);
+        throw new Error(`Failed to upload photo: ${error}`);
+      }
     }
   };
 
@@ -590,6 +631,352 @@ const MyLeaseDetails = () => {
       style: 'currency',
       currency: 'PHP'
     }).format(amount);
+  };
+
+  // Format currency for PDF (explicit PHP prefix)
+  const formatCurrencyForPDF = (amount: number) => {
+    return `PHP ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Get ordinal suffix helper
+  const getOrdinalSuffix = (number: number) => {
+    const suffixes = ['th', 'st', 'nd', 'rd'];
+    const value = number % 100;
+    return number + (suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0]);
+  };
+
+  // Get interval display helper
+  const getIntervalDisplay = (interval: string) => {
+    switch (interval) {
+      case 'DAILY':
+        return 'daily';
+      case 'WEEKLY':
+        return 'weekly';
+      case 'MONTHLY':
+        return 'monthly';
+      default:
+        return interval.toLowerCase();
+    }
+  };
+
+  // Get lease type display helper
+  const getLeaseTypeDisplay = (leaseType: string) => {
+    return leaseType.replace('_', ' ');
+  };
+
+  // Generate PDF for lease
+  const generateLeasePDF = () => {
+    if (!lease) return;
+
+    try {
+      setGeneratingPdf(true);
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      let yPos = margin;
+
+      // RentEase Branding Header
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(16, 185, 129); // emerald-500
+      doc.text('RentEase', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Property Management Platform', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+
+      // Divider line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, yPos, pageWidth - 14, yPos);
+      yPos += 12;
+
+      // Lease Title
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      const leaseTitle = lease.leaseNickname || `${lease.property.title} - ${lease.unit.label}`;
+      doc.text('Lease Agreement Details', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 8;
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(leaseTitle, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+
+      // Generated At timestamp
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 100, 100);
+      const generatedAt = new Date().toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.text(`Generated at: ${generatedAt}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 8;
+
+      // Status Badge
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Status: ${lease.status}`, 14, yPos);
+      yPos += 8;
+
+      // Lease Information Section
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Lease Information', 14, yPos);
+      yPos += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const leaseInfo = [
+        [`Lease Type:`, getLeaseTypeDisplay(lease.leaseType)],
+        [`Start Date:`, formatDate(lease.startDate)],
+        [`End Date:`, formatDate(lease.endDate)],
+        [`Rent Amount:`, formatCurrencyForPDF(lease.rentAmount)],
+        [`Security Deposit:`, lease.securityDeposit ? formatCurrencyForPDF(lease.securityDeposit) : 'None'],
+        [`Payment Interval:`, getIntervalDisplay(lease.interval)],
+        [`Due Date:`, `${getOrdinalSuffix(lease.dueDate)} each ${getIntervalDisplay(lease.interval)}`],
+      ];
+
+      leaseInfo.forEach(([label, value]) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, yPos);
+        yPos += 6;
+      });
+
+      yPos += 5;
+
+      // Property & Unit Information
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Property & Unit', 14, yPos);
+      yPos += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const propertyInfo = [
+        [`Property:`, lease.property.title],
+        [`Address:`, `${lease.property.street}, ${lease.property.barangay}, ${lease.property.city.name}, ${lease.property.zipCode || ''}`],
+        [`Property Type:`, lease.property.type],
+        [`Unit:`, lease.unit.label],
+      ];
+
+      propertyInfo.forEach(([label, value]) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(value, pageWidth - 80);
+        doc.text(lines, 70, yPos);
+        yPos += lines.length * 6;
+      });
+
+      yPos += 5;
+
+      // Parties Involved Section
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Parties Involved', 14, yPos);
+      yPos += 8;
+
+      // Tenant Information
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Tenant', 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const tenantInfo = [
+        [`Name:`, `${lease.tenant.firstName} ${lease.tenant.lastName}`],
+        [`Email:`, lease.tenant.email],
+        [`Phone:`, lease.tenant.phoneNumber || 'Not provided'],
+      ];
+
+      tenantInfo.forEach(([label, value]) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, yPos);
+        yPos += 6;
+      });
+
+      yPos += 4;
+
+      // Landlord Information
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Landlord', 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const landlordInfo = [
+        [`Name:`, `${lease.landlord.firstName} ${lease.landlord.lastName}`],
+        [`Email:`, lease.landlord.email],
+        [`Phone:`, lease.landlord.phoneNumber || 'Not provided'],
+      ];
+
+      landlordInfo.forEach(([label, value]) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, yPos);
+        yPos += 6;
+      });
+
+      // Payments Section (if not pending)
+      if (lease.status !== 'PENDING' && lease.status !== 'REJECTED' && lease.payments.length > 0) {
+        yPos += 5;
+        if (yPos > 240) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Payment Summary', 14, yPos);
+        yPos += 8;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const paymentSummary = [
+          [`Total Expected:`, formatCurrencyForPDF(totalExpected)],
+          [`Total Collected:`, formatCurrencyForPDF(totalPaid)],
+          [`Outstanding:`, formatCurrencyForPDF(outstandingAmount)],
+          [`Overdue:`, formatCurrencyForPDF(overdueAmount)],
+        ];
+
+        paymentSummary.forEach(([label, value]) => {
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, 14, yPos);
+          doc.setFont('helvetica', 'normal');
+          doc.text(value, 70, yPos);
+          yPos += 6;
+        });
+
+        // Payment Table
+        if (lease.payments.length > 0) {
+          yPos += 5;
+          if (yPos > 200) {
+            doc.addPage();
+            yPos = 20;
+          }
+
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Payment History', 14, yPos);
+          yPos += 8;
+
+          const tableData = lease.payments.map(payment => [
+            formatCurrencyForPDF(payment.amount),
+            formatDate(payment.dueDate),
+            payment.status,
+            payment.paidAt ? formatDate(payment.paidAt) : 'N/A',
+            payment.method || 'N/A',
+            payment.timingStatus || 'N/A',
+            payment.type || 'RENT',
+          ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [['Amount', 'Due Date', 'Status', 'Paid Date', 'Method', 'Timing', 'Type']],
+            body: tableData,
+            theme: 'striped',
+            headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 8 },
+            margin: { left: 14, right: 14 },
+          });
+
+          yPos = (doc as any).lastAutoTable.finalY + 10;
+        }
+      }
+
+      // Add footer with RentEase credit on all pages
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        
+        const pageHeight = doc.internal.pageSize.getHeight();
+        doc.setDrawColor(200, 200, 200);
+        doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(16, 185, 129);
+        doc.text('RentEase', pageWidth / 2, pageHeight - 12, { align: 'center' });
+        
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100, 100, 100);
+        doc.text('Generated by RentEase - Property Management Platform', pageWidth / 2, pageHeight - 6, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+      }
+
+      // Generate filename
+      const leaseName = (lease.leaseNickname || `${lease.property.title}-${lease.unit.label}`).replace(/\s+/g, '-');
+      const filename = `Lease-${leaseName}-${new Date().toISOString().split('T')[0]}.pdf`;
+
+      // Save PDF
+      doc.save(filename);
+      
+      toast.success('PDF generated successfully');
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -858,6 +1245,26 @@ const MyLeaseDetails = () => {
               </div>
 
               <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                {lease.status !== 'PENDING' && lease.status !== 'REJECTED' && (
+                  <Button
+                    variant="outline"
+                    onClick={generateLeasePDF}
+                    disabled={generatingPdf}
+                    className="h-11 rounded-xl border-slate-200 bg-white/80 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white disabled:opacity-70"
+                  >
+                    {generatingPdf ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <Download className="h-4 w-4" />
+                        Download PDF
+                      </span>
+                    )}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={handleRefresh}

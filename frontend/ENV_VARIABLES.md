@@ -21,6 +21,17 @@ This file lists all environment variables needed for the RentEase frontend.
 - **⚠️ Security**: Never commit this to Git or expose it in client-side code
 - **Note**: This is used for file uploads and other server-side operations
 
+## Optional Environment Variables
+
+### VITE_USE_LOCAL_STORAGE
+- **Description**: Enable local file storage for image uploads (development only)
+- **Default**: Automatically enabled when `MODE=development`
+- **Usage**: 
+  - Set to `true` to force local storage mode
+  - Set to `false` to use Supabase even in development
+  - Leave unset to auto-detect based on environment mode
+- **Note**: Local storage uploads files to backend and serves them at `/local-images/` route
+
 ## Setting Environment Variables in Vercel
 
 1. Go to your Vercel project dashboard
@@ -41,6 +52,10 @@ Create a `.env` file in the `frontend` directory:
 VITE_BACKEND_URL=http://localhost:5000/api
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Optional: Override local storage behavior
+# VITE_USE_LOCAL_STORAGE=true  # Force local storage
+# VITE_USE_LOCAL_STORAGE=false # Force Supabase storage
 ```
 
 **Important**: The `.env` file is already in `.gitignore` and should never be committed.

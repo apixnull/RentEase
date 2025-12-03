@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { getAmenitiesRequest } from "@/api/landlord/propertyApi";
 import { getUnitDetailsRequest, updateUnitRequest } from "@/api/landlord/unitApi";
 import { supabase } from "@/lib/supabaseClient";
+import { privateApi } from "@/api/axios";
 import { motion } from "framer-motion";
 import {
   AlertDialog,
@@ -404,36 +405,73 @@ const EditUnit = () => {
     return true;
   };
 
-  // Function to upload image to Supabase
+  // Function to upload image (dual-mode: local for development, Supabase for production)
   const uploadImageToSupabase = async (
     file: File,
     unitId: string,
     fileName: string
   ): Promise<string> => {
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fullFileName = `${fileName}.${fileExt}`;
-      const filePath = `unit_images/${unitId}/${fullFileName}`;
+    // Check if using local storage (development mode or explicit flag)
+    const useLocalStorage =
+      import.meta.env.VITE_USE_LOCAL_STORAGE === "true" ||
+      import.meta.env.MODE === "development";
 
-      const { error } = await supabase.storage
-        .from("rentease-images")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: true, // Allow overwriting
+    if (useLocalStorage) {
+      // Local storage mode: Upload to backend endpoint
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const response = await privateApi.post("/upload/unit-image", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         });
 
-      if (error) {
-        throw error;
+        const mockUrl = response.data.url; // e.g., "/local-images/unit_images/uuid.jpg"
+
+        // In development, prepend backend URL to make it accessible
+        if (import.meta.env.MODE === "development") {
+          const backendUrl = "http://localhost:5000";
+          return `${backendUrl}${mockUrl}`;
+        }
+
+        // In production with local storage, return as-is
+        return mockUrl;
+      } catch (error: any) {
+        console.error("Local upload error:", error);
+        const errorMsg =
+          error.response?.data?.error || "Failed to upload image to local storage";
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
       }
+    } else {
+      // Supabase storage mode (production)
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fullFileName = `${fileName}.${fileExt}`;
+        const filePath = `unit_images/${unitId}/${fullFileName}`;
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+        const { error } = await supabase.storage
+          .from("rentease-images")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: true, // Allow overwriting
+          });
 
-      return publicUrl;
-    } catch (error) {
-      console.error("Error uploading image to Supabase:", error);
-      throw new Error(`Failed to upload image: ${error}`);
+        if (error) {
+          throw error;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+
+        return publicUrl;
+      } catch (error) {
+        console.error("Error uploading image to Supabase:", error);
+        throw new Error(`Failed to upload image: ${error}`);
+      }
     }
   };
 
@@ -857,19 +895,30 @@ const EditUnit = () => {
                           {formData.mainImage?.name || "Existing image"}
                         </p>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            mainImage: null,
-                            mainImagePreview: prev.existingMainImageUrl,
-                          }))
-                        }
-                      >
-                        {formData.mainImage ? "Revert" : "Change Photo"}
-                      </Button>
+                      <div className="flex gap-2">
+                        {formData.mainImage && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                mainImage: null,
+                                mainImagePreview: prev.existingMainImageUrl,
+                              }))
+                            }
+                          >
+                            Revert
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          Change Photo
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1223,7 +1272,7 @@ const EditUnit = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              window.open("/privacy-policy", "_blank");
+                              window.open("/terms-privacy", "_blank");
                             }}
                             className="bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
                           >
@@ -1288,7 +1337,7 @@ const EditUnit = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              window.open("/privacy-policy", "_blank");
+                              window.open("/terms-privacy", "_blank");
                             }}
                             className="bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
                           >

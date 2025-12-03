@@ -6,15 +6,22 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 import authRoutes from "./routes/authRoutes.js";
 import landlordRoutes from "./routes/landlordRoutes.js";
 import tenantRoutes from "./routes/tenantRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
 import sessionMiddleware from "./middlewares/session.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
 
 const buildAllowedOrigins = () => {
@@ -71,8 +78,26 @@ app.use(cookieParser());
 app.use(sessionMiddleware);
 
 // ------------------------------
+// Static File Serving (Local Storage - Development Only)
+// ------------------------------
+// Serve uploaded images as static files at /local-images/ route
+// Only enabled in development mode or when USE_LOCAL_STORAGE is true
+if (process.env.NODE_ENV === "development" || process.env.USE_LOCAL_STORAGE === "true") {
+  const uploadsPath = path.join(__dirname, "../public/uploads");
+  app.use("/local-images", express.static(uploadsPath));
+  console.log("📁 Local file storage enabled - serving from:", uploadsPath);
+}
+
+// ------------------------------
 // Routes
 // ------------------------------
+app.use("/api/upload", uploadRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/landlord", landlordRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/tenant", tenantRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/notification", notificationRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/landlord", landlordRoutes);
 app.use("/api/admin", adminRoutes);

@@ -1642,6 +1642,16 @@ export const updateLease = async (req, res) => {
       },
     });
 
+    // Notify tenant about lease update
+    if (lease.tenantId) {
+      await createNotification(
+        lease.tenantId,
+        "LEASE",
+        "Your lease agreement has been updated by the landlord. Please review the changes and accept or reject the updated terms.",
+        { leaseId: id, status: "PENDING" }
+      );
+    }
+
     return res.status(200).json({
       message: "Lease updated successfully.",
     });

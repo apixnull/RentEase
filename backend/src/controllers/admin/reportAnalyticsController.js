@@ -264,6 +264,23 @@ export const getListingAnalytics = async (req, res) => {
         paymentAmount: true,
         isFeatured: true,
         landlordId: true,
+        unit: {
+          select: {
+            label: true,
+            property: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
+        landlord: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -347,6 +364,12 @@ export const getListingAnalytics = async (req, res) => {
         createdAt: listing.createdAt.toISOString(),
         paymentAmount: listing.paymentAmount,
         isFeatured: listing.isFeatured,
+        unitLabel: listing.unit?.label || 'N/A',
+        propertyTitle: listing.unit?.property?.title || 'N/A',
+        ownerName: listing.landlord?.firstName && listing.landlord?.lastName
+          ? `${listing.landlord.firstName} ${listing.landlord.lastName}`
+          : listing.landlord?.email || 'N/A',
+        ownerEmail: listing.landlord?.email || 'N/A',
       })),
       metrics: {
         totalListings,

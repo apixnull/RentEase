@@ -1,4 +1,5 @@
 import prisma from "../libs/prismaClient.js";
+import { createNotification } from "./notificationController.js";
 
 export const createFraudReport = async (req, res) => {
   const { listingId, reason, details } = req.body || {};
@@ -11,7 +12,19 @@ export const createFraudReport = async (req, res) => {
   try {
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
-      select: { id: true },
+      select: {
+        id: true,
+        unit: {
+          select: {
+            label: true,
+            property: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!listing) {
@@ -26,6 +39,62 @@ export const createFraudReport = async (req, res) => {
         details: details || null,
       },
     });
+
+    // Notify all admin users about the new fraud report
+    try {
+      console.log("🔔 Starting fraud report notification process...");
+      
+      const adminUsers = await prisma.user.findMany({
+        where: {
+          role: "ADMIN",
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      console.log(`📋 Found ${adminUsers.length} admin user(s) to notify`);
+
+      if (adminUsers.length === 0) {
+        console.warn("⚠️ No admin users found to notify");
+      } else {
+        const propertyTitle = listing.unit?.property?.title || "Unknown Property";
+        const unitLabel = listing.unit?.label || "Unknown Unit";
+        const notificationMessage = `New fraud report submitted: ${propertyTitle} - ${unitLabel} (Reason: ${reason})`;
+
+        console.log(`📝 Creating notifications with message: ${notificationMessage}`);
+
+        // Create notifications for all admins
+        const notificationPromises = adminUsers.map(async (admin) => {
+          try {
+            const notification = await createNotification(
+              admin.id,
+              "FRAUD",
+              notificationMessage,
+              {
+                fraudReportId: report.id,
+                listingId: listingId,
+                reason: reason,
+                status: "PENDING",
+              }
+            );
+            console.log(`✅ Notification created for admin ${admin.id}:`, notification?.id || "failed");
+            return notification;
+          } catch (err) {
+            console.error(`❌ Failed to create notification for admin ${admin.id}:`, err);
+            return null;
+          }
+        });
+
+        const results = await Promise.all(notificationPromises);
+        const successCount = results.filter(r => r !== null).length;
+        console.log(`✅ Successfully created ${successCount}/${adminUsers.length} notifications about new fraud report`);
+      }
+    } catch (notificationError) {
+      console.error("❌ Error creating admin notifications:", notificationError);
+      console.error("❌ Stack:", notificationError.stack);
+      // Don't fail the request if notifications fail
+    }
 
     return res.status(201).json({ report });
   } catch (error) {
@@ -147,11 +216,19 @@ export const getFraudReportsAnalytics = async (req, res) => {
           select: {
             unit: {
               select: {
+                label: true,
                 property: {
                   select: {
                     title: true,
                   },
                 },
+              },
+            },
+            landlord: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
               },
             },
           },
@@ -210,6 +287,11 @@ export const getFraudReportsAnalytics = async (req, res) => {
       reason: report.reason,
       createdAt: report.createdAt.toISOString(),
       propertyTitle: report.listing?.unit?.property?.title || 'Unknown Property',
+      unitLabel: report.listing?.unit?.label || 'Unknown Unit',
+      ownerName: report.listing?.landlord?.firstName && report.listing?.landlord?.lastName
+        ? `${report.listing.landlord.firstName} ${report.listing.landlord.lastName}`
+        : report.listing?.landlord?.email || 'N/A',
+      ownerEmail: report.listing?.landlord?.email || 'N/A',
       reporterName: report.reporter.firstName && report.reporter.lastName
         ? `${report.reporter.firstName} ${report.reporter.lastName}`
         : report.reporter.email,
