@@ -8,18 +8,35 @@ import prisma from "./libs/prismaClient.js";
 import { startPaymentReminderCron } from "./services/paymentReminderCron.js";
 import { startListingExpirationCron } from "./services/listingExpirationCron.js";
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
+/**
+ * Get allowed origins for Socket.io (same logic as Express CORS)
+ * Supports:
+ * - ALLOWED_ORIGINS: comma-separated list of origins
+ * - FRONTEND_URL: single origin (for backward compatibility)
+ * - Development mode: allows all origins
+ */
+const getAllowedOrigins = () => {
+  // In development, allow all origins
+  if (process.env.NODE_ENV === "development") {
+    return true; // Allow all origins in development
+  }
 
-const buildAllowedOrigins = () => {
-  if (!FRONTEND_URL) {
-    console.warn(
-      "⚠️ FRONTEND_URL is not configured. Socket.io CORS will only allow dev/no-origin requests."
-    );
+  // Get allowed origins from environment
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || "";
+  
+  if (!allowedOriginsEnv) {
+    console.warn("⚠️ No ALLOWED_ORIGINS or FRONTEND_URL configured for Socket.io. CORS will only allow requests with no origin.");
     return [];
   }
 
-  const normalized = FRONTEND_URL.replace(/\/$/, "");
-  return [normalized, `${normalized}/`, FRONTEND_URL];
+  // Split by comma and clean up
+  const origins = allowedOriginsEnv
+    .split(",")
+    .map(url => url.trim())
+    .filter(url => url.length > 0);
+
+  console.log("✅ Allowed Socket.io CORS origins:", origins);
+  return origins;
 };
 
 // Load environment variables
@@ -35,20 +52,37 @@ const PORT = process.env.PORT || 5000;
 // 1️⃣ Create an HTTP server manually
 const server = http.createServer(app);
 
-const allowedOrigins = buildAllowedOrigins();
+const allowedOrigins = getAllowedOrigins();
 
 // --- Attach Socket.io ---
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
       // Allow requests with no origin (like from Vite proxy)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.includes(origin) || process.env.NODE_ENV === "development") {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+      if (!origin) {
+        return callback(null, true);
       }
+
+      // In development, allow all origins
+      if (process.env.NODE_ENV === "development") {
+        return callback(null, true);
+      }
+
+      // Check if origin is in allowed list
+      if (Array.isArray(allowedOrigins) && allowedOrigins.length > 0) {
+        // Normalize origin for comparison (remove trailing slash, convert to lowercase)
+        const normalizedOrigin = origin.replace(/\/$/, "").toLowerCase();
+        const isAllowed = allowedOrigins.some(
+          allowed => allowed.replace(/\/$/, "").toLowerCase() === normalizedOrigin
+        );
+
+        if (isAllowed) {
+          return callback(null, true);
+        }
+      }
+
+      console.warn(`🚫 Socket.io CORS blocked origin: ${origin}. Allowed:`, allowedOrigins);
+      callback(new Error(`Socket.io CORS: Origin ${origin} not allowed`));
     },
     methods: ["GET", "POST"],
     credentials: true,
@@ -211,10 +245,10 @@ io.on("connection", (socket) => {
 // Start server
 server.listen(PORT, '0.0.0.0',() => {
   const env = process.env.NODE_ENV || "development";
-  const frontendUrl = FRONTEND_URL || "not set";
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || "not set";
   console.log(`✅ Server is running on port ${PORT}`);
   console.log(`📦 Environment: ${env}`);
-  console.log(`🌐 Frontend URL: ${frontendUrl}`);
+  console.log(`🌐 Allowed Origins: ${allowedOriginsEnv}`);
   console.log(`🔌 Socket.io enabled`);
   
   // Start payment reminder cron job

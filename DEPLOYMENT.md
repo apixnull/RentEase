@@ -11,7 +11,11 @@ Quick deployment guide for production.
 ```env
 NODE_ENV=production
 PORT=10000
+# CORS Configuration (use one of these):
+# Option 1: Single origin (backward compatible)
 FRONTEND_URL=https://your-frontend.vercel.app
+# Option 2: Multiple origins (comma-separated, recommended)
+ALLOWED_ORIGINS=https://your-frontend.vercel.app,https://www.your-frontend.vercel.app
 DATABASE_URL=postgresql://postgres:password@containers-us-west-xxx.railway.app:5432/railway
 SESSION_SECRET=your-generated-secret-here
 SESSION_SAMESITE=none

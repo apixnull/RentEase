@@ -22,18 +22,36 @@ import sessionMiddleware from "./middlewares/session.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
 
-const buildAllowedOrigins = () => {
-  if (!FRONTEND_URL) {
-    console.warn(
-      "⚠️ FRONTEND_URL is not configured. CORS will only allow dev/no-origin requests."
-    );
+/**
+ * Get allowed origins from environment variables
+ * Supports:
+ * - ALLOWED_ORIGINS: comma-separated list of origins (e.g., "https://app1.com,https://app2.com")
+ * - FRONTEND_URL: single origin (for backward compatibility)
+ * - Development mode: allows all origins
+ */
+const getAllowedOrigins = () => {
+  // In development, allow all origins
+  if (process.env.NODE_ENV === "development") {
+    return true; // Allow all origins in development
+  }
+
+  // Get allowed origins from environment
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || "";
+  
+  if (!allowedOriginsEnv) {
+    console.warn("⚠️ No ALLOWED_ORIGINS or FRONTEND_URL configured. CORS will only allow requests with no origin.");
     return [];
   }
 
-  const normalized = FRONTEND_URL.replace(/\/$/, "");
-  return [normalized, `${normalized}/`, FRONTEND_URL];
+  // Split by comma and clean up
+  const origins = allowedOriginsEnv
+    .split(",")
+    .map(url => url.trim())
+    .filter(url => url.length > 0);
+
+  console.log("✅ Allowed CORS origins:", origins);
+  return origins;
 };
 
 const app = express();
@@ -44,28 +62,35 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-const allowedOrigins = buildAllowedOrigins();
+const allowedOrigins = getAllowedOrigins();
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Normalize origin (remove trailing slash for comparison)
-    const normalizedOrigin = origin.replace(/\/$/, "");
-    const normalizedAllowed = allowedOrigins.map(url => url.replace(/\/$/, ""));
-    
-    // Check if origin matches any allowed origin (case-insensitive, normalized)
-    const isAllowed = normalizedAllowed.some(
-      allowed => allowed.toLowerCase() === normalizedOrigin.toLowerCase()
-    );
-    
-    if (isAllowed || process.env.NODE_ENV === "development") {
-      callback(null, true);
-    } else {
-      console.warn(`🚫 CORS blocked origin: ${origin}. Allowed origins:`, allowedOrigins);
-      callback(new Error("Not allowed by CORS"));
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) {
+      return callback(null, true);
     }
+
+    // In development, allow all origins
+    if (process.env.NODE_ENV === "development") {
+      return callback(null, true);
+    }
+
+    // Check if origin is in allowed list
+    if (Array.isArray(allowedOrigins) && allowedOrigins.length > 0) {
+      // Normalize origin for comparison (remove trailing slash, convert to lowercase)
+      const normalizedOrigin = origin.replace(/\/$/, "").toLowerCase();
+      const isAllowed = allowedOrigins.some(
+        allowed => allowed.replace(/\/$/, "").toLowerCase() === normalizedOrigin
+      );
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+    }
+
+    console.warn(`🚫 CORS blocked origin: ${origin}. Allowed:`, allowedOrigins);
+    callback(new Error(`CORS: Origin ${origin} not allowed`));
   },
   credentials: true,
 }));
@@ -92,12 +117,6 @@ if (process.env.NODE_ENV === "development" || process.env.USE_LOCAL_STORAGE === 
 // Routes
 // ------------------------------
 app.use("/api/upload", uploadRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/landlord", landlordRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/tenant", tenantRoutes);
-app.use("/api/chat", chatRoutes);
-app.use("/api/notification", notificationRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/landlord", landlordRoutes);
 app.use("/api/admin", adminRoutes);
