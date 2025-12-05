@@ -1,5 +1,13 @@
 // file: server.js
+// Load environment variables FIRST before importing anything else
 import dotenv from "dotenv";
+if (process.env.NODE_ENV === "production") {
+  dotenv.config({ path: ".env.production" });
+} else {
+  dotenv.config(); // default .env for development
+}
+
+// Now import other modules after env vars are loaded
 import app from "./app.js";
 import { Server } from "socket.io";
 import http from "http";
@@ -38,13 +46,6 @@ const getAllowedOrigins = () => {
   console.log("✅ Allowed Socket.io CORS origins:", origins);
   return origins;
 };
-
-// Load environment variables
-if (process.env.NODE_ENV === "production") {
-  dotenv.config({ path: ".env.production" });
-} else {
-  dotenv.config(); // default .env for development
-}
 
 // Define port
 const PORT = process.env.PORT || 5000;
@@ -242,8 +243,8 @@ io.on("connection", (socket) => {
 });
 
 
-// Start server
-server.listen(PORT, '0.0.0.0',() => {
+// Start server with error handling
+server.listen(PORT, '0.0.0.0', () => {
   const env = process.env.NODE_ENV || "development";
   const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || "not set";
   console.log(`✅ Server is running on port ${PORT}`);
@@ -252,10 +253,36 @@ server.listen(PORT, '0.0.0.0',() => {
   console.log(`🔌 Socket.io enabled`);
   
   // Start payment reminder cron job
-  startPaymentReminderCron();
+  try {
+    startPaymentReminderCron();
+  } catch (error) {
+    console.error("❌ Error starting payment reminder cron:", error);
+  }
   
   // Start listing expiration cron job
-  startListingExpirationCron();
+  try {
+    startListingExpirationCron();
+  } catch (error) {
+    console.error("❌ Error starting listing expiration cron:", error);
+  }
+});
+
+// Handle server errors
+server.on('error', (error) => {
+  console.error('❌ Server error:', error);
+  process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
 
 // Export io instance for use in controllers

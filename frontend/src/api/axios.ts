@@ -4,20 +4,16 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { toast } from "sonner";
 
 // Environment-based backend URL configuration
+// Always use VITE_BACKEND_URL from environment variables
 const getBackendUrl = () => {
-  // If VITE_BACKEND_URL is explicitly set, use it
-  if (import.meta.env.VITE_BACKEND_URL) {
-    return import.meta.env.VITE_BACKEND_URL;
+  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  
+  if (!backendUrl) {
+    console.error("❌ VITE_BACKEND_URL is not set in environment variables!");
+    throw new Error("VITE_BACKEND_URL environment variable is required");
   }
   
-  // Otherwise, use environment-based defaults
-  if (import.meta.env.MODE === "production") {
-    // Production backend URL (Railway)
-    return "https://rentease-production-1e1b.up.railway.app/api";
-  }
-  
-  // Development backend URL
-  return "http://localhost:5000/api";
+  return backendUrl;
 };
 
 const BACKEND_URL = getBackendUrl();

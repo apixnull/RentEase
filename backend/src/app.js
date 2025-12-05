@@ -124,6 +124,15 @@ app.use("/api/tenant", tenantRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/notification", notificationRoutes);
 
+// Health check route (for Railway/load balancers)
+app.get("/health", (req, res) => {
+  res.status(200).json({ 
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development"
+  });
+});
+
 // Default route (health check / welcome route)
 app.get("/", (req, res) => {
   res.status(200).json({ message: "✅ Welcome to the API root route" });
