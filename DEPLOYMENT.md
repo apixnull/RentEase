@@ -46,7 +46,39 @@ USE_LOCAL_STORAGE=false
 
 ### ⚠️ Railway Database Connection Troubleshooting
 
-If you get **"Tenant or user not found"** error:
+#### Error: "Can't reach database server" (P1001)
+
+This error means Prisma cannot connect to the database at all. Common causes:
+
+1. **DATABASE_URL is missing or incomplete**:
+   - Go to Railway → Your Web Service → Variables
+   - Check if `DATABASE_URL` exists
+   - If missing or incomplete, go to PostgreSQL service → Variables → Copy `DATABASE_URL`
+   - Ensure the connection string includes: `postgresql://user:password@host:port/database`
+
+2. **PostgreSQL service not linked**:
+   - Go to your Web Service → Settings → Service Dependencies
+   - Ensure PostgreSQL service is listed and linked
+   - If not linked, click "Add Service Dependency" → Select your PostgreSQL service
+
+3. **PostgreSQL service not running**:
+   - Check Railway dashboard → PostgreSQL service status
+   - Should show green/running status
+   - If stopped, start the service
+
+4. **Connection string format**:
+   ```
+   postgresql://postgres:password@containers-us-west-xxx.railway.app:5432/railway
+   ```
+   - Must include: protocol (`postgresql://`), user, password, host, port, database name
+   - Railway uses direct connections (no pooler needed)
+
+5. **Try re-linking**:
+   - Unlink PostgreSQL service from web service
+   - Re-link it
+   - This regenerates the connection string
+
+#### Error: "Tenant or user not found" (XX000)
 
 1. **Verify DATABASE_URL**:
    - Railway automatically provides `DATABASE_URL` when PostgreSQL service is linked
@@ -58,14 +90,7 @@ If you get **"Tenant or user not found"** error:
    - Go to your Web Service → Settings → Service Dependencies
    - Ensure PostgreSQL service is listed and linked
 
-3. **Verify Connection String Format**:
-   ```
-   postgresql://postgres:password@containers-us-west-xxx.railway.app:5432/railway
-   ```
-   - Railway uses direct connections (no pooler needed)
-   - The app uses `pg.Pool` for connection pooling internally
-
-4. **Run Migrations**:
+3. **Run Migrations**:
    - Make sure migrations are run: `npx prisma migrate deploy`
    - Check Railway logs for migration errors
 

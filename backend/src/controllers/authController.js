@@ -475,6 +475,15 @@ export const login = async (req, res) => {
     });
   } catch (err) {
     console.error("Login error:", err);
+    
+    // Handle database connection errors
+    if (err.code === "P1001" || err.message?.includes("Can't reach database server")) {
+      return res.status(503).json({ 
+        message: "Database connection unavailable. Please try again later.",
+        code: "DATABASE_UNAVAILABLE"
+      });
+    }
+    
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -549,6 +558,15 @@ export const getUserInfo = async (req, res) => {
     return res.status(200).json({ user: formattedUser });
   } catch (err) {
     console.error("Get user info error:", err);
+    
+    // Handle database connection errors
+    if (err.code === "P1001" || err.message?.includes("Can't reach database server")) {
+      return res.status(503).json({ 
+        message: "Database connection unavailable. Please try again later.",
+        code: "DATABASE_UNAVAILABLE"
+      });
+    }
+    
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
