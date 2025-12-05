@@ -1,6 +1,7 @@
 // file: src/api/routes.ts
 // --------------------------------------
 // Central helpers for building API routes
+// Note: baseURL in axios.ts already includes /api, so these routes are relative to that
 // --------------------------------------
 
 type RouteBuilder = (suffix?: string) => string;
