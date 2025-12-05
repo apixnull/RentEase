@@ -45,7 +45,6 @@ import {
   Clock,
   XCircle,
   Mail,
-  Eye,
   FileText,
   ArrowUpDown,
   ChevronDown,
@@ -55,11 +54,9 @@ import {
   RotateCcw,
   Sparkles,
   ShieldCheck,
-  Trash2,
 } from "lucide-react";
 import { getLandlordScreeningsListRequest } from "@/api/landlord/screeningApi";
 import { inviteTenantForScreeningRequest } from "@/api/landlord/screeningApi";
-import { deletePendingScreeningRequest } from "@/api/landlord/screeningApi";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -84,13 +81,6 @@ interface ScreeningReport {
   createdAt: string;
   updatedAt: string;
   tenant: Tenant;
-}
-
-interface StatusActionsProps {
-  report: ScreeningReport;
-  onViewDetails: (report: ScreeningReport) => void;
-  onCreateLease: (tenantId: string, tenantName: string) => void;
-  onDelete: (screeningId: string) => void;
 }
 
 // Complete Color Schema for Screening Statuses
@@ -297,7 +287,6 @@ const TenantScreeningLandlord = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchScreeningReports = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
@@ -363,35 +352,6 @@ const TenantScreeningLandlord = () => {
 
   const handleViewDetails = (report: ScreeningReport) => {
     navigate(`/landlord/screening/${report.id}/details`);
-  };
-
-  const handleCreateLease = (tenantId: string, tenantName: string) => {
-    toast.success(`Preparing lease for ${tenantName}`);
-    navigate("/landlord/leases/create", {
-      state: { tenantId, tenantName },
-    });
-  };
-
-  const handleDeleteScreening = async (screeningId: string) => {
-    if (!confirm("Are you sure you want to delete this pending screening? This action cannot be undone.")) {
-      return;
-    }
-
-    setDeletingId(screeningId);
-    try {
-      await deletePendingScreeningRequest(screeningId);
-      toast.success("Screening deleted successfully");
-      // Refresh the list after deleting
-      await fetchScreeningReports({ silent: true });
-    } catch (error: any) {
-      console.error("Failed to delete screening:", error);
-      const message =
-        error?.response?.data?.message ||
-        "Failed to delete screening. Please try again.";
-      toast.error(message);
-    } finally {
-      setDeletingId(null);
-    }
   };
 
   const isOlderThanOneWeek = (dateString: string) => {
@@ -495,80 +455,6 @@ const TenantScreeningLandlord = () => {
     (r) => r.status === "REJECTED"
   ).length;
 
-  const StatusActions = ({
-    report,
-    onViewDetails,
-    onCreateLease,
-    onDelete,
-  }: StatusActionsProps) => {
-    switch (report.status) {
-      case "PENDING":
-        return (
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => onDelete(report.id)}
-            disabled={deletingId === report.id}
-            className="bg-red-500 hover:bg-red-600 text-white"
-          >
-            {deletingId === report.id ? (
-              <>
-                <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <Trash2 className="w-3 h-3 mr-1.5" />
-                Delete
-              </>
-            )}
-          </Button>
-        );
-      case "SUBMITTED":
-      case "REJECTED":
-        const submittedTheme = getStatusTheme(report.status);
-        return (
-          <Button 
-            size="sm" 
-            onClick={() => onViewDetails(report)}
-            className={cn("bg-gradient-to-r", submittedTheme.gradientButton, "text-white")}
-          >
-            <Eye className="w-3 h-3 mr-1.5" />
-            Review Details
-          </Button>
-        );
-      case "APPROVED":
-        const approvedTheme = getStatusTheme("APPROVED");
-        return (
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-              onClick={() => onViewDetails(report)}
-            >
-              <Eye className="w-3 h-3 mr-1.5" />
-              View Details
-            </Button>
-            <Button
-              size="sm"
-              className={cn("bg-gradient-to-r", approvedTheme.gradientButton, "text-white shadow-md hover:shadow-lg hover:brightness-110")}
-              onClick={() =>
-                onCreateLease(
-                  report.tenantId,
-                  `${report.tenant.firstName} ${report.tenant.lastName}`
-                )
-              }
-            >
-              Create Lease
-            </Button>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
-
   const ScreeningTable = ({ reports }: { reports: ScreeningReport[] }) => (
     <div className="border rounded-lg">
       <Table>
@@ -578,13 +464,12 @@ const TenantScreeningLandlord = () => {
             <TableHead>Status</TableHead>
             <TableHead>Risk Level</TableHead>
             <TableHead>Date</TableHead>
-            <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {reports.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+              <TableCell colSpan={4} className="text-center text-gray-500 py-8">
                 No screening reports found matching your filters.
               </TableCell>
             </TableRow>
@@ -602,7 +487,8 @@ const TenantScreeningLandlord = () => {
               return (
                 <TableRow
                   key={report.id}
-                  className="hover:bg-gray-50 transition-colors"
+                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  onClick={() => handleViewDetails(report)}
                 >
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -672,14 +558,6 @@ const TenantScreeningLandlord = () => {
                       <div className="text-xs text-gray-500">{dateLabel}</div>
                       <div>{formatDate(relevantDate)}</div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusActions
-                      report={report}
-                      onViewDetails={handleViewDetails}
-                      onCreateLease={handleCreateLease}
-                      onDelete={handleDeleteScreening}
-                    />
                   </TableCell>
                 </TableRow>
               );

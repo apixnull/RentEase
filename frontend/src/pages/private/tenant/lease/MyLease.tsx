@@ -13,8 +13,6 @@ import {
   Clock, 
   CheckCircle, 
   AlertTriangle,
-  Eye,
-  MessageCircle,
   History,
   Archive,
   ScrollText,
@@ -26,6 +24,7 @@ import {
 } from 'lucide-react';
 import { getTenantLeasesRequest } from '@/api/tenant/leaseApi';
 import { useNavigate } from 'react-router-dom';
+import { processImageUrl } from '@/api/utils';
 
 // Updated Lease interface based on actual API response
 interface Lease {
@@ -436,7 +435,7 @@ const MyLease = () => {
 
   const getLandlordAvatarUrl = (landlord: Lease['landlord']) => {
     if (landlord.avatarUrl) {
-      return landlord.avatarUrl;
+      return processImageUrl(landlord.avatarUrl) || undefined;
     }
     const initials = `${landlord.firstName.charAt(0)}${landlord.lastName.charAt(0)}`.toUpperCase();
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=4f46e5&color=fff&size=64`;
@@ -444,10 +443,6 @@ const MyLease = () => {
 
   const handleViewLeaseDetails = (leaseId: string) => {
     navigate(`/tenant/my-lease/${leaseId}/details`);
-  };
-
-  const handleContactLandlord = () => {
-    navigate('/tenant/messages');
   };
 
   // Calculate stats
@@ -686,9 +681,8 @@ const MyLease = () => {
                     {activeTab === 'current' && (
                       <div className={`absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500/10 opacity-50`} />
                     )}
-                    <CheckCircle className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'current' ? 'text-emerald-700' : 'text-gray-500'}`} />
-                    <span className="relative z-10 hidden sm:inline">Current</span>
-                    <span className="relative z-10 sm:hidden">Current</span>
+                    <CheckCircle className={`w-4 h-4 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'current' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 hidden md:inline">Current</span>
                     {currentLeases.length > 0 && (
                       <Badge className={`ml-1 text-xs px-1.5 py-0 relative z-10 ${
                         activeTab === 'current' 
@@ -710,8 +704,8 @@ const MyLease = () => {
                     {activeTab === 'pending' && (
                       <div className={`absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500/10 opacity-50`} />
                     )}
-                    <Clock className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'pending' ? 'text-emerald-700' : 'text-gray-500'}`} />
-                    <span className="relative z-10">Pending</span>
+                    <Clock className={`w-4 h-4 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'pending' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 hidden md:inline">Pending</span>
                     {pendingLeases.length > 0 && (
                       <Badge className={`ml-1 text-xs px-1.5 py-0 relative z-10 ${
                         activeTab === 'pending' 
@@ -733,8 +727,8 @@ const MyLease = () => {
                     {activeTab === 'past' && (
                       <div className={`absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500/10 opacity-50`} />
                     )}
-                    <Archive className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'past' ? 'text-emerald-700' : 'text-gray-500'}`} />
-                    <span className="relative z-10">Past</span>
+                    <Archive className={`w-4 h-4 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'past' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 hidden md:inline">Past</span>
                     {pastLeases.length > 0 && (
                       <Badge className={`ml-1 text-xs px-1.5 py-0 relative z-10 ${
                         activeTab === 'past' 
@@ -771,8 +765,8 @@ const MyLease = () => {
                   })}
                 </div>
 
-                {/* Current Leases Table */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                {/* Current Leases - Desktop Table View */}
+                <div className="hidden md:block border border-gray-200 rounded-lg overflow-hidden bg-white">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50 hover:bg-gray-100 border-b border-gray-200">
@@ -782,13 +776,12 @@ const MyLease = () => {
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Rent</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Duration</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase w-20">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {currentLeases.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center text-gray-500 py-12">
+                          <TableCell colSpan={6} className="text-center text-gray-500 py-12">
                             <div className="flex flex-col items-center gap-3">
                               <div className="p-3 bg-emerald-50 rounded-full">
                                 <Home className="w-8 h-8 text-emerald-300" />
@@ -814,7 +807,8 @@ const MyLease = () => {
                         currentLeases.map((lease) => (
                           <TableRow 
                             key={lease.id}
-                            className="group hover:bg-emerald-50/30 transition-colors border-b border-gray-100 last:border-b-0"
+                            className="group hover:bg-emerald-50/30 transition-colors border-b border-gray-100 last:border-b-0 cursor-pointer"
+                            onClick={() => handleViewLeaseDetails(lease.id)}
                           >
                             <TableCell>
                               <div className="space-y-1">
@@ -884,33 +878,143 @@ const MyLease = () => {
                                 {lease.status.charAt(0) + lease.status.slice(1).toLowerCase()}
                               </Badge>
                             </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleViewLeaseDetails(lease.id)}
-                                  className="h-7 w-7 p-0 opacity-70 hover:opacity-100 hover:bg-emerald-100 hover:text-emerald-700 transition-all rounded"
-                                  title="View lease details"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={handleContactLandlord}
-                                  className="h-7 w-7 p-0 opacity-70 hover:opacity-100 hover:bg-amber-100 hover:text-amber-700 transition-all rounded"
-                                  title="Contact landlord"
-                                >
-                                  <MessageCircle className="w-3.5 h-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
                           </TableRow>
                         ))
                       )}
                     </TableBody>
                   </Table>
+                </div>
+
+                {/* Current Leases - Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {currentLeases.length === 0 ? (
+                    <Card className="border border-gray-200">
+                      <CardContent className="text-center text-gray-500 py-12">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="p-3 bg-emerald-50 rounded-full">
+                            <Home className="w-8 h-8 text-emerald-300" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-500">No Active Lease</p>
+                            <p className="text-sm text-gray-400 mt-1">
+                              You don't have an active lease agreement at the moment.
+                            </p>
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="mt-2"
+                            onClick={() => navigate('/tenant/browse-unit')}
+                          >
+                            Browse Unit
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    currentLeases.map((lease) => {
+                      return (
+                        <Card
+                          key={lease.id}
+                          className="border border-gray-200 hover:border-emerald-300 transition-all cursor-pointer active:scale-[0.98] shadow-sm hover:shadow-md"
+                          onClick={() => handleViewLeaseDetails(lease.id)}
+                        >
+                          <CardContent className="p-4 space-y-3">
+                            {/* Header with Status */}
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-gray-900 text-base mb-1 truncate">
+                                  {lease.leaseNickname || `${lease.property.title} - ${lease.unit.label}`}
+                                </h3>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs bg-white border-emerald-200 text-emerald-700">
+                                    {getLeaseTypeDisplay(lease.leaseType)}
+                                  </Badge>
+                                  <Badge 
+                                    variant={getStatusVariant(lease.status)} 
+                                    className={`flex items-center gap-1 text-xs font-medium px-2 py-1 border ${getStatusColor(lease.status)}`}
+                                  >
+                                    {getStatusIcon(lease.status)}
+                                    {lease.status.charAt(0) + lease.status.slice(1).toLowerCase()}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Property & Unit */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Home className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900">{lease.property.title}</p>
+                                  <p className="text-xs text-gray-500">Unit {lease.unit.label}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Rent & Deposit */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Monthly Rent</span>
+                                <span className="font-bold text-gray-900">{formatCurrency(lease.rentAmount)}</span>
+                              </div>
+                              {lease.securityDeposit && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-500">Security Deposit</span>
+                                  <span className="text-sm font-medium text-gray-700">{formatCurrency(lease.securityDeposit)}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Duration & Payment Info */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Start Date</p>
+                                  <p className="text-sm font-medium text-gray-900">{formatDate(lease.startDate)}</p>
+                                </div>
+                              </div>
+                              {lease.endDate && (
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-gray-500">End Date</p>
+                                    <p className="text-sm font-medium text-gray-900">{formatDate(lease.endDate)}</p>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Payment Due</p>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {getDueDateDisplay(lease.dueDate)} each {lease.interval.toLowerCase()}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Landlord */}
+                            <div className="pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <img 
+                                  src={getLandlordAvatarUrl(lease.landlord)}
+                                  alt={`${getLandlordFullName(lease.landlord)}'s avatar`}
+                                  className="w-8 h-8 rounded-full border border-gray-200 shadow-sm flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Landlord</p>
+                                  <p className="text-sm font-medium text-gray-900 truncate">{getLandlordFullName(lease.landlord)}</p>
+                                  <p className="text-xs text-gray-500 truncate">{lease.landlord.email}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
                 </div>
               </TabsContent>
 
@@ -937,8 +1041,8 @@ const MyLease = () => {
                   })}
                 </div>
 
-                {/* Pending Leases Table */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                {/* Pending Leases - Desktop Table View */}
+                <div className="hidden md:block border border-gray-200 rounded-lg overflow-hidden bg-white">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50 hover:bg-gray-100 border-b border-gray-200">
@@ -948,13 +1052,12 @@ const MyLease = () => {
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Rent</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Duration</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase w-20">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {pendingLeases.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-gray-500 py-12">
+                          <TableCell colSpan={6} className="text-center text-gray-500 py-12">
                             <div className="flex flex-col items-center gap-3">
                               <div className="p-3 bg-amber-50 rounded-full">
                                 <FileText className="w-8 h-8 text-amber-300" />
@@ -972,7 +1075,8 @@ const MyLease = () => {
                         pendingLeases.map((lease) => (
                           <TableRow 
                             key={lease.id}
-                            className="group hover:bg-amber-50/30 transition-colors border-b border-gray-100 last:border-b-0"
+                            className="group hover:bg-amber-50/30 transition-colors border-b border-gray-100 last:border-b-0 cursor-pointer"
+                            onClick={() => handleViewLeaseDetails(lease.id)}
                           >
                             <TableCell>
                               <div className="space-y-1">
@@ -1042,33 +1146,135 @@ const MyLease = () => {
                                 {lease.status.charAt(0) + lease.status.slice(1).toLowerCase()}
                               </Badge>
                             </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleViewLeaseDetails(lease.id)}
-                                  className="h-7 w-7 p-0 opacity-70 hover:opacity-100 hover:bg-amber-100 hover:text-amber-700 transition-all rounded"
-                                  title="View lease details"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={handleContactLandlord}
-                                  className="h-7 w-7 p-0 opacity-70 hover:opacity-100 hover:bg-amber-100 hover:text-amber-700 transition-all rounded"
-                                  title="Contact landlord"
-                                >
-                                  <MessageCircle className="w-3.5 h-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
                           </TableRow>
                         ))
                       )}
                     </TableBody>
                   </Table>
+                </div>
+
+                {/* Pending Leases - Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {pendingLeases.length === 0 ? (
+                    <Card className="border border-gray-200">
+                      <CardContent className="text-center text-gray-500 py-12">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="p-3 bg-amber-50 rounded-full">
+                            <FileText className="w-8 h-8 text-amber-300" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-500">No Pending Leases</p>
+                            <p className="text-sm text-gray-400 mt-1">
+                              You don't have any pending lease agreements at the moment.
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    pendingLeases.map((lease) => {
+                      return (
+                        <Card
+                          key={lease.id}
+                          className="border border-gray-200 hover:border-amber-300 transition-all cursor-pointer active:scale-[0.98] shadow-sm hover:shadow-md"
+                          onClick={() => handleViewLeaseDetails(lease.id)}
+                        >
+                          <CardContent className="p-4 space-y-3">
+                            {/* Header with Status */}
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-gray-900 text-base mb-1 truncate">
+                                  {lease.leaseNickname || `${lease.property.title} - ${lease.unit.label}`}
+                                </h3>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs bg-white border-amber-200 text-amber-700">
+                                    {getLeaseTypeDisplay(lease.leaseType)}
+                                  </Badge>
+                                  <Badge 
+                                    variant={getStatusVariant(lease.status)} 
+                                    className={`flex items-center gap-1 text-xs font-medium px-2 py-1 border ${getStatusColor(lease.status)}`}
+                                  >
+                                    {getStatusIcon(lease.status)}
+                                    {lease.status.charAt(0) + lease.status.slice(1).toLowerCase()}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Property & Unit */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Home className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900">{lease.property.title}</p>
+                                  <p className="text-xs text-gray-500">Unit {lease.unit.label}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Rent & Deposit */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Monthly Rent</span>
+                                <span className="font-bold text-gray-900">{formatCurrency(lease.rentAmount)}</span>
+                              </div>
+                              {lease.securityDeposit && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-500">Security Deposit</span>
+                                  <span className="text-sm font-medium text-gray-700">{formatCurrency(lease.securityDeposit)}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Duration & Payment Info */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Start Date</p>
+                                  <p className="text-sm font-medium text-gray-900">{formatDate(lease.startDate)}</p>
+                                </div>
+                              </div>
+                              {lease.endDate && (
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-gray-500">End Date</p>
+                                    <p className="text-sm font-medium text-gray-900">{formatDate(lease.endDate)}</p>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Payment Due</p>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {getDueDateDisplay(lease.dueDate)} each {lease.interval.toLowerCase()}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Landlord */}
+                            <div className="pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <img 
+                                  src={getLandlordAvatarUrl(lease.landlord)}
+                                  alt={`${getLandlordFullName(lease.landlord)}'s avatar`}
+                                  className="w-8 h-8 rounded-full border border-gray-200 shadow-sm flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Landlord</p>
+                                  <p className="text-sm font-medium text-gray-900 truncate">{getLandlordFullName(lease.landlord)}</p>
+                                  <p className="text-xs text-gray-500 truncate">{lease.landlord.email}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
                 </div>
               </TabsContent>
 
@@ -1095,8 +1301,8 @@ const MyLease = () => {
                   })}
                 </div>
 
-                {/* Past Leases Table */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                {/* Past Leases - Desktop Table View */}
+                <div className="hidden md:block border border-gray-200 rounded-lg overflow-hidden bg-white">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50 hover:bg-gray-100 border-b border-gray-200">
@@ -1106,13 +1312,12 @@ const MyLease = () => {
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Rent</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Duration</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-700 py-3 text-xs uppercase w-20">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {pastLeases.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-gray-500 py-12">
+                          <TableCell colSpan={6} className="text-center text-gray-500 py-12">
                             <div className="flex flex-col items-center gap-3">
                               <div className="p-3 bg-gray-50 rounded-full">
                                 <History className="w-8 h-8 text-gray-300" />
@@ -1128,7 +1333,8 @@ const MyLease = () => {
                         pastLeases.map((lease) => (
                           <TableRow 
                             key={lease.id}
-                            className="group hover:bg-gray-50/50 transition-colors border-b border-gray-100 last:border-b-0"
+                            className="group hover:bg-gray-50/50 transition-colors border-b border-gray-100 last:border-b-0 cursor-pointer"
+                            onClick={() => handleViewLeaseDetails(lease.id)}
                           >
                             <TableCell>
                               <div className="space-y-1">
@@ -1198,33 +1404,133 @@ const MyLease = () => {
                                 {lease.status.charAt(0) + lease.status.slice(1).toLowerCase()}
                               </Badge>
                             </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleViewLeaseDetails(lease.id)}
-                                  className="h-7 w-7 p-0 opacity-70 hover:opacity-100 hover:bg-gray-100 hover:text-gray-700 transition-all rounded"
-                                  title="View lease details"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={handleContactLandlord}
-                                  className="h-7 w-7 p-0 opacity-70 hover:opacity-100 hover:bg-gray-100 hover:text-gray-700 transition-all rounded"
-                                  title="Contact landlord"
-                                >
-                                  <MessageCircle className="w-3.5 h-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
                           </TableRow>
                         ))
                       )}
                     </TableBody>
                   </Table>
+                </div>
+
+                {/* Past Leases - Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {pastLeases.length === 0 ? (
+                    <Card className="border border-gray-200">
+                      <CardContent className="text-center text-gray-500 py-12">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="p-3 bg-gray-50 rounded-full">
+                            <History className="w-8 h-8 text-gray-300" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-500">No Past Leases</p>
+                            <p className="text-sm text-gray-400 mt-1">All lease history will appear here</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    pastLeases.map((lease) => {
+                      return (
+                        <Card
+                          key={lease.id}
+                          className="border border-gray-200 hover:border-gray-300 transition-all cursor-pointer active:scale-[0.98] shadow-sm hover:shadow-md"
+                          onClick={() => handleViewLeaseDetails(lease.id)}
+                        >
+                          <CardContent className="p-4 space-y-3">
+                            {/* Header with Status */}
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-gray-900 text-base mb-1 truncate">
+                                  {lease.leaseNickname || `${lease.property.title} - ${lease.unit.label}`}
+                                </h3>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs bg-white border-gray-200 text-gray-700">
+                                    {getLeaseTypeDisplay(lease.leaseType)}
+                                  </Badge>
+                                  <Badge 
+                                    variant={getStatusVariant(lease.status)} 
+                                    className={`flex items-center gap-1 text-xs font-medium px-2 py-1 border ${getStatusColor(lease.status)}`}
+                                  >
+                                    {getStatusIcon(lease.status)}
+                                    {lease.status.charAt(0) + lease.status.slice(1).toLowerCase()}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Property & Unit */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Home className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900">{lease.property.title}</p>
+                                  <p className="text-xs text-gray-500">Unit {lease.unit.label}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Rent & Deposit */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Monthly Rent</span>
+                                <span className="font-bold text-gray-900">{formatCurrency(lease.rentAmount)}</span>
+                              </div>
+                              {lease.securityDeposit && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-500">Security Deposit</span>
+                                  <span className="text-sm font-medium text-gray-700">{formatCurrency(lease.securityDeposit)}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Duration & Payment Info */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Start Date</p>
+                                  <p className="text-sm font-medium text-gray-900">{formatDate(lease.startDate)}</p>
+                                </div>
+                              </div>
+                              {lease.endDate && (
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-gray-500">End Date</p>
+                                    <p className="text-sm font-medium text-gray-900">{formatDate(lease.endDate)}</p>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Payment Due</p>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {getDueDateDisplay(lease.dueDate)} each {lease.interval.toLowerCase()}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Landlord */}
+                            <div className="pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <img 
+                                  src={getLandlordAvatarUrl(lease.landlord)}
+                                  alt={`${getLandlordFullName(lease.landlord)}'s avatar`}
+                                  className="w-8 h-8 rounded-full border border-gray-200 shadow-sm flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500">Landlord</p>
+                                  <p className="text-sm font-medium text-gray-900 truncate">{getLandlordFullName(lease.landlord)}</p>
+                                  <p className="text-xs text-gray-500 truncate">{lease.landlord.email}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
                 </div>
               </TabsContent>
             </Tabs>

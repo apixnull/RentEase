@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
+import { processImageUrl } from "@/api/utils";
 import { 
   ArrowLeft, 
   MapPin, 
@@ -436,7 +437,7 @@ const ChatModal = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <ShadcnAvatar className="h-10 w-10 border-2 border-white shadow-sm flex-shrink-0">
-                    <AvatarImage src={landlord.avatarUrl || undefined} />
+                    <AvatarImage src={processImageUrl(landlord.avatarUrl) || undefined} />
                     <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-xs">
                       {participantInitials || "LD"}
                     </AvatarFallback>
@@ -513,7 +514,7 @@ const ChatModal = ({
                           >
                             {showAvatar && sender && (
                               <ShadcnAvatar className="h-8 w-8 border-2 border-white shadow-sm flex-shrink-0">
-                                <AvatarImage src={sender.avatarUrl || undefined} />
+                                <AvatarImage src={processImageUrl(sender.avatarUrl) || undefined} />
                                 <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white text-xs">
                                   {sender.name.charAt(0).toUpperCase()}
                                 </AvatarFallback>
@@ -1303,10 +1304,13 @@ const Avatar = ({
     }
   }, [src]);
 
-  if (src && !imageError) {
+  // Process image URL to handle local storage paths
+  const processedSrc = src ? processImageUrl(src) : null;
+
+  if (processedSrc && !imageError) {
     return (
       <img
-        src={src}
+        src={processedSrc}
         alt={alt || "Avatar"}
         className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
         onError={() => setImageError(true)}
@@ -1673,7 +1677,13 @@ I'd like to schedule a viewing. Please let me know about availability!`;
   }
 
   const { unit, property, landlord } = listing;
-  const unitImages = [unit.mainImageUrl, ...unit.otherImages].filter(Boolean);
+  const unitImages = [unit.mainImageUrl, ...unit.otherImages]
+    .filter(Boolean)
+    .map(img => {
+      const processed = processImageUrl(img);
+      return processed || img || "";
+    })
+    .filter(img => img !== "");
   const categorizedRules = unit.unitLeaseRules.reduce((acc, rule) => {
     if (!acc[rule.category]) acc[rule.category] = [];
     acc[rule.category].push(rule);
@@ -1963,9 +1973,22 @@ I'd like to schedule a viewing. Please let me know about availability!`;
               <div>
                 <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
                   <img
-                    src={unitImages[activeImageIndex]}
+                    src={processImageUrl(unitImages[activeImageIndex]) || unitImages[activeImageIndex] || ""}
                     alt={`${unit.label} - Image ${activeImageIndex + 1}`}
                     className="w-full h-64 sm:h-80 md:h-96 object-cover"
+                    onError={(e) => {
+                      // Fallback: try to process the original URL again
+                      const currentSrc = (e.target as HTMLImageElement).src;
+                      if (currentSrc.includes('localhost')) {
+                        const originalUrl = unit.mainImageUrl || unit.otherImages[activeImageIndex - 1];
+                        if (originalUrl) {
+                          const processed = processImageUrl(originalUrl);
+                          if (processed && !processed.includes('localhost')) {
+                            (e.target as HTMLImageElement).src = processed;
+                          }
+                        }
+                      }
+                    }}
                   />
                 </div>
                 <p className="text-xs sm:text-sm text-gray-600 italic mt-2 mb-2 sm:mb-3">This is what the unit looks like</p>

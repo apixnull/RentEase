@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Card,
@@ -44,7 +45,6 @@ import {
   CartesianGrid,
 } from 'recharts';
 import {
-  DollarSign,
   RotateCcw,
   Loader2,
   Building2,
@@ -52,14 +52,17 @@ import {
   Calendar,
   FileText,
   Download,
+  BarChart3,
 } from 'lucide-react';
 import { getLeaseAnalyticsRequest, type LeaseAnalyticsResponse } from '@/api/landlord/leaseAnalyticsApi';
 import { getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
+import { getLandlordPaymentsRequest } from '@/api/landlord/paymentApi';
 
 type FilterType = 'ALL' | 'PROPERTY' | 'UNIT';
 type DateRangePreset = 'THIS_MONTH' | 'THIS_YEAR' | 'ALL_TIME';
 
 const LeaseAnalytics = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [analyticsData, setAnalyticsData] = useState<{
@@ -90,6 +93,36 @@ const LeaseAnalytics = () => {
       id: string;
       label: string;
     }>;
+  }>>([]);
+  const [monthlyPayments, setMonthlyPayments] = useState<Array<{
+    id: string;
+    leaseId: string;
+    amount: number;
+    dueDate: string;
+    paidAt: string | null;
+    status: 'PENDING' | 'PAID';
+    timingStatus: 'ONTIME' | 'LATE' | 'ADVANCE' | null;
+    lease: {
+      id: string;
+      property: { id: string; title: string } | null;
+      unit: { id: string; label: string } | null;
+      tenant: { id: string; firstName: string; lastName: string; email: string } | null;
+    } | null;
+  }>>([]);
+  const [allTimePayments, setAllTimePayments] = useState<Array<{
+    id: string;
+    leaseId: string;
+    amount: number;
+    dueDate: string;
+    paidAt: string | null;
+    status: 'PENDING' | 'PAID';
+    timingStatus: 'ONTIME' | 'LATE' | 'ADVANCE' | null;
+    lease: {
+      id: string;
+      property: { id: string; title: string } | null;
+      unit: { id: string; label: string } | null;
+      tenant: { id: string; firstName: string; lastName: string; email: string } | null;
+    } | null;
   }>>([]);
 
   const fetchAllAnalyticsData = async () => {
@@ -135,11 +168,61 @@ const LeaseAnalytics = () => {
       }
     };
     fetchAllProperties();
+    
+    // Fetch monthly payments for this month (to get expected vs collected)
+    const fetchMonthlyPayments = async () => {
+      try {
+        const now = new Date();
+        const response = await getLandlordPaymentsRequest({
+          month: now.getMonth() + 1,
+          year: now.getFullYear(),
+          scope: 'month',
+        });
+        setMonthlyPayments(response.data.payments || []);
+      } catch (error: any) {
+        console.error('Error fetching monthly payments:', error);
+      }
+    };
+    fetchMonthlyPayments();
+    
+    // Fetch all payments for all time (to get expected vs collected for ALL_TIME)
+    const fetchAllTimePayments = async () => {
+      try {
+        const now = new Date();
+        const response = await getLandlordPaymentsRequest({
+          year: now.getFullYear(),
+          scope: 'all',
+        });
+        setAllTimePayments(response.data.payments || []);
+      } catch (error: any) {
+        console.error('Error fetching all time payments:', error);
+      }
+    };
+    fetchAllTimePayments();
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchAllAnalyticsData();
+    await fetchAllAnalyticsData();
+    // Also refresh monthly payments
+    try {
+      const now = new Date();
+      const [monthlyResponse, allTimeResponse] = await Promise.all([
+        getLandlordPaymentsRequest({
+          month: now.getMonth() + 1,
+          year: now.getFullYear(),
+          scope: 'month',
+        }),
+        getLandlordPaymentsRequest({
+          year: now.getFullYear(),
+          scope: 'all',
+        }),
+      ]);
+      setMonthlyPayments(monthlyResponse.data.payments || []);
+      setAllTimePayments(allTimeResponse.data.payments || []);
+    } catch (error: any) {
+      console.error('Error fetching payments:', error);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -173,25 +256,6 @@ const LeaseAnalytics = () => {
   }, [allPropertiesWithUnits, filterType]);
 
   // Calculate earnings for each period
-  const calculateEarnings = (data: LeaseAnalyticsResponse | null) => {
-    if (!data || !data.paymentBreakdown) return 0;
-    
-    let payments = Array.isArray(data.paymentBreakdown) ? data.paymentBreakdown : [];
-    
-    if (filterType === 'PROPERTY' && selectedPropertyId) {
-      payments = payments.filter(p => p && p.propertyId === selectedPropertyId);
-    } else if (filterType === 'UNIT' && selectedUnitId) {
-      payments = payments.filter(p => p && p.unitId === selectedUnitId);
-    }
-    // If filterType is 'ALL', show all payments (no filtering)
-    
-    return payments.reduce((sum, p) => sum + (p?.amount || 0), 0);
-  };
-
-  const thisMonthEarnings = useMemo(() => calculateEarnings(analyticsData.thisMonth), [analyticsData.thisMonth, filterType, selectedPropertyId, selectedUnitId]);
-  const thisYearEarnings = useMemo(() => calculateEarnings(analyticsData.thisYear), [analyticsData.thisYear, filterType, selectedPropertyId, selectedUnitId]);
-  const allTimeEarnings = useMemo(() => calculateEarnings(analyticsData.allTime), [analyticsData.allTime, filterType, selectedPropertyId, selectedUnitId]);
-
   // Get filtered payments for charts and table (based on selected time period)
   const filteredPayments = useMemo(() => {
     let data: LeaseAnalyticsResponse | null = null;
@@ -220,20 +284,295 @@ const LeaseAnalytics = () => {
     return payments;
   }, [analyticsData, dateRangePreset, filterType, selectedPropertyId, selectedUnitId]);
 
-  // Payment Status Distribution Data
+  // Get all payments including unpaid for Payment Breakdown table
+  const allPaymentsForTable = useMemo(() => {
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+    
+    // If viewing THIS_MONTH, combine paid payments from analytics with unpaid from monthlyPayments
+    if (dateRangePreset === 'THIS_MONTH') {
+      // Get paid payments from filteredPayments
+      const paidPayments = filteredPayments.map(p => ({
+        paymentId: p.paymentId,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        dueDate: p.paidAt, // Use paidAt as dueDate for paid payments
+        method: p.method,
+        timingStatus: p.timingStatus,
+        status: 'PAID' as const,
+        propertyId: p.propertyId,
+        propertyTitle: p.propertyTitle,
+        unitId: p.unitId,
+        unitLabel: p.unitLabel,
+        tenantId: p.tenantId,
+        tenantName: p.tenantName,
+        tenantEmail: p.tenantEmail,
+        leaseId: p.leaseId,
+      }));
+
+      // Get unpaid payments from monthlyPayments
+      let unpaidPayments = monthlyPayments.filter(p => {
+        if (p.status !== 'PENDING') return false;
+        if (!p.dueDate) return false;
+        const dueDate = new Date(p.dueDate);
+        return dueDate >= monthStart && dueDate <= monthEnd;
+      });
+
+      // Apply filters
+      if (filterType === 'PROPERTY' && selectedPropertyId) {
+        unpaidPayments = unpaidPayments.filter(p => 
+          p.lease?.property?.id === selectedPropertyId
+        );
+      } else if (filterType === 'UNIT' && selectedUnitId) {
+        unpaidPayments = unpaidPayments.filter(p => 
+          p.lease?.unit?.id === selectedUnitId
+        );
+      }
+
+      // Convert unpaid payments to table format
+      const unpaidForTable = unpaidPayments.map(p => ({
+        paymentId: p.id,
+        amount: p.amount,
+        paidAt: null,
+        dueDate: p.dueDate,
+        method: null,
+        timingStatus: null,
+        status: 'PENDING' as const,
+        propertyId: p.lease?.property?.id || '',
+        propertyTitle: p.lease?.property?.title || 'Unknown',
+        unitId: p.lease?.unit?.id || '',
+        unitLabel: p.lease?.unit?.label || 'Unknown',
+        tenantId: p.lease?.tenant?.id || '',
+        tenantName: p.lease?.tenant ? `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}` : 'Unknown',
+        tenantEmail: p.lease?.tenant?.email || 'Unknown',
+        leaseId: p.leaseId || p.lease?.id || '',
+      }));
+
+      // Combine and sort by date (dueDate for unpaid, paidAt for paid)
+      const combined = [...paidPayments, ...unpaidForTable].sort((a, b) => {
+        const dateA = a.paidAt ? new Date(a.paidAt) : new Date(a.dueDate);
+        const dateB = b.paidAt ? new Date(b.paidAt) : new Date(b.dueDate);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      return combined;
+    }
+
+    // If viewing THIS_YEAR, combine paid payments from analytics with unpaid from monthlyPayments
+    if (dateRangePreset === 'THIS_YEAR') {
+      const now = new Date();
+      const yearStart = startOfYear(now);
+      const yearEnd = endOfYear(now);
+      
+      // Get paid payments from filteredPayments
+      const paidPayments = filteredPayments.map(p => ({
+        paymentId: p.paymentId,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        dueDate: p.paidAt,
+        method: p.method,
+        timingStatus: p.timingStatus,
+        status: 'PAID' as const,
+        propertyId: p.propertyId,
+        propertyTitle: p.propertyTitle,
+        unitId: p.unitId,
+        unitLabel: p.unitLabel,
+        tenantId: p.tenantId,
+        tenantName: p.tenantName,
+        tenantEmail: p.tenantEmail,
+        leaseId: p.leaseId,
+      }));
+
+      // Get unpaid payments from monthlyPayments
+      let unpaidPayments = monthlyPayments.filter(p => {
+        if (p.status !== 'PENDING') return false;
+        if (!p.dueDate) return false;
+        const dueDate = new Date(p.dueDate);
+        return dueDate >= yearStart && dueDate <= yearEnd;
+      });
+
+      // Apply filters
+      if (filterType === 'PROPERTY' && selectedPropertyId) {
+        unpaidPayments = unpaidPayments.filter(p => 
+          p.lease?.property?.id === selectedPropertyId
+        );
+      } else if (filterType === 'UNIT' && selectedUnitId) {
+        unpaidPayments = unpaidPayments.filter(p => 
+          p.lease?.unit?.id === selectedUnitId
+        );
+      }
+
+      // Convert unpaid payments to table format
+      const unpaidForTable = unpaidPayments.map(p => ({
+        paymentId: p.id,
+        amount: p.amount,
+        paidAt: null,
+        dueDate: p.dueDate,
+        method: null,
+        timingStatus: null,
+        status: 'PENDING' as const,
+        propertyId: p.lease?.property?.id || '',
+        propertyTitle: p.lease?.property?.title || 'Unknown',
+        unitId: p.lease?.unit?.id || '',
+        unitLabel: p.lease?.unit?.label || 'Unknown',
+        tenantId: p.lease?.tenant?.id || '',
+        tenantName: p.lease?.tenant ? `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}` : 'Unknown',
+        tenantEmail: p.lease?.tenant?.email || 'Unknown',
+        leaseId: p.leaseId || p.lease?.id || '',
+      }));
+
+      // Combine and sort by date
+      const combined = [...paidPayments, ...unpaidForTable].sort((a, b) => {
+        const dateA = a.paidAt ? new Date(a.paidAt) : new Date(a.dueDate);
+        const dateB = b.paidAt ? new Date(b.paidAt) : new Date(b.dueDate);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      return combined;
+    }
+
+    // If viewing ALL_TIME, combine paid payments from analytics with unpaid from allTimePayments
+    if (dateRangePreset === 'ALL_TIME') {
+      // Get paid payments from filteredPayments
+      const paidPayments = filteredPayments.map(p => ({
+        paymentId: p.paymentId,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        dueDate: p.paidAt,
+        method: p.method,
+        timingStatus: p.timingStatus,
+        status: 'PAID' as const,
+        propertyId: p.propertyId,
+        propertyTitle: p.propertyTitle,
+        unitId: p.unitId,
+        unitLabel: p.unitLabel,
+        tenantId: p.tenantId,
+        tenantName: p.tenantName,
+        tenantEmail: p.tenantEmail,
+        leaseId: p.leaseId,
+      }));
+
+      // Get unpaid payments from allTimePayments
+      let unpaidPayments = allTimePayments.filter(p => p.status === 'PENDING');
+
+      // Apply filters
+      if (filterType === 'PROPERTY' && selectedPropertyId) {
+        unpaidPayments = unpaidPayments.filter(p => 
+          p.lease?.property?.id === selectedPropertyId
+        );
+      } else if (filterType === 'UNIT' && selectedUnitId) {
+        unpaidPayments = unpaidPayments.filter(p => 
+          p.lease?.unit?.id === selectedUnitId
+        );
+      }
+
+      // Convert unpaid payments to table format
+      const unpaidForTable = unpaidPayments.map(p => ({
+        paymentId: p.id,
+        amount: p.amount,
+        paidAt: null,
+        dueDate: p.dueDate,
+        method: null,
+        timingStatus: null,
+        status: 'PENDING' as const,
+        propertyId: p.lease?.property?.id || '',
+        propertyTitle: p.lease?.property?.title || 'Unknown',
+        unitId: p.lease?.unit?.id || '',
+        unitLabel: p.lease?.unit?.label || 'Unknown',
+        tenantId: p.lease?.tenant?.id || '',
+        tenantName: p.lease?.tenant ? `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}` : 'Unknown',
+        tenantEmail: p.lease?.tenant?.email || 'Unknown',
+        leaseId: p.leaseId || p.lease?.id || '',
+      }));
+
+      // Combine and sort by date
+      const combined = [...paidPayments, ...unpaidForTable].sort((a, b) => {
+        const dateA = a.paidAt ? new Date(a.paidAt) : new Date(a.dueDate);
+        const dateB = b.paidAt ? new Date(b.paidAt) : new Date(b.dueDate);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      return combined;
+    }
+
+    // For other periods, only show paid payments (from analytics)
+    return filteredPayments.map(p => ({
+      paymentId: p.paymentId,
+      amount: p.amount,
+      paidAt: p.paidAt,
+      dueDate: p.paidAt,
+      method: p.method,
+      timingStatus: p.timingStatus,
+      status: 'PAID' as const,
+      propertyId: p.propertyId,
+      propertyTitle: p.propertyTitle,
+      unitId: p.unitId,
+      unitLabel: p.unitLabel,
+      tenantId: p.tenantId,
+      tenantName: p.tenantName,
+      tenantEmail: p.tenantEmail,
+      leaseId: p.leaseId,
+    }));
+  }, [filteredPayments, monthlyPayments, allTimePayments, dateRangePreset, filterType, selectedPropertyId, selectedUnitId]);
+
+  // Payment Status Distribution Data - includes unpaid for THIS_MONTH and THIS_YEAR
   const paymentStatusData = useMemo(() => {
-    if (!Array.isArray(filteredPayments) || filteredPayments.length === 0) return [];
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+    const yearStart = startOfYear(now);
+    const yearEnd = endOfYear(now);
     
-    const onTime = filteredPayments.filter(p => p && p.timingStatus === 'ONTIME').length;
-    const late = filteredPayments.filter(p => p && p.timingStatus === 'LATE').length;
-    const advance = filteredPayments.filter(p => p && p.timingStatus === 'ADVANCE').length;
+    // Get paid payments from filteredPayments
+    let paidPayments = filteredPayments;
     
-    return [
+    // Get unpaid payments if viewing THIS_MONTH or THIS_YEAR
+    let unpaidCount = 0;
+    if (dateRangePreset === 'THIS_MONTH' || dateRangePreset === 'THIS_YEAR') {
+      let filteredUnpaid = monthlyPayments.filter(p => {
+        if (p.status !== 'PENDING') return false;
+        if (!p.dueDate) return false;
+        const dueDate = new Date(p.dueDate);
+        
+        if (dateRangePreset === 'THIS_MONTH') {
+          return dueDate >= monthStart && dueDate <= monthEnd;
+        } else {
+          return dueDate >= yearStart && dueDate <= yearEnd;
+        }
+      });
+      
+      // Apply filters
+      if (filterType === 'PROPERTY' && selectedPropertyId) {
+        filteredUnpaid = filteredUnpaid.filter(p => 
+          p.lease?.property?.id === selectedPropertyId
+        );
+      } else if (filterType === 'UNIT' && selectedUnitId) {
+        filteredUnpaid = filteredUnpaid.filter(p => 
+          p.lease?.unit?.id === selectedUnitId
+        );
+      }
+      
+      unpaidCount = filteredUnpaid.length;
+    }
+    
+    const onTime = paidPayments.filter(p => p && p.timingStatus === 'ONTIME').length;
+    const late = paidPayments.filter(p => p && p.timingStatus === 'LATE').length;
+    const advance = paidPayments.filter(p => p && p.timingStatus === 'ADVANCE').length;
+    
+    const result = [
       { name: 'On Time', value: onTime, color: 'hsl(142, 76%, 36%)' },
       { name: 'Late', value: late, color: 'hsl(0, 84%, 60%)' },
       { name: 'Advance', value: advance, color: 'hsl(217, 91%, 60%)' },
-    ].filter(item => item.value > 0);
-  }, [filteredPayments]);
+    ];
+    
+    // Add unpaid if viewing THIS_MONTH or THIS_YEAR
+    if ((dateRangePreset === 'THIS_MONTH' || dateRangePreset === 'THIS_YEAR') && unpaidCount > 0) {
+      result.push({ name: 'Pending', value: unpaidCount, color: 'hsl(45, 93%, 47%)' });
+    }
+    
+    return result.filter(item => item.value > 0);
+  }, [filteredPayments, monthlyPayments, dateRangePreset, filterType, selectedPropertyId, selectedUnitId]);
 
   // Payment Counts Over Time Data (varies by time period)
   const paymentCountsData = useMemo(() => {
@@ -352,6 +691,7 @@ const LeaseAnalytics = () => {
     onTime: { label: 'On Time', color: 'hsl(142, 76%, 36%)' },
     late: { label: 'Late', color: 'hsl(0, 84%, 60%)' },
     advance: { label: 'Advance', color: 'hsl(217, 91%, 60%)' },
+    pending: { label: 'Pending', color: 'hsl(45, 93%, 47%)' },
   };
 
   const paymentCountsChartConfig: ChartConfig = {
@@ -371,6 +711,180 @@ const LeaseAnalytics = () => {
     }
     return null;
   }, [filterType, selectedPropertyId, selectedUnitId, propertiesList, availableUnits]);
+
+  // Calculate collected vs expected this month
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+    
+    // Filter payments based on current filters
+    let filteredPayments = monthlyPayments;
+    
+    if (filterType === 'PROPERTY' && selectedPropertyId) {
+      filteredPayments = filteredPayments.filter(p => 
+        p.lease?.property?.id === selectedPropertyId
+      );
+    } else if (filterType === 'UNIT' && selectedUnitId) {
+      filteredPayments = filteredPayments.filter(p => 
+        p.lease?.unit?.id === selectedUnitId
+      );
+    }
+    
+    // Filter to only payments due this month
+    const thisMonthPayments = filteredPayments.filter(p => {
+      if (!p.dueDate) return false;
+      const dueDate = new Date(p.dueDate);
+      return dueDate >= monthStart && dueDate <= monthEnd;
+    });
+    
+    // Calculate collected (paid payments)
+    const paidPayments = thisMonthPayments.filter(p => p.status === 'PAID');
+    const collected = paidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    // Calculate expected (all payments due this month)
+    const expected = thisMonthPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    // Breakdown by status
+    const paidOnTime = paidPayments.filter(p => p.timingStatus === 'ONTIME').length;
+    const paidLate = paidPayments.filter(p => p.timingStatus === 'LATE').length;
+    const paidAdvance = paidPayments.filter(p => p.timingStatus === 'ADVANCE').length;
+    const paidNoTiming = paidPayments.filter(p => !p.timingStatus || p.timingStatus === null).length;
+    const unpaid = thisMonthPayments.filter(p => p.status === 'PENDING').length;
+    const unpaidAmount = thisMonthPayments
+      .filter(p => p.status === 'PENDING')
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    return {
+      collected,
+      expected,
+      unpaidAmount,
+      breakdown: {
+        paidOnTime,
+        paidLate,
+        paidAdvance,
+        paidNoTiming,
+        unpaid,
+      },
+    };
+  }, [monthlyPayments, filterType, selectedPropertyId, selectedUnitId]);
+
+  // Calculate collected vs expected this year
+  const yearlyStats = useMemo(() => {
+    const now = new Date();
+    const yearStart = startOfYear(now);
+    const yearEnd = endOfYear(now);
+    
+    // Filter payments based on current filters
+    let filteredPayments = monthlyPayments;
+    
+    if (filterType === 'PROPERTY' && selectedPropertyId) {
+      filteredPayments = filteredPayments.filter(p => 
+        p.lease?.property?.id === selectedPropertyId
+      );
+    } else if (filterType === 'UNIT' && selectedUnitId) {
+      filteredPayments = filteredPayments.filter(p => 
+        p.lease?.unit?.id === selectedUnitId
+      );
+    }
+    
+    // Filter to only payments due this year
+    const thisYearPayments = filteredPayments.filter(p => {
+      if (!p.dueDate) return false;
+      const dueDate = new Date(p.dueDate);
+      return dueDate >= yearStart && dueDate <= yearEnd;
+    });
+    
+    // Calculate collected (paid payments)
+    const paidPayments = thisYearPayments.filter(p => p.status === 'PAID');
+    const collected = paidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    // Calculate expected (all payments due this year)
+    const expected = thisYearPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    // Breakdown by status
+    const paidOnTime = paidPayments.filter(p => p.timingStatus === 'ONTIME').length;
+    const paidLate = paidPayments.filter(p => p.timingStatus === 'LATE').length;
+    const paidAdvance = paidPayments.filter(p => p.timingStatus === 'ADVANCE').length;
+    const paidNoTiming = paidPayments.filter(p => !p.timingStatus || p.timingStatus === null).length;
+    const unpaid = thisYearPayments.filter(p => p.status === 'PENDING').length;
+    const unpaidAmount = thisYearPayments
+      .filter(p => p.status === 'PENDING')
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    return {
+      collected,
+      expected,
+      unpaidAmount,
+      breakdown: {
+        paidOnTime,
+        paidLate,
+        paidAdvance,
+        paidNoTiming,
+        unpaid,
+      },
+    };
+  }, [monthlyPayments, filterType, selectedPropertyId, selectedUnitId]);
+
+  // Calculate collected vs expected all time
+  const allTimeStats = useMemo(() => {
+    // Get all time payments from analytics data (paid)
+    const allTimeData = analyticsData.allTime;
+    let paidPayments: any[] = [];
+    if (allTimeData && allTimeData.paymentBreakdown) {
+      paidPayments = Array.isArray(allTimeData.paymentBreakdown) 
+        ? allTimeData.paymentBreakdown 
+        : [];
+      
+      // Apply filters
+      if (filterType === 'PROPERTY' && selectedPropertyId) {
+        paidPayments = paidPayments.filter(p => p && p.propertyId === selectedPropertyId);
+      } else if (filterType === 'UNIT' && selectedUnitId) {
+        paidPayments = paidPayments.filter(p => p && p.unitId === selectedUnitId);
+      }
+    }
+    
+    // Get unpaid payments from allTimePayments
+    let unpaidPayments = allTimePayments.filter(p => p.status === 'PENDING');
+    
+    // Apply filters to unpaid payments
+    if (filterType === 'PROPERTY' && selectedPropertyId) {
+      unpaidPayments = unpaidPayments.filter(p => 
+        p.lease?.property?.id === selectedPropertyId
+      );
+    } else if (filterType === 'UNIT' && selectedUnitId) {
+      unpaidPayments = unpaidPayments.filter(p => 
+        p.lease?.unit?.id === selectedUnitId
+      );
+    }
+    
+    // Calculate collected (paid payments)
+    const collected = paidPayments.reduce((sum, p) => sum + (p?.amount || 0), 0);
+    
+    // Calculate expected (all payments: paid + unpaid)
+    const expected = collected + unpaidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    // Breakdown by status
+    const paidOnTime = paidPayments.filter(p => p && p.timingStatus === 'ONTIME').length;
+    const paidLate = paidPayments.filter(p => p && p.timingStatus === 'LATE').length;
+    const paidAdvance = paidPayments.filter(p => p && p.timingStatus === 'ADVANCE').length;
+    const paidNoTiming = paidPayments.filter(p => p && (!p.timingStatus || p.timingStatus === null)).length;
+    const unpaid = unpaidPayments.length;
+    const unpaidAmount = unpaidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    return {
+      collected,
+      expected,
+      unpaidAmount,
+      breakdown: {
+        paidOnTime,
+        paidLate,
+        paidAdvance,
+        paidNoTiming,
+        unpaid,
+      },
+    };
+  }, [analyticsData.allTime, allTimePayments, filterType, selectedPropertyId, selectedUnitId]);
 
   // Format currency for PDF
   const formatCurrencyForPDF = (amount: number) => {
@@ -413,6 +927,107 @@ const LeaseAnalytics = () => {
       } else if (pdfFilterType === 'UNIT' && pdfSelectedUnitId) {
         pdfPayments = pdfPayments.filter(p => p && p.unitId === pdfSelectedUnitId);
       }
+
+      // Get unpaid payments for THIS_MONTH, THIS_YEAR, and ALL_TIME
+      let pdfUnpaidPayments: Array<{
+        paymentId: string;
+        amount: number;
+        paidAt: string | null;
+        dueDate: string;
+        method: string | null;
+        timingStatus: string | null;
+        status: 'PENDING';
+        propertyId: string;
+        propertyTitle: string;
+        unitId: string;
+        unitLabel: string;
+        tenantId: string;
+        tenantName: string;
+        tenantEmail: string;
+        leaseId: string;
+      }> = [];
+
+      if (pdfDateRangePreset === 'THIS_MONTH' || pdfDateRangePreset === 'THIS_YEAR' || pdfDateRangePreset === 'ALL_TIME') {
+        let filteredUnpaid: typeof monthlyPayments = [];
+        
+        if (pdfDateRangePreset === 'ALL_TIME') {
+          filteredUnpaid = allTimePayments.filter(p => p.status === 'PENDING');
+        } else {
+          const now = new Date();
+          const monthStart = startOfMonth(now);
+          const monthEnd = endOfMonth(now);
+          const yearStart = startOfYear(now);
+          const yearEnd = endOfYear(now);
+          
+          filteredUnpaid = monthlyPayments.filter(p => {
+            if (p.status !== 'PENDING') return false;
+            if (!p.dueDate) return false;
+            const dueDate = new Date(p.dueDate);
+            
+            if (pdfDateRangePreset === 'THIS_MONTH') {
+              return dueDate >= monthStart && dueDate <= monthEnd;
+            } else {
+              return dueDate >= yearStart && dueDate <= yearEnd;
+            }
+          });
+        }
+        
+        // Apply filters
+        if (pdfFilterType === 'PROPERTY' && pdfSelectedPropertyId) {
+          filteredUnpaid = filteredUnpaid.filter(p => 
+            p.lease?.property?.id === pdfSelectedPropertyId
+          );
+        } else if (pdfFilterType === 'UNIT' && pdfSelectedUnitId) {
+          filteredUnpaid = filteredUnpaid.filter(p => 
+            p.lease?.unit?.id === pdfSelectedUnitId
+          );
+        }
+        
+        // Convert to table format
+        pdfUnpaidPayments = filteredUnpaid.map(p => ({
+          paymentId: p.id,
+          amount: p.amount,
+          paidAt: null,
+          dueDate: p.dueDate,
+          method: null,
+          timingStatus: null,
+          status: 'PENDING' as const,
+          propertyId: p.lease?.property?.id || '',
+          propertyTitle: p.lease?.property?.title || 'Unknown',
+          unitId: p.lease?.unit?.id || '',
+          unitLabel: p.lease?.unit?.label || 'Unknown',
+          tenantId: p.lease?.tenant?.id || '',
+          tenantName: p.lease?.tenant ? `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}` : 'Unknown',
+          tenantEmail: p.lease?.tenant?.email || 'Unknown',
+          leaseId: p.leaseId || p.lease?.id || '',
+        }));
+      }
+
+      // Combine paid and unpaid payments for PDF table
+      const pdfAllPayments = [
+        ...pdfPayments.map(p => ({
+          paymentId: p.paymentId,
+          amount: p.amount,
+          paidAt: p.paidAt,
+          dueDate: p.paidAt,
+          method: p.method,
+          timingStatus: p.timingStatus,
+          status: 'PAID' as const,
+          propertyId: p.propertyId,
+          propertyTitle: p.propertyTitle,
+          unitId: p.unitId,
+          unitLabel: p.unitLabel,
+          tenantId: p.tenantId,
+          tenantName: p.tenantName,
+          tenantEmail: p.tenantEmail,
+          leaseId: p.leaseId,
+        })),
+        ...pdfUnpaidPayments,
+      ].sort((a, b) => {
+        const dateA = a.paidAt ? new Date(a.paidAt) : new Date(a.dueDate);
+        const dateB = b.paidAt ? new Date(b.paidAt) : new Date(b.dueDate);
+        return dateB.getTime() - dateA.getTime();
+      });
 
       const pdfTotalIncome = pdfPayments.reduce((sum, p) => sum + (p?.amount || 0), 0);
       
@@ -505,10 +1120,96 @@ const LeaseAnalytics = () => {
       doc.setFont('helvetica', 'normal');
       doc.text(`Total Income Collected: ${formatCurrencyForPDF(pdfTotalIncome)}`, 14, yPosition);
       yPosition += 6;
-        doc.text(`Total Payments: ${pdfPayments.length}`, 14, yPosition);
-        yPosition += 6;
+      doc.text(`Total Payments: ${pdfAllPayments.length} (${pdfPayments.length} paid, ${pdfUnpaidPayments.length} pending)`, 14, yPosition);
+      yPosition += 6;
+      
+      // Add collected vs expected for THIS_MONTH, THIS_YEAR, and ALL_TIME
+      if (pdfDateRangePreset === 'THIS_MONTH' || pdfDateRangePreset === 'THIS_YEAR' || pdfDateRangePreset === 'ALL_TIME') {
+        const now = new Date();
+        const monthStart = startOfMonth(now);
+        const monthEnd = endOfMonth(now);
+        const yearStart = startOfYear(now);
+        const yearEnd = endOfYear(now);
         
-        if (pdfPayments.length > 0) {
+        let pdfCollected = 0;
+        let pdfExpected = 0;
+        let pdfUnpaidAmount = 0;
+        let periodLabel = '';
+        
+        if (pdfDateRangePreset === 'ALL_TIME') {
+          // Get paid payments from analytics
+          let paidPayments = pdfPayments;
+          pdfCollected = paidPayments.reduce((sum, p) => sum + (p?.amount || 0), 0);
+          
+          // Get unpaid payments from allTimePayments
+          let unpaidPayments = allTimePayments.filter(p => p.status === 'PENDING');
+          
+          // Apply filters
+          if (pdfFilterType === 'PROPERTY' && pdfSelectedPropertyId) {
+            unpaidPayments = unpaidPayments.filter(p => 
+              p.lease?.property?.id === pdfSelectedPropertyId
+            );
+          } else if (pdfFilterType === 'UNIT' && pdfSelectedUnitId) {
+            unpaidPayments = unpaidPayments.filter(p => 
+              p.lease?.unit?.id === pdfSelectedUnitId
+            );
+          }
+          
+          pdfUnpaidAmount = unpaidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+          pdfExpected = pdfCollected + pdfUnpaidAmount;
+          periodLabel = 'All Time';
+        } else {
+          let pdfMonthlyPayments = monthlyPayments;
+          if (pdfFilterType === 'PROPERTY' && pdfSelectedPropertyId) {
+            pdfMonthlyPayments = pdfMonthlyPayments.filter(p => 
+              p.lease?.property?.id === pdfSelectedPropertyId
+            );
+          } else if (pdfFilterType === 'UNIT' && pdfSelectedUnitId) {
+            pdfMonthlyPayments = pdfMonthlyPayments.filter(p => 
+              p.lease?.unit?.id === pdfSelectedUnitId
+            );
+          }
+          
+          const periodPayments = pdfMonthlyPayments.filter(p => {
+            if (!p.dueDate) return false;
+            const dueDate = new Date(p.dueDate);
+            if (pdfDateRangePreset === 'THIS_MONTH') {
+              return dueDate >= monthStart && dueDate <= monthEnd;
+            } else {
+              return dueDate >= yearStart && dueDate <= yearEnd;
+            }
+          });
+          
+          const paidPayments = periodPayments.filter(p => p.status === 'PAID');
+          pdfCollected = paidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+          pdfExpected = periodPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+          pdfUnpaidAmount = periodPayments
+            .filter(p => p.status === 'PENDING')
+            .reduce((sum, p) => sum + (p.amount || 0), 0);
+          
+          periodLabel = pdfDateRangePreset === 'THIS_MONTH' ? 'This Month' : 'This Year';
+        }
+        
+        doc.text(`Collected ${periodLabel}: ${formatCurrencyForPDF(pdfCollected)}`, 14, yPosition);
+        yPosition += 6;
+        doc.text(`Expected ${periodLabel}: ${formatCurrencyForPDF(pdfExpected)}`, 14, yPosition);
+        yPosition += 6;
+        if (pdfExpected > 0) {
+          const collectionRate = ((pdfCollected / pdfExpected) * 100).toFixed(1);
+          doc.text(`Collection Rate: ${collectionRate}%`, 14, yPosition);
+          yPosition += 6;
+        }
+        if (pdfUnpaidAmount > 0) {
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(200, 0, 0);
+          doc.text(`Outstanding: ${formatCurrencyForPDF(pdfUnpaidAmount)}`, 14, yPosition);
+          doc.setTextColor(0, 0, 0);
+          doc.setFont('helvetica', 'normal');
+          yPosition += 6;
+        }
+      }
+        
+      if (pdfPayments.length > 0) {
           doc.text(`On-Time Payments: ${onTimePayments}`, 14, yPosition);
           yPosition += 6;
           doc.text(`Late Payments: ${latePayments}`, 14, yPosition);
@@ -542,42 +1243,58 @@ const LeaseAnalytics = () => {
       doc.setTextColor(0, 0, 0);
       yPosition += 10;
 
-      // Payment Breakdown Table
-      if (pdfPayments.length > 0) {
+      // Payment Breakdown Table - includes unpaid payments
+      if (pdfAllPayments.length > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text('Payment Breakdown', 14, yPosition);
         yPosition += 8;
 
-        const tableData = pdfPayments
-          .filter(payment => payment && payment.paidAt)
-          .map(payment => {
-            const tenantName = (payment.tenantName || 'Unknown').length > 20 
-              ? (payment.tenantName || 'Unknown').substring(0, 17) + '...' 
-              : (payment.tenantName || 'Unknown');
-            const propertyTitle = (payment.propertyTitle || 'Unknown').length > 25
-              ? (payment.propertyTitle || 'Unknown').substring(0, 22) + '...'
-              : (payment.propertyTitle || 'Unknown');
-            const unitLabel = (payment.unitLabel || 'Unknown').length > 15
-              ? (payment.unitLabel || 'Unknown').substring(0, 12) + '...'
-              : (payment.unitLabel || 'Unknown');
-            
-            return [
-              format(new Date(payment.paidAt), 'MMM dd, yyyy'),
-              tenantName,
-              propertyTitle,
-              unitLabel,
-              formatCurrencyForPDF(payment.amount || 0),
-              payment.method || '-',
-              payment.timingStatus || '-',
-            ];
-          });
+        const tableData = pdfAllPayments.map(payment => {
+          const tenantName = (payment.tenantName || 'Unknown').length > 20 
+            ? (payment.tenantName || 'Unknown').substring(0, 17) + '...' 
+            : (payment.tenantName || 'Unknown');
+          const propertyTitle = (payment.propertyTitle || 'Unknown').length > 25
+            ? (payment.propertyTitle || 'Unknown').substring(0, 22) + '...'
+            : (payment.propertyTitle || 'Unknown');
+          const unitLabel = (payment.unitLabel || 'Unknown').length > 15
+            ? (payment.unitLabel || 'Unknown').substring(0, 12) + '...'
+            : (payment.unitLabel || 'Unknown');
+          
+          const dateStr = payment.paidAt 
+            ? format(new Date(payment.paidAt), 'MMM dd, yyyy')
+            : payment.dueDate 
+              ? format(new Date(payment.dueDate), 'MMM dd, yyyy')
+              : '-';
+          
+          let statusStr = '-';
+          if (payment.status === 'PENDING') {
+            statusStr = 'Pending';
+          } else if (payment.timingStatus === 'ONTIME') {
+            statusStr = 'On Time';
+          } else if (payment.timingStatus === 'LATE') {
+            statusStr = 'Late';
+          } else if (payment.timingStatus === 'ADVANCE') {
+            statusStr = 'Advance';
+          } else if (payment.status === 'PAID') {
+            statusStr = 'Paid';
+          }
+          
+          return [
+            dateStr,
+            tenantName,
+            propertyTitle,
+            unitLabel,
+            formatCurrencyForPDF(payment.amount || 0),
+            statusStr,
+          ];
+        });
 
         const availableWidth = pageWidth - 28;
 
         autoTable(doc, {
           startY: yPosition,
-          head: [['Date', 'Tenant', 'Property', 'Unit', 'Amount (PHP)', 'Method', 'Status']],
+          head: [['Date', 'Tenant', 'Property', 'Unit', 'Amount (PHP)', 'Status']],
           body: tableData,
           theme: 'striped',
           headStyles: { 
@@ -589,13 +1306,12 @@ const LeaseAnalytics = () => {
           bodyStyles: { fontSize: 8 },
           alternateRowStyles: { fillColor: [249, 250, 251] },
           columnStyles: {
-            0: { cellWidth: 25 },
-            1: { cellWidth: 35 },
-            2: { cellWidth: 40 },
-            3: { cellWidth: 28 },
-            4: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
-            5: { cellWidth: 25, halign: 'center' },
-            6: { cellWidth: 25, halign: 'center' },
+            0: { cellWidth: 30 },
+            1: { cellWidth: 40 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 32 },
+            4: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
+            5: { cellWidth: 30, halign: 'center' },
           },
           margin: { left: 14, right: 14 },
           styles: { 
@@ -692,11 +1408,12 @@ const LeaseAnalytics = () => {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-4">
                 <motion.div
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
                   className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg flex-shrink-0"
                 >
-                  <DollarSign className="h-7 w-7 text-white" />
+                  <BarChart3 className="h-7 w-7 text-white" />
                 </motion.div>
                 <div className="space-y-1">
                   <h1 className="text-3xl font-bold text-gray-900">Rent Earnings Report</h1>
@@ -841,63 +1558,156 @@ const LeaseAnalytics = () => {
         <div className="grid gap-4">
           {dateRangePreset === 'THIS_MONTH' && (
             <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-500 flex items-center justify-center">
-                    <Calendar className="h-4 w-4 text-white" />
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-lg bg-blue-500 flex items-center justify-center">
+                    <Calendar className="h-3 w-3 text-white" />
                   </div>
-                  This Month
+                  This Month • {selectedName || 'All Properties'}
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  {selectedName || 'All Properties'}
-                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-blue-700">
-                  {formatCurrency(thisMonthEarnings)}
+              <CardContent className="pt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Collected</p>
+                    <p className="text-xl font-bold text-green-700">
+                      {formatCurrency(monthlyStats.collected)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-600 mb-0.5">Expected</p>
+                    <p className="text-xl font-bold text-amber-700">
+                      {formatCurrency(monthlyStats.expected)}
+                    </p>
+                  </div>
                 </div>
+                {monthlyStats.expected > 0 && (
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-gray-600">Collection Rate</span>
+                      <span className="text-xs font-bold text-blue-700">
+                        {((monthlyStats.collected / monthlyStats.expected) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 h-1.5 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min((monthlyStats.collected / monthlyStats.expected) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                    {monthlyStats.unpaidAmount > 0 && (
+                      <div className="mt-1.5 text-xs text-red-600">
+                        Outstanding: {formatCurrency(monthlyStats.unpaidAmount)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
 
           {dateRangePreset === 'THIS_YEAR' && (
             <Card className="border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-                    <Calendar className="h-4 w-4 text-white" />
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-lg bg-emerald-500 flex items-center justify-center">
+                    <Calendar className="h-3 w-3 text-white" />
                   </div>
-                  This Year
+                  This Year • {selectedName || 'All Properties'}
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  {selectedName || 'All Properties'}
-                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-emerald-700">
-                  {formatCurrency(thisYearEarnings)}
+              <CardContent className="pt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Collected</p>
+                    <p className="text-xl font-bold text-green-700">
+                      {formatCurrency(yearlyStats.collected)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-600 mb-0.5">Expected</p>
+                    <p className="text-xl font-bold text-amber-700">
+                      {formatCurrency(yearlyStats.expected)}
+                    </p>
+                  </div>
                 </div>
+                {yearlyStats.expected > 0 && (
+                  <div className="mt-3 pt-3 border-t border-emerald-200">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-gray-600">Collection Rate</span>
+                      <span className="text-xs font-bold text-blue-700">
+                        {((yearlyStats.collected / yearlyStats.expected) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 h-1.5 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min((yearlyStats.collected / yearlyStats.expected) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                    {yearlyStats.unpaidAmount > 0 && (
+                      <div className="mt-1.5 text-xs text-red-600">
+                        Outstanding: {formatCurrency(yearlyStats.unpaidAmount)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
 
           {dateRangePreset === 'ALL_TIME' && (
             <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-purple-500 flex items-center justify-center">
-                    <DollarSign className="h-4 w-4 text-white" />
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-lg bg-purple-500 flex items-center justify-center">
+                    <Calendar className="h-3 w-3 text-white" />
                   </div>
-                  All Time
+                  All Time • {selectedName || 'All Properties'}
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  {selectedName || 'All Properties'}
-                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-purple-700">
-                  {formatCurrency(allTimeEarnings)}
+              <CardContent className="pt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Collected</p>
+                    <p className="text-xl font-bold text-green-700">
+                      {formatCurrency(allTimeStats.collected)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-600 mb-0.5">Expected</p>
+                    <p className="text-xl font-bold text-amber-700">
+                      {formatCurrency(allTimeStats.expected)}
+                    </p>
+                  </div>
                 </div>
+                {allTimeStats.expected > 0 && (
+                  <div className="mt-3 pt-3 border-t border-purple-200">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-gray-600">Collection Rate</span>
+                      <span className="text-xs font-bold text-blue-700">
+                        {((allTimeStats.collected / allTimeStats.expected) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 h-1.5 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min((allTimeStats.collected / allTimeStats.expected) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                    {allTimeStats.unpaidAmount > 0 && (
+                      <div className="mt-1.5 text-xs text-red-600">
+                        Outstanding: {formatCurrency(allTimeStats.unpaidAmount)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -906,52 +1716,182 @@ const LeaseAnalytics = () => {
 
       {/* Charts Section */}
       {analyticsData.allTime && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Payment Status Distribution Chart */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Payment Status Distribution</CardTitle>
-              <CardDescription className="text-xs">
-                Breakdown of payments by timing status
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {paymentStatusData.length > 0 ? (
-                <ChartContainer config={paymentStatusChartConfig} className="h-[200px] w-full">
-                  <PieChart>
-                    <Pie
-                      data={paymentStatusData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={70}
-                      innerRadius={30}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {paymentStatusData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <ChartTooltip 
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value: any) => [`${value} payments`, '']}
+        <>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Collected vs Expected Comparison - Show for THIS_MONTH, THIS_YEAR, and ALL_TIME */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">
+                  {dateRangePreset === 'THIS_MONTH' && 'Collected vs Expected This Month'}
+                  {dateRangePreset === 'THIS_YEAR' && 'Collected vs Expected This Year'}
+                  {dateRangePreset === 'ALL_TIME' && 'Total Collected (All Time)'}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {dateRangePreset === 'THIS_MONTH' && `Comparison of collected and expected payments for ${format(new Date(), 'MMMM yyyy')}`}
+                  {dateRangePreset === 'THIS_YEAR' && `Comparison of collected and expected payments for ${new Date().getFullYear()}`}
+                  {dateRangePreset === 'ALL_TIME' && 'Total collected payments across all time'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                      <p className="text-xs font-medium text-gray-600 mb-1">Collected</p>
+                      <p className="text-2xl font-bold text-green-700">
+                        {formatCurrency(
+                          dateRangePreset === 'THIS_MONTH' ? monthlyStats.collected :
+                          dateRangePreset === 'THIS_YEAR' ? yearlyStats.collected :
+                          allTimeStats.collected
+                        )}
+                      </p>
+                      {(dateRangePreset === 'THIS_MONTH' ? monthlyStats.expected :
+                        dateRangePreset === 'THIS_YEAR' ? yearlyStats.expected :
+                        allTimeStats.expected) > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {(((dateRangePreset === 'THIS_MONTH' ? monthlyStats.collected :
+                            dateRangePreset === 'THIS_YEAR' ? yearlyStats.collected :
+                            allTimeStats.collected) / (dateRangePreset === 'THIS_MONTH' ? monthlyStats.expected :
+                            dateRangePreset === 'THIS_YEAR' ? yearlyStats.expected :
+                            allTimeStats.expected)) * 100).toFixed(1)}% of expected
+                        </p>
+                      )}
+                    </div>
+                    <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                      <p className="text-xs font-medium text-gray-600 mb-1">Expected</p>
+                      <p className="text-2xl font-bold text-amber-700">
+                        {formatCurrency(
+                          dateRangePreset === 'THIS_MONTH' ? monthlyStats.expected :
+                          dateRangePreset === 'THIS_YEAR' ? yearlyStats.expected :
+                          allTimeStats.expected
+                        )}
+                      </p>
+                      {(dateRangePreset === 'THIS_MONTH' ? monthlyStats.unpaidAmount :
+                        dateRangePreset === 'THIS_YEAR' ? yearlyStats.unpaidAmount :
+                        allTimeStats.unpaidAmount) > 0 && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {formatCurrency(
+                            dateRangePreset === 'THIS_MONTH' ? monthlyStats.unpaidAmount :
+                            dateRangePreset === 'THIS_YEAR' ? yearlyStats.unpaidAmount :
+                            allTimeStats.unpaidAmount
+                          )} outstanding
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {(dateRangePreset === 'THIS_MONTH' ? monthlyStats.expected :
+                    dateRangePreset === 'THIS_YEAR' ? yearlyStats.expected :
+                    allTimeStats.expected) > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-gray-600">Collection Progress</span>
+                        <span className="font-bold text-blue-700">
+                          {(((dateRangePreset === 'THIS_MONTH' ? monthlyStats.collected :
+                            dateRangePreset === 'THIS_YEAR' ? yearlyStats.collected :
+                            allTimeStats.collected) / (dateRangePreset === 'THIS_MONTH' ? monthlyStats.expected :
+                            dateRangePreset === 'THIS_YEAR' ? yearlyStats.expected :
+                            allTimeStats.expected)) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div
+                          className="bg-gradient-to-r from-green-500 to-emerald-500 h-3 rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(((dateRangePreset === 'THIS_MONTH' ? monthlyStats.collected :
+                              dateRangePreset === 'THIS_YEAR' ? yearlyStats.collected :
+                              allTimeStats.collected) / (dateRangePreset === 'THIS_MONTH' ? monthlyStats.expected :
+                              dateRangePreset === 'THIS_YEAR' ? yearlyStats.expected :
+                              allTimeStats.expected)) * 100, 100)}%`,
+                          }}
                         />
-                      }
-                    />
-                  </PieChart>
-                </ChartContainer>
-              ) : (
-                <div className="flex items-center justify-center h-[200px] text-sm text-gray-500">
-                  No payment status data available
+                      </div>
+                    </div>
+                  )}
+                  {dateRangePreset === 'ALL_TIME' && (allTimeStats.breakdown.paidOnTime + allTimeStats.breakdown.paidLate + allTimeStats.breakdown.paidAdvance + allTimeStats.breakdown.paidNoTiming + allTimeStats.breakdown.unpaid) > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-gray-200">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {allTimeStats.breakdown.paidOnTime > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">On Time:</span>
+                            <span className="font-semibold text-green-700">{allTimeStats.breakdown.paidOnTime}</span>
+                          </div>
+                        )}
+                        {allTimeStats.breakdown.paidAdvance > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Advance:</span>
+                            <span className="font-semibold text-blue-700">{allTimeStats.breakdown.paidAdvance}</span>
+                          </div>
+                        )}
+                        {allTimeStats.breakdown.paidLate > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Late:</span>
+                            <span className="font-semibold text-red-700">{allTimeStats.breakdown.paidLate}</span>
+                          </div>
+                        )}
+                        {allTimeStats.breakdown.paidNoTiming > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">No Status:</span>
+                            <span className="font-semibold text-gray-700">{allTimeStats.breakdown.paidNoTiming}</span>
+                          </div>
+                        )}
+                        {allTimeStats.breakdown.unpaid > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Pending:</span>
+                            <span className="font-semibold text-yellow-700">{allTimeStats.breakdown.unpaid}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Payments Over Time Chart */}
+            {/* Payment Status Distribution Chart - Always show */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Payment Status Distribution</CardTitle>
+                <CardDescription className="text-xs">
+                  Breakdown of payments by timing status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {paymentStatusData.length > 0 ? (
+                  <ChartContainer config={paymentStatusChartConfig} className="h-[250px] w-full">
+                    <PieChart>
+                      <Pie
+                        data={paymentStatusData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={70}
+                        innerRadius={30}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {paymentStatusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip 
+                        content={
+                          <ChartTooltipContent
+                            formatter={(value: any) => [`${value} payments`, '']}
+                          />
+                        }
+                      />
+                    </PieChart>
+                  </ChartContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[250px] text-sm text-gray-500">
+                    No payment status data available
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Payments Over Time Chart - Standalone */}
           <Card>
             <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
               <div className="grid flex-1 gap-1">
@@ -1051,7 +1991,7 @@ const LeaseAnalytics = () => {
               </ChartContainer>
             </CardContent>
           </Card>
-        </div>
+        </>
       )}
 
       {/* Payment Breakdown Table */}
@@ -1064,7 +2004,7 @@ const LeaseAnalytics = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {filteredPayments.length === 0 ? (
+            {allPaymentsForTable.length === 0 ? (
               <div className="py-12 text-center">
                 <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                 <p className="text-gray-500">No payments found for the selected filters.</p>
@@ -1079,15 +2019,26 @@ const LeaseAnalytics = () => {
                       <TableHead>Property</TableHead>
                       <TableHead>Unit</TableHead>
                       <TableHead>Amount</TableHead>
-                      <TableHead>Method</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPayments.map((payment) => (
-                      <TableRow key={payment.paymentId}>
+                    {allPaymentsForTable.map((payment) => (
+                      <TableRow 
+                        key={payment.paymentId}
+                        className="cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => {
+                          if (payment.leaseId) {
+                            navigate(`/landlord/leases/${payment.leaseId}/details`);
+                          }
+                        }}
+                      >
                         <TableCell className="font-medium">
-                          {format(new Date(payment.paidAt), 'MMM dd, yyyy')}
+                          {payment.paidAt 
+                            ? format(new Date(payment.paidAt), 'MMM dd, yyyy')
+                            : payment.dueDate 
+                              ? format(new Date(payment.dueDate), 'MMM dd, yyyy')
+                              : '-'}
                         </TableCell>
                         <TableCell>
                           <div>
@@ -1097,28 +2048,20 @@ const LeaseAnalytics = () => {
                         </TableCell>
                         <TableCell>{payment.propertyTitle}</TableCell>
                         <TableCell>{payment.unitLabel}</TableCell>
-                        <TableCell className="font-semibold text-green-600">
+                        <TableCell className={`font-semibold ${payment.status === 'PAID' ? 'text-green-600' : 'text-gray-600'}`}>
                           {formatCurrency(payment.amount)}
                         </TableCell>
                         <TableCell>
-                          {payment.method ? (
-                            <Badge variant="outline">{payment.method}</Badge>
-                          ) : (
-                            <span className="text-gray-400 text-sm">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {payment.timingStatus === 'ONTIME' && (
+                          {payment.status === 'PENDING' ? (
+                            <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                          ) : payment.timingStatus === 'ONTIME' ? (
                             <Badge className="bg-green-100 text-green-800">On Time</Badge>
-                          )}
-                          {payment.timingStatus === 'LATE' && (
+                          ) : payment.timingStatus === 'LATE' ? (
                             <Badge className="bg-red-100 text-red-800">Late</Badge>
-                          )}
-                          {payment.timingStatus === 'ADVANCE' && (
+                          ) : payment.timingStatus === 'ADVANCE' ? (
                             <Badge className="bg-blue-100 text-blue-800">Advance</Badge>
-                          )}
-                          {!payment.timingStatus && (
-                            <span className="text-gray-400 text-sm">-</span>
+                          ) : (
+                            <Badge className="bg-gray-100 text-gray-800">Paid</Badge>
                           )}
                         </TableCell>
                       </TableRow>

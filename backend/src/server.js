@@ -209,7 +209,7 @@ io.on("connection", (socket) => {
 
 
 // Start server
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0',() => {
   const env = process.env.NODE_ENV || "development";
   const frontendUrl = FRONTEND_URL || "not set";
   console.log(`✅ Server is running on port ${PORT}`);

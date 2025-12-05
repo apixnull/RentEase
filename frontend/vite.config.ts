@@ -13,6 +13,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0', // Allow access from local network (for phone access)
     proxy: {
       "/socket.io": {
         target: "http://localhost:5000", // your backend port

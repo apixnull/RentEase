@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
+import { processImageUrl } from "@/api/utils";
 
 // Types
 type User = {
@@ -160,8 +161,6 @@ const useChannels = () => {
     if (!socket || !isConnected) return;
 
     const handleChannelUpdate = (updatedChannel: Channel) => {
-      console.log("📩 Received channel update:", updatedChannel);
-      
       setChannels((prevChannels) => {
         // Check if channel already exists
         const existingIndex = prevChannels.findIndex(
@@ -348,7 +347,7 @@ const ChannelItem = ({
       <div className="flex items-start gap-3">
         <div className="relative flex-shrink-0">
           <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
-            <AvatarImage src={counterpart.avatarUrl || undefined} />
+            <AvatarImage src={processImageUrl(counterpart.avatarUrl) || undefined} />
             <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-sm">
               {counterpart.firstName?.[0]}{counterpart.lastName?.[0]}
             </AvatarFallback>
@@ -444,9 +443,9 @@ const RemindersModal = () => {
         <Button
           variant="ghost"
           size="sm"
-          className="gap-2 text-amber-600/80 hover:text-amber-700 hover:bg-amber-50"
+          className="gap-2 text-amber-600/90 hover:text-amber-700 hover:bg-amber-50/80 active:bg-amber-100 h-9 sm:h-9 px-3 sm:px-4 rounded-lg border border-amber-200/50 bg-amber-50/50 hover:border-amber-300/70 hover:shadow-sm transition-all min-w-[44px] sm:min-w-0"
         >
-          <ShieldAlert className="h-4 w-4" />
+          <ShieldAlert className="h-4 w-4 sm:h-4 sm:w-4 flex-shrink-0" />
           <span className="hidden sm:inline">Reminders</span>
         </Button>
       </DialogTrigger>
@@ -710,84 +709,87 @@ const MessageModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0" showCloseButton={false}>
+      <DialogContent className="sm:max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden" showCloseButton={false}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>{channel ? `Conversation with ${channel.landlord.firstName} ${channel.landlord.lastName}` : 'Message Conversation'}</DialogTitle>
+          <DialogDescription>View and send messages in this conversation</DialogDescription>
+        </DialogHeader>
         {loading ? (
-          <div className="p-6 flex items-center justify-center min-h-[400px]">
-            <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
+          <div className="p-8 sm:p-12 flex flex-col items-center justify-center min-h-[400px] gap-4">
+            <Loader2 className="w-10 h-10 animate-spin text-sky-500" />
+            <p className="text-sm text-slate-600">Loading messages...</p>
           </div>
         ) : data ? (
           <>
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-sky-50 to-emerald-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0">
+            {/* Header - Sticky */}
+            <div className="sticky top-0 z-10 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 bg-gradient-to-r from-sky-50 via-emerald-50 to-sky-50 backdrop-blur-sm shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   {otherParticipant && (
-                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm flex-shrink-0">
+                    <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-white shadow-md flex-shrink-0">
                       <AvatarImage src={otherParticipant.avatarUrl || undefined} />
-                      <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-xs">
+                      <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-semibold text-sm">
                         {participantInitials || "LD"}
                       </AvatarFallback>
                     </Avatar>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold text-slate-900 truncate">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h2 className="text-base sm:text-lg font-semibold text-slate-900 truncate">
                         {otherParticipant?.name || "Conversation"}
                       </h2>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
-                      <span>{otherParticipant?.email || "Landlord conversation"}</span>
+                      <span className="truncate max-w-[200px] sm:max-w-none">{otherParticipant?.email || "Landlord conversation"}</span>
                       {otherParticipant?.role && (
                         <Badge
                           variant="outline"
-                          className="text-xs border-slate-200 bg-slate-50 text-slate-700 rounded-full px-2"
+                          className="text-xs border-slate-200 bg-white/80 text-slate-700 rounded-full px-2 py-0.5 hidden sm:inline-flex"
                         >
                           {otherParticipant.role === "TENANT" ? "Tenant" : otherParticipant.role === "LANDLORD" ? "Landlord" : "Admin"}
                         </Badge>
                       )}
                       <Badge
                         variant="outline"
-                        className={`text-xs border ${getStatusColor(data.channel.status)} rounded-full px-2`}
+                        className={`text-xs border ${getStatusColor(data.channel.status)} rounded-full px-2 py-0.5`}
                       >
                         {getStatusDisplay(data.channel.status)}
                       </Badge>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onClose}
-                    className="h-8 w-8 p-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  className="h-9 w-9 p-0 flex-shrink-0 hover:bg-slate-100 rounded-full"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
             {/* Messages Container */}
             <div 
               ref={messagesContainerRef}
-              className="flex-1 overflow-y-auto px-6 py-4 bg-slate-50/50 min-h-[400px] max-h-[60vh]"
+              className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 bg-gradient-to-b from-slate-50/80 via-white to-slate-50/80 min-h-[300px] max-h-[calc(95vh-180px)] sm:max-h-[calc(90vh-180px)]"
             >
-              <div className="space-y-6">
+              <div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto">
                 {groupedMessages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <div className="w-16 h-16 bg-gradient-to-br from-sky-100 to-emerald-100 rounded-full flex items-center justify-center mb-4">
-                      <MessageCircle className="w-8 h-8 text-slate-500" />
+                  <div className="flex flex-col items-center justify-center py-16 sm:py-20 text-center">
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-sky-100 to-emerald-100 rounded-full flex items-center justify-center mb-4 shadow-lg">
+                      <MessageCircle className="w-10 h-10 sm:w-12 sm:h-12 text-sky-500" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-2">No messages yet</h3>
-                    <p className="text-slate-600 text-sm max-w-sm">
-                      Start the conversation by sending a message
+                    <h3 className="text-lg sm:text-xl font-semibold text-slate-900 mb-2">No messages yet</h3>
+                    <p className="text-slate-600 text-sm sm:text-base max-w-sm px-4">
+                      Start the conversation by sending a message to {otherParticipant?.name || "the landlord"}
                     </p>
                   </div>
                 ) : (
                   groupedMessages.map((group) => (
                     <div key={group.date} className="space-y-4">
                       <div className="flex justify-center">
-                        <div className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs text-slate-600 shadow-sm">
+                        <div className="bg-white/90 backdrop-blur-sm border border-slate-200/80 px-4 py-1.5 rounded-full text-xs font-medium text-slate-600 shadow-sm">
                           {formatDateHeader(group.date)}
                         </div>
                       </div>
@@ -801,51 +803,51 @@ const MessageModal = ({
                         return (
                           <div
                             key={message.id}
-                            className={`flex items-end gap-3 ${
+                            className={`flex items-end gap-2 sm:gap-3 ${
                               isCurrentUser ? "flex-row-reverse" : ""
                             }`}
                           >
                             {showAvatar && sender && (
-                              <Avatar className="h-8 w-8 border-2 border-white shadow-sm flex-shrink-0">
+                              <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border-2 border-white shadow-md flex-shrink-0">
                                 <AvatarImage src={sender.avatarUrl || undefined} />
-                                <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white text-xs">
+                                <AvatarFallback className="bg-gradient-to-br from-sky-500 to-emerald-500 text-white text-xs font-semibold">
                                   {sender.name.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                             )}
 
-                            {!showAvatar && <div className="w-8 flex-shrink-0"></div>}
+                            {!showAvatar && <div className="w-8 sm:w-9 flex-shrink-0"></div>}
 
                             <div
-                              className={`max-w-[75%] sm:max-w-[70%] ${
+                              className={`max-w-[80%] sm:max-w-[70%] ${
                                 isCurrentUser ? "text-right" : ""
                               }`}
                             >
                               {showAvatar && sender && (
-                                <div className={`text-xs text-slate-600 mb-1 ${isCurrentUser ? 'text-right mr-2' : 'ml-2'}`}>
+                                <div className={`text-xs font-medium text-slate-700 mb-1.5 ${isCurrentUser ? 'text-right mr-2' : 'ml-2'}`}>
                                   {sender.name}
                                 </div>
                               )}
                               <div
-                                className={`px-4 py-2.5 rounded-2xl shadow-sm ${
+                                className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl shadow-md transition-shadow hover:shadow-lg ${
                                   isCurrentUser
                                     ? "bg-gradient-to-r from-sky-500 to-emerald-500 text-white rounded-br-md"
-                                    : "bg-white border border-slate-200 rounded-bl-md"
+                                    : "bg-white border border-slate-200/80 rounded-bl-md"
                                 }`}
                               >
-                                <p className="text-sm whitespace-pre-wrap leading-relaxed text-left">{message.content}</p>
+                                <p className="text-sm sm:text-base whitespace-pre-wrap leading-relaxed text-left break-words">{message.content}</p>
                               </div>
                               <div
-                                className={`text-xs mt-1.5 flex items-center gap-1 ${
-                                  isCurrentUser ? "justify-end text-slate-500" : "text-slate-500"
+                                className={`text-xs mt-1.5 flex items-center gap-1.5 ${
+                                  isCurrentUser ? "justify-end text-slate-400" : "text-slate-500"
                                 }`}
                               >
                                 <span>{formatMessageTime(message.createdAt)}</span>
                                 {message.readAt && isCurrentUser && (
-                                  <CheckCheck className="h-3 w-3 text-sky-500" />
+                                  <CheckCheck className="h-3.5 w-3.5 text-sky-400" />
                                 )}
                                 {!message.readAt && isCurrentUser && (
-                                  <Check className="h-3 w-3 text-slate-400" />
+                                  <Check className="h-3.5 w-3.5 text-slate-300" />
                                 )}
                               </div>
                             </div>
@@ -859,16 +861,16 @@ const MessageModal = ({
               </div>
             </div>
 
-            {/* Input Area */}
-            <div className="border-t border-slate-200 bg-white px-6 py-4">
-              <div className="flex items-end gap-3">
-                <div className="flex-1 border border-slate-200 rounded-lg px-4 py-2.5 bg-slate-50 focus-within:bg-white focus-within:border-sky-300 transition-colors">
+            {/* Input Area - Sticky */}
+            <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur-sm shadow-lg px-4 sm:px-6 py-3 sm:py-4">
+              <div className="flex items-end gap-2 sm:gap-3">
+                <div className="flex-1 border border-slate-200 rounded-xl sm:rounded-2xl px-4 py-2.5 sm:py-3 bg-slate-50/80 focus-within:bg-white focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 transition-all shadow-sm">
                   <textarea
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Type your message..."
-                    className="w-full outline-none resize-none bg-transparent text-sm max-h-32 text-slate-900 placeholder:text-slate-400"
+                    className="w-full outline-none resize-none bg-transparent text-sm sm:text-base max-h-32 text-slate-900 placeholder:text-slate-400"
                     rows={1}
                     disabled={sending}
                   />
@@ -876,10 +878,14 @@ const MessageModal = ({
                 <Button
                   onClick={sendMessage}
                   disabled={!newMessage.trim() || sending}
-                  className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white px-6 gap-2 h-11"
+                  className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white px-4 sm:px-6 gap-2 h-10 sm:h-11 rounded-xl sm:rounded-2xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Send className="h-4 w-4" />
-                  {sending ? "Sending..." : "Send"}
+                  {sending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">{sending ? "Sending..." : "Send"}</span>
                 </Button>
               </div>
             </div>
@@ -918,9 +924,9 @@ const QuickTipsModal = () => {
         <Button
           variant="ghost"
           size="sm"
-          className="gap-2 text-sky-500/80 hover:text-sky-600 hover:bg-sky-50"
+          className="gap-2 text-sky-500/90 hover:text-sky-600 hover:bg-sky-50/80 active:bg-sky-100 h-9 sm:h-9 px-3 sm:px-4 rounded-lg border border-sky-200/50 bg-sky-50/50 hover:border-sky-300/70 hover:shadow-sm transition-all min-w-[44px] sm:min-w-0"
         >
-          <HelpCircle className="h-4 w-4" />
+          <HelpCircle className="h-4 w-4 sm:h-4 sm:w-4 flex-shrink-0" />
           <span className="hidden sm:inline">Quick Tips</span>
         </Button>
       </DialogTrigger>
@@ -995,17 +1001,10 @@ const SearchAndMessageLandlord = ({
       setIsSearching(true);
       try {
         const response = await searchUsersForMessagingRequest(searchQuery);
-        console.log("🔍 Full search response:", response);
-        console.log("🔍 Response data:", response.data);
-        console.log("🔍 Response data.users:", response.data?.users);
-        
         const users = response.data?.users || response.data || [];
-        console.log("🔍 Setting search results:", users);
-        console.log("🔍 Results count:", users.length);
         setSearchResults(users);
       } catch (error: any) {
         console.error("Error searching users:", error);
-        console.error("Error details:", error?.response?.data);
         toast.error(error?.response?.data?.error || "Failed to search users");
         setSearchResults([]);
       } finally {
@@ -1323,7 +1322,7 @@ const ChatChannelsList = ({
                 </div>
               </div>
 
-              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center justify-end">
+              <div className="flex w-full flex-row gap-2 sm:gap-3 sm:w-auto sm:items-center justify-end">
                 <RemindersModal />
                 <QuickTipsModal />
               </div>

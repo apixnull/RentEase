@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Home,
   Megaphone,
+  UserCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -280,23 +281,33 @@ const Reports = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-slate-900">
-              {reportsData.maintenance.statusCounts.invalid + 
+              {reportsData.maintenance.statusCounts.open + 
+               reportsData.maintenance.statusCounts.in_progress + 
+               reportsData.maintenance.statusCounts.resolved + 
                reportsData.maintenance.statusCounts.cancelled + 
-               reportsData.maintenance.statusCounts.resolved}
+               reportsData.maintenance.statusCounts.invalid}
             </div>
-            <p className="text-xs text-muted-foreground mt-1 mb-3">Invalid, Cancelled, Resolved</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-3">All Maintenance Requests</p>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600">Invalid:</span>
-                <span className="font-semibold text-red-600">{reportsData.maintenance.statusCounts.invalid}</span>
+                <span className="text-slate-600">Open:</span>
+                <span className="font-semibold text-blue-600">{reportsData.maintenance.statusCounts.open}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">In Progress:</span>
+                <span className="font-semibold text-amber-600">{reportsData.maintenance.statusCounts.in_progress}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">Resolved:</span>
+                <span className="font-semibold text-emerald-600">{reportsData.maintenance.statusCounts.resolved}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-600">Cancelled:</span>
                 <span className="font-semibold text-slate-500">{reportsData.maintenance.statusCounts.cancelled}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600">Resolved:</span>
-                <span className="font-semibold text-emerald-600">{reportsData.maintenance.statusCounts.resolved}</span>
+                <span className="text-slate-600">Invalid:</span>
+                <span className="font-semibold text-red-600">{reportsData.maintenance.statusCounts.invalid}</span>
               </div>
             </div>
           </CardContent>
@@ -329,6 +340,38 @@ const Reports = () => {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-600">Waiting Review:</span>
                 <span className="font-semibold text-blue-600">{reportsData.listings.statusCounts.waiting_review}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tenant Screening Card */}
+        <Card className="shadow-sm border border-slate-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tenant Screening</CardTitle>
+            <UserCheck className="h-5 w-5 text-slate-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-slate-900">
+              {reportsData.summary.totalScreenings}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 mb-3">Total Screening Applications</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">Pending:</span>
+                <span className="font-semibold text-amber-600">{reportsData.screenings.statusCounts.pending}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">Submitted:</span>
+                <span className="font-semibold text-blue-600">{reportsData.screenings.statusCounts.submitted}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">Approved:</span>
+                <span className="font-semibold text-emerald-600">{reportsData.screenings.statusCounts.approved}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">Rejected:</span>
+                <span className="font-semibold text-red-600">{reportsData.screenings.statusCounts.rejected}</span>
               </div>
             </div>
           </CardContent>

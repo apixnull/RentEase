@@ -123,10 +123,34 @@ const TenantDashboard = () => {
             }
           });
 
-          // Sort all payments by dueDate descending (most recent first)
-          const sortedPayments = allPayments
-            .filter(payment => payment.status !== 'PAID')
-            .sort((a: any, b: any) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())
+          // Filter payments: upcoming within 30 days, due today, or overdue within this month
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          const thirtyDaysFromNow = new Date(today);
+          thirtyDaysFromNow.setDate(today.getDate() + 30);
+          
+          const filteredPayments = allPayments.filter((payment: any) => {
+            if (payment.status === 'PAID') return false;
+            
+            const dueDate = new Date(payment.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            
+            // Show if:
+            // 1. Due today
+            // 2. Overdue within this month (from start of month to today)
+            // 3. Upcoming within 30 days (today + 1 to today + 30)
+            const isDueToday = dueDate.getTime() === today.getTime();
+            const isOverdueThisMonth = dueDate < today && dueDate >= startOfMonth;
+            const isUpcomingWithin30Days = dueDate > today && dueDate <= thirtyDaysFromNow;
+            
+            return isDueToday || isOverdueThisMonth || isUpcomingWithin30Days;
+          });
+          
+          // Sort by dueDate ascending (earliest first)
+          const sortedPayments = filteredPayments
+            .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
             .slice(0, 5); // Limit to 5 most recent
 
           setRecentPayments(sortedPayments);
@@ -359,7 +383,32 @@ const TenantDashboard = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigate('/tenant/my-lease')}
+                    onClick={() => {
+                      // Navigate to the first payment's lease details with payments tab active
+                      if (recentPayments.length > 0 && recentPayments[0].lease?.id) {
+                        const leaseId = recentPayments[0].lease.id;
+                        try {
+                          sessionStorage.setItem(`lease-${leaseId}-activeTab`, 'payments');
+                        } catch {
+                          // ignore sessionStorage errors
+                        }
+                        navigate(`/tenant/my-lease/${leaseId}/details`);
+                      } else {
+                        // If no payments, navigate to first active lease or my-lease page
+                        const activeLeases = leases.filter((l: any) => l.status === 'ACTIVE' || l.status === 'ACCEPTED');
+                        if (activeLeases.length > 0) {
+                          const leaseId = activeLeases[0].id;
+                          try {
+                            sessionStorage.setItem(`lease-${leaseId}-activeTab`, 'payments');
+                          } catch {
+                            // ignore sessionStorage errors
+                          }
+                          navigate(`/tenant/my-lease/${leaseId}/details`);
+                        } else {
+                          navigate('/tenant/my-lease');
+                        }
+                      }
+                    }}
                     className="h-8"
                   >
                     View All
@@ -406,9 +455,11 @@ const TenantDashboard = () => {
                               <p className="text-[10px] text-slate-600 mt-0.5 truncate">
                                 {payment.lease?.unit?.label || 'N/A'}
                               </p>
-                              <p className="text-[10px] text-slate-500 mt-1">
-                                Due: {format(new Date(payment.dueDate), 'MMM d, yyyy')}
-                              </p>
+                              <div className={`mt-1.5 px-2 py-1 rounded-md inline-block ${isOverdue ? 'bg-rose-100 border border-rose-300' : isDueToday ? 'bg-orange-100 border border-orange-300' : 'bg-blue-100 border border-blue-300'}`}>
+                                <p className={`text-[10px] font-bold ${isOverdue ? 'text-rose-700' : isDueToday ? 'text-orange-700' : 'text-blue-700'}`}>
+                                  Due: {format(new Date(payment.dueDate), 'MMM d, yyyy')}
+                                </p>
+                              </div>
                             </div>
                             <div className="text-right ml-2">
                               <p className={`text-xs font-bold ${textColor}`}>

@@ -1104,6 +1104,32 @@ const RentPayments = () => {
               )}
             </DialogDescription>
           </DialogHeader>
+          {markPaidModal.payment?.lease?.tenant && (
+            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 mb-3">
+              <Avatar className="h-10 w-10 flex-shrink-0">
+                <AvatarImage src={markPaidModal.payment.lease.tenant.avatarUrl || undefined} />
+                <AvatarFallback className="text-xs font-semibold">
+                  {`${markPaidModal.payment.lease.tenant.firstName[0]}${markPaidModal.payment.lease.tenant.lastName[0]}`}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm text-slate-900 truncate">
+                  {`${markPaidModal.payment.lease.tenant.firstName} ${markPaidModal.payment.lease.tenant.lastName}`}
+                </div>
+                <div className="text-xs text-slate-600 truncate">
+                  {markPaidModal.payment.lease.tenant.email}
+                </div>
+                {(markPaidModal.payment.lease?.unit || markPaidModal.payment.lease?.property) && (
+                  <div className="text-xs text-slate-500 truncate mt-0.5">
+                    {markPaidModal.payment.lease.unit?.label || 'N/A'}
+                    {markPaidModal.payment.lease.property && (
+                      <span className="text-slate-400"> • {markPaidModal.payment.lease.property.title}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <div className="space-y-4 py-3">
             <div className="space-y-2">
               <Label>Date Paid *</Label>

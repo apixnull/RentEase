@@ -162,6 +162,21 @@ export const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+export const formatCurrencyCompact = (amount: number) => {
+  const absAmount = Math.abs(amount);
+  const sign = amount < 0 ? '-' : '';
+  
+  if (absAmount >= 1000000000) {
+    return `${sign}₱${(absAmount / 1000000000).toFixed(1)}B`;
+  } else if (absAmount >= 1000000) {
+    return `${sign}₱${(absAmount / 1000000).toFixed(1)}M`;
+  } else if (absAmount >= 1000) {
+    return `${sign}₱${(absAmount / 1000).toFixed(1)}K`;
+  }
+  
+  return formatCurrency(amount);
+};
+
 export const formatCurrencyForPDF = (amount: number) => {
   const formatted = amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `PHP ${formatted}`;

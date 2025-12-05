@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useNavigate } from "react-router-dom";
 import { privateApi } from "@/api/axios";
+import { getLocalImageUrl } from "@/api/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { onboardingRequest } from "@/api/authApi";
 import { v4 as uuidv4 } from "uuid";
@@ -282,8 +283,7 @@ const Onboarding = () => {
 
         // In development, prepend backend URL to make it accessible
         if (import.meta.env.MODE === "development") {
-          const backendUrl = "http://localhost:5000";
-          return `${backendUrl}${mockUrl}`;
+          return getLocalImageUrl(mockUrl);
         }
 
         // In production with local storage, return as-is

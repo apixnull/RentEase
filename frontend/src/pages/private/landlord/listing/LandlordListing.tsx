@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, Star, TrendingUp, CheckCircle2, Flag, Info, ChevronDown, ChevronUp, FileSearch, RefreshCcw, Loader2, Sparkles, X, ArrowUpRight } from 'lucide-react';
+import { Plus, Search, Calendar, Building, Eye, EyeOff, Clock, Ban, Star, TrendingUp, CheckCircle2, Flag, ChevronDown, ChevronUp, FileSearch, RefreshCcw, Loader2, Sparkles, X } from 'lucide-react';
 import { getLandlordListingsRequest, getEligibleUnitsForListingRequest } from '@/api/landlord/listingApi';
 import { getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1313,7 +1313,6 @@ const LandlordListing = () => {
                         <TableHead className="font-semibold text-blue-900 py-2 text-xs">Expires</TableHead>
                         <TableHead className="font-semibold text-blue-900 py-2 text-xs">Reviewed</TableHead>
                         <TableHead className="font-semibold text-blue-900 py-2 text-xs">Created</TableHead>
-                        <TableHead className="font-semibold text-blue-900 py-2 text-xs text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1398,23 +1397,6 @@ const LandlordListing = () => {
                                 <Calendar className="h-3 w-3 text-blue-500" />
                                 <span className="text-[10px]">{formatRelativeDate(listing.createdAt)}</span>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <div className="flex items-center justify-end">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleViewDetails(listing.id);
-                                }}
-                                className="h-8 px-3 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-300 transition-colors text-xs font-medium group-hover:border-blue-400"
-                              >
-                                <Info className="h-3.5 w-3.5" />
-                                <span className="hidden sm:inline">View Details</span>
-                                <ArrowUpRight className="h-3.5 w-3.5 sm:hidden" />
-                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>

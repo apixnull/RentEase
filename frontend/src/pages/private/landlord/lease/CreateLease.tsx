@@ -48,6 +48,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getLocalImageUrl } from "@/api/utils";
 import {
   createLeaseRequest,
   findTenantForLeaseRequest,
@@ -511,8 +512,7 @@ const CreateLease = () => {
 
         // In development, prepend backend URL to make it accessible
         if (import.meta.env.MODE === "development") {
-          const backendUrl = "http://localhost:5000";
-          return `${backendUrl}${mockUrl}`;
+          return getLocalImageUrl(mockUrl);
         }
 
         // In production with local storage, return as-is

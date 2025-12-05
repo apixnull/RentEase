@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { getSpecificTenantScreeningRequest } from "@/api/tenant/screeningApi";
 import { cn } from "@/lib/utils";
+import { processImageUrl } from "@/api/utils";
 
 interface Landlord {
   id: string;
@@ -725,7 +726,7 @@ const ViewSpecificScreeningTenant = () => {
               <div className="flex items-center gap-4 mb-6">
                 <Avatar className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 border-2 border-amber-200">
                   {screening.landlord.avatarUrl ? (
-                    <AvatarImage src={screening.landlord.avatarUrl} />
+                    <AvatarImage src={processImageUrl(screening.landlord.avatarUrl) || undefined} />
                   ) : null}
                   <AvatarFallback className="bg-amber-50 text-amber-600 text-lg font-semibold">
                     {getInitials(screening.landlord.name)}
@@ -1438,7 +1439,7 @@ const ViewSpecificScreeningTenant = () => {
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12 border border-indigo-100">
                     {screening.landlord.avatarUrl ? (
-                      <AvatarImage src={screening.landlord.avatarUrl} />
+                      <AvatarImage src={processImageUrl(screening.landlord.avatarUrl) || undefined} />
                     ) : (
                       <AvatarFallback className="bg-indigo-50 text-indigo-600">
                         {screening.landlord.name

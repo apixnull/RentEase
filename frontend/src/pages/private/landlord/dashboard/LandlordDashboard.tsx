@@ -21,6 +21,8 @@ import {
   Wrench,
   Megaphone,
   CheckCircle,
+  ArrowUpRight,
+  TrendingUp,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -148,21 +150,25 @@ const LandlordDashboard = () => {
         const endedLeaseStatuses = ['ENDED', 'COMPLETED', 'TERMINATED', 'CANCELLED'];
         const allPayments = [...(paymentsResponse.data.overduePayments || []), ...(paymentsResponse.data.upcomingPayments || [])];
         
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const thirtyDaysFromNow = new Date(today);
+        thirtyDaysFromNow.setDate(today.getDate() + 30);
+        
+        // Overdue: within this month only (from start of month to today)
         const overdue = allPayments.filter((payment: any) => {
           if (payment.lease?.status && endedLeaseStatuses.includes(payment.lease.status)) return false;
           if (!payment.dueDate) return false;
           const dueDate = new Date(payment.dueDate);
           if (isNaN(dueDate.getTime())) return false;
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          return dueDate < today;
-        });
+          dueDate.setHours(0, 0, 0, 0);
+          return dueDate < today && dueDate >= startOfMonth;
+        }).sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()); // Sort by due date (earliest first)
         
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        
+        // Due Today: payments due today
         const dueToday = allPayments.filter((payment: any) => {
           if (payment.lease?.status && endedLeaseStatuses.includes(payment.lease.status)) return false;
           if (!payment.dueDate) return false;
@@ -172,14 +178,15 @@ const LandlordDashboard = () => {
           return dueDate.getTime() === today.getTime();
         });
         
+        // Upcoming: within 30 days (from tomorrow to 30 days from now)
         const upcoming = allPayments.filter((payment: any) => {
           if (payment.lease?.status && endedLeaseStatuses.includes(payment.lease.status)) return false;
           if (!payment.dueDate) return false;
           const dueDate = new Date(payment.dueDate);
           if (isNaN(dueDate.getTime())) return false;
           dueDate.setHours(0, 0, 0, 0);
-          return dueDate >= tomorrow;
-        });
+          return dueDate >= tomorrow && dueDate <= thirtyDaysFromNow;
+        }).sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()); // Sort by due date (earliest first)
         
         setOverduePayments(overdue.slice(0, 5));
         setDueTodayPayments(dueToday.slice(0, 5));
@@ -407,6 +414,150 @@ const LandlordDashboard = () => {
           </div>
         </motion.div>
 
+        {/* Key Metrics Stats Cards */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"
+        >
+          {/* Total Payment to be Collected This Month */}
+          <Card className="border-2 border-amber-100 bg-gradient-to-br from-amber-50/50 to-orange-50/50 hover:shadow-lg transition-all">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white grid place-items-center shadow-lg">
+                  <CreditCard className="h-6 w-6" />
+                </div>
+                <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+                  <ArrowUpRight className="h-3 w-3 mr-1" />
+                  This Month
+                </Badge>
+              </div>
+              <p className="text-xs font-semibold text-slate-600 mb-1">Payment to Collect</p>
+              <p className="text-3xl font-bold text-slate-900 mb-2">
+                ₱{(() => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+                  
+                  const allPayments = [...overduePayments, ...dueTodayPayments, ...upcomingPayments];
+                  const thisMonthPayments = allPayments.filter((payment: any) => {
+                    if (!payment.dueDate) return false;
+                    const dueDate = new Date(payment.dueDate);
+                    if (isNaN(dueDate.getTime())) return false;
+                    return dueDate >= startOfMonth && dueDate <= endOfMonth && payment.status === 'PENDING';
+                  });
+                  
+                  const total = thisMonthPayments.reduce((sum: number, payment: any) => sum + (payment.amount || 0), 0);
+                  return total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                })()}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-amber-700">
+                <TrendingUp className="h-3 w-3" />
+                <span>{overduePayments.length + dueTodayPayments.length + upcomingPayments.length} payments</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Total Leases */}
+          <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 hover:shadow-lg transition-all">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white grid place-items-center shadow-lg">
+                  <FileCheck className="h-6 w-6" />
+                </div>
+                <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                  <ArrowUpRight className="h-3 w-3 mr-1" />
+                  Total
+                </Badge>
+              </div>
+              <p className="text-xs font-semibold text-slate-600 mb-1">Total Leases</p>
+              <p className="text-3xl font-bold text-slate-900 mb-2">{recentLeases.length > 0 ? recentLeases.length : 0}</p>
+              <div className="flex items-center gap-2 text-xs text-blue-700">
+                <FileCheck className="h-3 w-3" />
+                <span>{recentLeases.filter((l: any) => l.status === 'ACTIVE').length} active</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Listings Count */}
+          <Card className="border-2 border-purple-100 bg-gradient-to-br from-purple-50/50 to-indigo-50/50 hover:shadow-lg transition-all">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white grid place-items-center shadow-lg">
+                  <Megaphone className="h-6 w-6" />
+                </div>
+                <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+                  <ArrowUpRight className="h-3 w-3 mr-1" />
+                  Recent
+                </Badge>
+              </div>
+              <p className="text-xs font-semibold text-slate-600 mb-1">Recent Listings</p>
+              <p className="text-3xl font-bold text-slate-900 mb-2">{recentListings.length}</p>
+              <div className="flex items-center gap-2 text-xs text-purple-700">
+                <TrendingUp className="h-3 w-3" />
+                <span>{recentListings.filter((l: any) => l.lifecycleStatus === 'VISIBLE').length} visible</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Maintenance Count This Month */}
+          <Card className="border-2 border-orange-100 bg-gradient-to-br from-orange-50/50 to-red-50/50 hover:shadow-lg transition-all">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white grid place-items-center shadow-lg">
+                  <Wrench className="h-6 w-6" />
+                </div>
+                <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+                  <ArrowUpRight className="h-3 w-3 mr-1" />
+                  This Month
+                </Badge>
+              </div>
+              <p className="text-xs font-semibold text-slate-600 mb-1">Maintenance Requests</p>
+              <p className="text-3xl font-bold text-slate-900 mb-2">
+                {(() => {
+                  const today = new Date();
+                  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+                  
+                  return recentMaintenance.filter((m: any) => {
+                    if (!m.createdAt) return false;
+                    const createdDate = new Date(m.createdAt);
+                    if (isNaN(createdDate.getTime())) return false;
+                    return createdDate >= startOfMonth && createdDate <= endOfMonth;
+                  }).length;
+                })()}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-orange-700">
+                <Wrench className="h-3 w-3" />
+                <span>{recentMaintenance.filter((m: any) => m.status === 'OPEN' || m.status === 'IN_PROGRESS').length} open</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tenant Screening Count */}
+          <Card className="border-2 border-pink-100 bg-gradient-to-br from-pink-50/50 to-purple-50/50 hover:shadow-lg transition-all">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white grid place-items-center shadow-lg">
+                  <UserCheck className="h-6 w-6" />
+                </div>
+                <Badge className="bg-pink-100 text-pink-700 border-pink-200">
+                  <ArrowUpRight className="h-3 w-3 mr-1" />
+                  Total
+                </Badge>
+              </div>
+              <p className="text-xs font-semibold text-slate-600 mb-1">Tenant Screenings</p>
+              <p className="text-3xl font-bold text-slate-900 mb-2">{recentScreenings.length}</p>
+              <div className="flex items-center gap-2 text-xs text-pink-700">
+                <UserCheck className="h-3 w-3" />
+                <span>{recentScreenings.filter((s: any) => s.status === 'PENDING' || s.status === 'SUBMITTED').length} pending</span>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Rent Payments Section */}
@@ -477,9 +628,11 @@ const LandlordDashboard = () => {
                                   <p className="text-[10px] text-slate-600 mt-0.5 truncate">
                                     {payment.lease?.unit?.label} - {payment.lease?.property?.title}
                                   </p>
-                                  <p className="text-[10px] text-slate-500 mt-1">
-                                    Due: {formatDate(payment.dueDate)}
-                                  </p>
+                                  <div className="mt-1.5 px-2 py-1 rounded-md inline-block bg-rose-100 border border-rose-300">
+                                    <p className="text-[10px] font-bold text-rose-700">
+                                      Due: {formatDate(payment.dueDate)}
+                                    </p>
+                                  </div>
                                 </div>
                                 <div className="text-right ml-2">
                                   <p className="text-xs font-bold text-rose-700">

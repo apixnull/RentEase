@@ -1,5 +1,7 @@
 // src/api.ts
 import axios from "axios";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { toast } from "sonner";
 
 // Environment-based backend URL configuration
 const getBackendUrl = () => {
@@ -39,10 +41,6 @@ privateApi.interceptors.response.use(
       error.response?.status === 403 &&
       error.response?.data?.code === "ACCOUNT_DISABLED"
     ) {
-      // Dynamically import to avoid circular dependency
-      const { useAuthStore } = await import("@/stores/useAuthStore");
-      const { toast } = await import("sonner");
-      
       // Clear user from store
       const { clearUser } = useAuthStore.getState();
       clearUser();

@@ -13,8 +13,9 @@ import {
   User,
   Zap,
   MoreHorizontal,
+  X,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+// Removed framer-motion for better performance - using CSS transitions instead
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
 } from "@/api/notificationApi";
 import { useSocket } from "@/hooks/useSocket";
 import { formatDistanceToNow } from "date-fns";
+import { processImageUrl } from "@/api/utils";
 
 // Enhanced sidebar configuration with status indicators
 const sidebarItems = [
@@ -101,14 +103,14 @@ const useSidebarState = () => {
 };
 
 // Sidebar Components Structure
-const SidebarHeader = ({ collapsed }: { collapsed: boolean }) => (
+const SidebarHeader = ({ collapsed, isMobile, onClose }: { collapsed: boolean; isMobile?: boolean; onClose?: () => void }) => (
   <div className={cn(
-    "p-4 transition-all duration-300 border-b border-gray-200/60",
+    "p-4 transition-all duration-300 border-b border-gray-200/60 flex-shrink-0",
     collapsed ? "px-3" : "px-4"
   )}>
     <div className={cn(
       "flex items-center gap-3 transition-all duration-300",
-      collapsed ? "justify-center" : "justify-start"
+      collapsed ? "justify-center" : "justify-between"
     )}>
       <div className="flex items-center gap-3">
         <Zap 
@@ -126,6 +128,18 @@ const SidebarHeader = ({ collapsed }: { collapsed: boolean }) => (
           </div>
         )}
       </div>
+      {/* Mobile Close Button */}
+      {isMobile && !collapsed && onClose && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="h-8 w-8 rounded-lg hover:bg-gray-100 flex-shrink-0"
+          aria-label="Close sidebar"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   </div>
 );
@@ -160,13 +174,7 @@ const NavMain = ({
         >
           {/* Active indicator */}
           {location.pathname === item.path && (
-            <motion.div
-              layoutId="activeIndicator"
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-gradient-to-b from-emerald-500 to-sky-500 rounded-r-full"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
-            />
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-gradient-to-b from-emerald-500 to-sky-500 rounded-r-full" />
           )}
           
           <div className="relative flex-shrink-0">
@@ -180,29 +188,22 @@ const NavMain = ({
             />
           </div>
           
-          <AnimatePresence>
-            {(!collapsed || isMobile) && (
-              <motion.div
-                initial={{ opacity: 1, width: "auto" }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex-1 min-w-0 overflow-hidden"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium block truncate text-sm">
-                      {item.name}
-                    </span>
-                    {item.description && (
-                      <p className="text-xs text-gray-500 mt-1 truncate">
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
+          {(!collapsed || isMobile) && (
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium block truncate text-sm">
+                    {item.name}
+                  </span>
+                  {item.description && (
+                    <p className="text-xs text-gray-500 mt-1 truncate">
+                      {item.description}
+                    </p>
+                  )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </div>
+          )}
         </Link>
       ))}
     </nav>
@@ -257,25 +258,22 @@ const NavUser = ({
   }, [showMoreMenu]);
 
   return (
-    <AnimatePresence>
+    <>
       {(!collapsed || isMobile) && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.3 }}
-          className="mx-3 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200/60"
-        >
-          <div className="flex items-center justify-between gap-3">
+        <div className={cn(
+          "mx-3 p-3 bg-gray-50 rounded-lg border border-gray-200/60 flex-shrink-0 min-w-0",
+          isMobile ? "mb-4" : "mb-3"
+        )}>
+          <div className="flex items-center justify-between gap-2 min-w-0">
             {/* User Info */}
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Avatar className="h-10 w-10 border border-white shadow-sm">
-                <AvatarImage src={user?.avatarUrl} alt={user?.firstName || "User"} />
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Avatar className="h-10 w-10 border border-white shadow-sm flex-shrink-0">
+                <AvatarImage src={processImageUrl(user?.avatarUrl)} alt={user?.firstName || "User"} />
                 <AvatarFallback className="bg-gradient-to-r from-emerald-100 to-sky-100 text-emerald-700 text-sm">
                   {user?.firstName?.[0]?.toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <p className="text-sm font-semibold text-gray-900 truncate">
                   {user?.firstName} {user?.lastName}
                 </p>
@@ -286,22 +284,21 @@ const NavUser = ({
             </div>
 
             {/* More Button */}
-            <div className="relative" ref={moreMenuRef}>
+            <div className="relative flex-shrink-0" ref={moreMenuRef}>
               <button
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className="p-1 rounded-lg text-gray-500 hover:bg-gray-200/60 hover:text-gray-700 transition-all duration-200"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMoreMenu(!showMoreMenu);
+                }}
+                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200/60 hover:text-gray-700 transition-all duration-200 flex-shrink-0 touch-manipulation"
+                aria-label="More options"
+                type="button"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </button>
 
-              <AnimatePresence>
-                {showMoreMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="absolute right-0 bottom-full mb-2 w-48 bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-xl z-50 overflow-hidden"
-                  >
+              {showMoreMenu && (
+                <div className="absolute right-0 bottom-full mb-2 w-48 bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                     {/* Account Link */}
                     <Link
                       to="/tenant/account"
@@ -350,14 +347,13 @@ const NavUser = ({
                       <LogOut className="h-4 w-4 flex-shrink-0" />
                       <span className="font-medium">Logout</span>
                     </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                </div>
+              )}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 };
 
@@ -371,19 +367,25 @@ const SidebarContent = ({
   onClose?: () => void;
 }) => {
   return (
-    <div className="flex flex-col h-full">
-      <NavMain 
-        items={sidebarItems} 
-        collapsed={collapsed}
-        isMobile={isMobile}
-        onClose={onClose}
-      />
-      <div className="flex-1" />
-      <NavUser 
-        collapsed={collapsed} 
-        isMobile={isMobile}
-        onClose={onClose}
-      />
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+        <NavMain 
+          items={sidebarItems} 
+          collapsed={collapsed}
+          isMobile={isMobile}
+          onClose={onClose}
+        />
+      </div>
+      <div className={cn(
+        "flex-shrink-0 border-t border-gray-200/60",
+        isMobile ? "pb-6 mb-6" : "pb-0 mb-0"
+      )} style={isMobile ? { paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' } : undefined}>
+        <NavUser 
+          collapsed={collapsed} 
+          isMobile={isMobile}
+          onClose={onClose}
+        />
+      </div>
       {/* NavSecondary removed - Settings is now in the More menu */}
     </div>
   );
@@ -401,12 +403,12 @@ const Sidebar = ({
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-white/95 backdrop-blur-sm transition-all duration-300 border-r border-gray-200/60",
+        "flex flex-col h-full bg-white/95 backdrop-blur-sm transition-all duration-300 border-r border-gray-200/60 overflow-hidden",
         collapsed && !isMobile ? "w-0 opacity-0" : "w-64 opacity-100",
         isMobile && "w-64"
       )}
     >
-      <SidebarHeader collapsed={collapsed && !isMobile} />
+      <SidebarHeader collapsed={collapsed && !isMobile} isMobile={isMobile} onClose={onClose} />
       <SidebarContent 
         collapsed={collapsed}
         isMobile={isMobile}
@@ -636,33 +638,31 @@ const Header = ({
   }, [location.pathname]);
 
   return (
-    <header className="relative z-[200] bg-white/80 backdrop-blur-sm px-3 sm:px-4 py-2 sm:py-3 shadow-sm border-b border-gray-200/60">
-      <div className="flex items-center justify-between w-full gap-2 sm:gap-3">
+    <header className="relative z-[200] bg-white/80 backdrop-blur-sm px-3 sm:px-3 md:px-4 py-3 sm:py-3 shadow-sm border-b border-gray-200/60 flex-shrink-0">
+      <div className="flex items-center justify-between w-full gap-1.5 sm:gap-2 md:gap-3 min-w-0">
         {/* Left Section - Menu & Breadcrumbs */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* Desktop Sidebar Toggle */}
           <Button
             variant="ghost"
             size="icon"
-            className="hidden lg:flex flex-shrink-0 hover:bg-gray-50/80 rounded-lg transition-all duration-200 h-9 w-9"
+            className={cn(
+              "hidden lg:flex flex-shrink-0 hover:bg-gray-50/80 rounded-lg transition-all duration-200 h-8 w-8 sm:h-9 sm:w-9",
+              sidebarCollapsed ? "" : "rotate-180"
+            )}
             onClick={onToggleSidebar}
           >
-            <motion.div
-              animate={{ rotate: sidebarCollapsed ? 0 : 180 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Menu className="h-5 w-5" />
-            </motion.div>
+            <Menu className="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-200" />
           </Button>
 
           {/* Mobile Menu Button */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden flex-shrink-0 hover:bg-gray-50/80 rounded-lg transition-all duration-200 h-9 w-9"
+            className="lg:hidden flex-shrink-0 hover:bg-gray-50/80 rounded-lg transition-all duration-200 h-8 w-8 sm:h-9 sm:w-9"
             onClick={onMobileMenuClick}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
 
           {/* Simplified Breadcrumbs (removed icons) */}
@@ -676,12 +676,12 @@ const Header = ({
                   {crumb.path ? (
                     <Link
                       to={crumb.path}
-                      className="text-gray-600 hover:text-emerald-600 transition-all duration-200 font-medium hover:underline truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none"
+                      className="text-gray-600 hover:text-emerald-600 transition-colors duration-200 font-medium hover:underline truncate max-w-[100px] sm:max-w-[150px] md:max-w-none"
                     >
                       {crumb.name}
                     </Link>
                   ) : (
-                    <span className="font-semibold text-emerald-600 truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none">
+                    <span className="font-semibold text-emerald-600 truncate max-w-[100px] sm:max-w-[150px] md:max-w-none">
                       {crumb.name}
                     </span>
                   )}
@@ -692,19 +692,20 @@ const Header = ({
         </div>
 
         {/* Right Section - Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 flex-shrink-0">
           {/* Browse Properties Button */}
           <Button
             asChild
             size="sm"
             className={cn(
-              "bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 text-white shadow-sm hover:shadow transition-all duration-200 rounded-lg text-sm",
-              "hidden sm:flex h-9"
+              "bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 text-white shadow-sm hover:shadow transition-all duration-200 rounded-lg text-xs sm:text-sm",
+              "hidden md:flex h-8 sm:h-9 px-2 sm:px-3"
             )}
           >
-            <Link to="/tenant/browse-unit" className="flex items-center gap-2">
-              <Search className="h-4 w-4" />
-              <span>Browse Unit</span>
+            <Link to="/tenant/browse-unit" className="flex items-center gap-1.5 sm:gap-2">
+              <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden lg:inline">Browse Unit</span>
+              <span className="lg:hidden">Browse</span>
             </Link>
           </Button>
 
@@ -713,12 +714,12 @@ const Header = ({
             asChild
             size="icon"
             className={cn(
-              "bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 text-white shadow-sm hover:shadow sm:hidden rounded-lg",
-              "h-9 w-9"
+              "bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 text-white shadow-sm hover:shadow md:hidden rounded-lg",
+              "h-8 w-8 sm:h-9 sm:w-9"
             )}
           >
             <Link to="/tenant/browse-unit">
-              <Search className="h-4 w-4" />
+              <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Link>
           </Button>
 
@@ -728,28 +729,18 @@ const Header = ({
               variant="ghost"
               size="icon"
               onClick={() => setNotifsOpen(!notifsOpen)}
-              className="relative hover:bg-gray-50/80 h-9 w-9 rounded-lg transition-all duration-200"
+              className="relative hover:bg-gray-50/80 h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-all duration-200"
             >
-              <Bell className="h-4 w-4" />
+              <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               {unreadCount > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center shadow-sm"
-                >
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center shadow-sm">
                   {unreadCount}
-                </motion.span>
+                </span>
               )}
             </Button>
 
-            <AnimatePresence>
-              {notifsOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-2xl z-[9999] overflow-hidden"
-                >
+            {notifsOpen && (
+              <div className="absolute right-0 mt-2 w-[calc(100vw-1rem)] sm:w-72 md:w-80 max-w-[calc(100vw-1rem)] sm:max-w-none bg-white/95 backdrop-blur-sm border border-gray-200/60 rounded-lg shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="p-3 border-b border-gray-100/60 bg-gradient-to-r from-white to-gray-50/50">
                     <div className="flex justify-between items-center">
                       <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
@@ -788,9 +779,7 @@ const Header = ({
                             navigate(getNotificationLink(notification));
                           }}
                         >
-                          <motion.div
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
+                          <div
                             className={cn(
                               "p-3 hover:bg-gray-50/50 transition-all duration-200 border-b border-gray-100/50 last:border-b-0 group text-sm cursor-pointer",
                               !notification.read && "bg-emerald-50/30"
@@ -823,16 +812,13 @@ const Header = ({
                                       { addSuffix: true }
                                     )}
                                   </p>
-                                  <motion.div
-                                    whileHover={{ x: 2 }}
-                                    className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
+                                  <div className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity group-hover:translate-x-0.5">
                                     <ChevronRight className="h-3 w-3" />
-                                  </motion.div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </motion.div>
+                          </div>
                         </Link>
                       ))
                     )}
@@ -849,9 +835,8 @@ const Header = ({
                       <Link to="/tenant/notifications">View notifications</Link>
                     </Button>
                   </div>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
           </div>
         </div>
       </div>
@@ -869,6 +854,58 @@ const TenantLayout = () => {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  // Handle escape key to close mobile sidebar and lock body scroll
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileOpen) {
+        setMobileOpen(false);
+        document.body.style.overflow = '';
+      }
+    };
+
+    // Global click handler to detect stuck overlay (only on mobile, as fallback)
+    const handleGlobalClick = (e: MouseEvent) => {
+      // Fallback: If sidebar is open but user clicks on header menu button, ensure it toggles
+      if (mobileOpen && window.innerWidth < 1024) {
+        const target = e.target as HTMLElement;
+        // If clicking the menu button while sidebar is open, close it
+        if (target.closest('button[aria-label*="menu"], button[class*="Menu"]')) {
+          setMobileOpen(false);
+          document.body.style.overflow = '';
+        }
+      }
+    };
+
+    if (mobileOpen) {
+      document.addEventListener('keydown', handleEscape);
+      // Only add global click handler on mobile
+      if (window.innerWidth < 1024) {
+        document.addEventListener('click', handleGlobalClick, true);
+      }
+      // Lock body scroll when sidebar is open
+      document.body.style.overflow = 'hidden';
+      // Safety: Force close after 10 seconds if still open (prevents stuck state)
+      const safetyTimeout = setTimeout(() => {
+        console.warn('Mobile sidebar open for 10s, forcing close');
+        setMobileOpen(false);
+        document.body.style.overflow = '';
+      }, 10000);
+
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+        document.removeEventListener('click', handleGlobalClick, true);
+        document.body.style.overflow = '';
+        clearTimeout(safetyTimeout);
+      };
+    } else {
+      document.body.style.overflow = '';
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+        document.removeEventListener('click', handleGlobalClick, true);
+      };
+    }
+  }, [mobileOpen]);
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-emerald-50/30 via-white to-sky-50/30 relative overflow-hidden">
       {/* Animated Background Elements */}
@@ -878,51 +915,58 @@ const TenantLayout = () => {
         <div className="absolute bottom-8 left-1/4 w-20 h-20 bg-teal-200/20 rounded-full blur-xl"></div>
       </div>
 
-      {/* Desktop Sidebar - Now completely hidden when collapsed */}
+      {/* Desktop Sidebar - Use transform instead of width for better performance */}
       <aside className={cn(
-        "hidden lg:block h-full transition-all duration-300 bg-white/95 backdrop-blur-sm shadow-sm border-r border-gray-200/60 z-30 relative",
-        collapsed ? "w-0 opacity-0" : "w-64 opacity-100"
+        "hidden lg:block h-full bg-white/95 backdrop-blur-sm shadow-sm border-r border-gray-200/60 z-30 relative transition-all duration-300 ease-in-out",
+        collapsed ? "w-0 -translate-x-full opacity-0 pointer-events-none" : "w-64 translate-x-0 opacity-100"
       )}>
-        <Sidebar collapsed={collapsed} />
+        <div className={cn("h-full", collapsed && "overflow-hidden")}>
+          <Sidebar collapsed={collapsed} />
+        </div>
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileOpen(false)}
-            />
-            <motion.aside
-              className="fixed left-0 top-0 z-50 h-screen lg:hidden bg-white/95 backdrop-blur-sm shadow-xl"
-              initial={{ x: -300 }}
-              animate={{ x: 0 }}
-              exit={{ x: -300 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            >
-              <Sidebar isMobile onClose={() => setMobileOpen(false)} />
-            </motion.aside>
-          </>
+      {/* Mobile Sidebar Overlay - Optimized with CSS transitions for better performance */}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/50 lg:hidden mobile-sidebar-overlay transition-opacity duration-200",
+          mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
-      </AnimatePresence>
+        onClick={(e) => {
+          if (mobileOpen) {
+            e.stopPropagation();
+            setMobileOpen(false);
+            document.body.style.overflow = '';
+          }
+        }}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+        }}
+      />
+      <aside
+        className={cn(
+          "fixed left-0 top-0 z-50 h-screen lg:hidden bg-white/95 backdrop-blur-sm shadow-xl w-64 transition-transform duration-200 ease-out will-change-transform overflow-hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{ pointerEvents: mobileOpen ? 'auto' : 'none' }}
+      >
+        {mobileOpen && (
+          <Sidebar isMobile onClose={() => {
+            setMobileOpen(false);
+            document.body.style.overflow = '';
+          }} />
+        )}
+      </aside>
+      
 
       {/* Main Content Area */}
-      <div className={cn(
-        "flex flex-col flex-1 min-w-0 min-h-0 transition-all duration-300 relative z-10",
-        // Adjust main content width based on sidebar state
-        collapsed ? "w-full" : "lg:w-[calc(100vw-16rem)]"
-      )}>
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 relative z-10 overflow-hidden">
         <Header 
           onMobileMenuClick={() => setMobileOpen(true)}
           sidebarCollapsed={collapsed}
           onToggleSidebar={toggleCollapsed}
         />
-        <main className="flex-1 overflow-y-auto bg-transparent min-h-0">
-          <div className="p-3 sm:p-4 md:p-6 h-full max-w-7xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-transparent min-h-0">
+          <div className="p-3 sm:p-4 md:p-6 h-full max-w-7xl mx-auto w-full min-w-0">
             <Outlet />
           </div>
         </main>

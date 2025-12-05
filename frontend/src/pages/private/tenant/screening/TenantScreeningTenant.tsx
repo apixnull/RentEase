@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, CheckCircle, XCircle, Clock, User, AlertCircle, ArrowRight, Archive, ChevronUp, ChevronDown, RotateCcw, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, Clock, User, AlertCircle, Archive, ChevronUp, ChevronDown, RotateCcw, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
 import { getTenantScreeningInvitationsRequest } from '@/api/tenant/screeningApi';
 import { Skeleton } from '@/components/ui/skeleton';
+import { processImageUrl } from '@/api/utils';
 
 // Types based on API response
 interface Landlord {
@@ -508,9 +509,8 @@ const TenantScreeningTenant = () => {
                     {activeTab === 'current' && (
                       <div className={`absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500/10 opacity-50`} />
                     )}
-                    <FileText className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'current' ? 'text-emerald-700' : 'text-gray-500'}`} />
-                    <span className="relative z-10 hidden sm:inline">Current</span>
-                    <span className="relative z-10 sm:hidden">Current</span>
+                    <FileText className={`w-4 h-4 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'current' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 hidden md:inline">Current</span>
                     {currentInvitations.length > 0 && (
                       <Badge className={`ml-1 text-xs px-1.5 py-0 relative z-10 ${
                         activeTab === 'current' 
@@ -532,8 +532,8 @@ const TenantScreeningTenant = () => {
                     {activeTab === 'past' && (
                       <div className={`absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500/10 opacity-50`} />
                     )}
-                    <Archive className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'past' ? 'text-emerald-700' : 'text-gray-500'}`} />
-                    <span className="relative z-10">Past</span>
+                    <Archive className={`w-4 h-4 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'past' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 hidden md:inline">Past</span>
                     {pastInvitations.length > 0 && (
                       <Badge className={`ml-1 text-xs px-1.5 py-0 relative z-10 ${
                         activeTab === 'past' 
@@ -560,7 +560,7 @@ const TenantScreeningTenant = () => {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="space-y-2 sm:space-y-3">
+                  <div className="space-y-1.5 sm:space-y-2">
                     {currentInvitations.map((invitation) => (
                       <ScreeningCard 
                         key={invitation.id}
@@ -586,7 +586,7 @@ const TenantScreeningTenant = () => {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="space-y-2 sm:space-y-3">
+                  <div className="space-y-1.5 sm:space-y-2">
                     {pastInvitations.map((invitation) => (
                       <ScreeningCard 
                         key={invitation.id}
@@ -762,47 +762,35 @@ const ScreeningCard = ({ invitation, onAccept, onViewDetails }: ScreeningCardPro
     }
   };
 
-  // Get View Details button classes based on status
-  const getViewDetailsButtonClasses = (status: string) => {
-    const baseClasses = "text-xs sm:text-sm font-medium h-9 sm:h-10 px-4 sm:px-5 gap-2 transition-all duration-200 rounded-lg shadow-sm hover:shadow-md";
-    
-    switch (status) {
-      case 'SUBMITTED':
-        return `${baseClasses} border-indigo-300 text-indigo-700 hover:text-indigo-900 hover:bg-gradient-to-br hover:from-indigo-50 hover:to-blue-50`;
-      case 'APPROVED':
-        return `${baseClasses} border-emerald-300 text-emerald-700 hover:text-emerald-900 hover:bg-gradient-to-br hover:from-emerald-50 hover:to-green-50`;
-      case 'REJECTED':
-        return `${baseClasses} border-rose-300 text-rose-700 hover:text-rose-900 hover:bg-gradient-to-br hover:from-rose-50 hover:to-red-50`;
-      default:
-        return `${baseClasses} border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-50`;
-    }
-  };
 
   return (
-    <Card className={`hover:shadow-md transition-all duration-200 ${theme.borderCard} ${theme.backgroundCard} ${getHoverBorder(invitation.status)}`}>
-      <CardContent className="p-2 sm:p-2.5">
+    <Card 
+      className={`hover:shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] ${theme.borderCard} ${theme.backgroundCard} ${getHoverBorder(invitation.status)}`}
+      onClick={onViewDetails}
+    >
+      <CardContent className="p-1.5 sm:p-2">
         {/* Invitation Message - Compact */}
-        <div className={`mb-1.5 pb-1.5 border-b ${theme.border}`}>
-          <p className={`${theme.textColor} text-xs sm:text-sm font-medium leading-tight`}>
+        <div className={`mb-1 pb-1 border-b ${theme.border}`}>
+          <p className={`${theme.textColor} text-[10px] sm:text-xs font-medium leading-tight`}>
             {getStatusMessage(invitation.status, invitation.landlord.name)}
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0">
-            <Avatar className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 border border-slate-200">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0">
+            <Avatar className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 border border-slate-200">
               {invitation.landlord.avatarUrl ? (
-                <AvatarImage src={invitation.landlord.avatarUrl} />
+                <AvatarImage src={processImageUrl(invitation.landlord.avatarUrl) || undefined} />
               ) : null}
-              <AvatarFallback className="bg-blue-50 text-blue-600 text-xs sm:text-sm font-semibold">
+              <AvatarFallback className="bg-blue-50 text-blue-600 text-[10px] sm:text-xs font-semibold">
                 {getInitials(invitation.landlord.name)}
               </AvatarFallback>
             </Avatar>
             
             <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+              <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 mb-0.5">
                 <Badge
-                  className={`flex items-center gap-1 text-[10px] sm:text-xs border transition-colors duration-200 ${theme.badge} ${getHoverBorder(invitation.status)}`}
+                  className={`flex items-center gap-0.5 text-[9px] sm:text-[10px] border transition-colors duration-200 ${theme.badge} ${getHoverBorder(invitation.status)}`}
                 >
                   <div className={`${theme.iconBackground} text-white p-0.5 rounded`}>
                     {getStatusIcon(invitation.status)}
@@ -810,49 +798,43 @@ const ScreeningCard = ({ invitation, onAccept, onViewDetails }: ScreeningCardPro
                   <span className="hidden sm:inline">{invitation.status}</span>
                   <span className="sm:hidden">{invitation.status.slice(0, 3)}</span>
                 </Badge>
-                <span className="text-[10px] sm:text-xs text-gray-500">
+                <span className="text-[9px] sm:text-[10px] text-gray-500">
                   {formatDate(invitation.createdAt)}
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+              <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+                <h3 className="font-semibold text-gray-900 text-xs sm:text-sm truncate">
                   {invitation.landlord.name}
                 </h3>
                 <Badge
                   variant="outline"
-                  className="text-[10px] sm:text-xs uppercase tracking-wide border-blue-200 text-blue-700 bg-blue-50/60"
+                  className="text-[9px] sm:text-[10px] uppercase tracking-wide border-blue-200 text-blue-700 bg-blue-50/60 px-1 py-0"
                 >
                   {formatRole(invitation.landlord.role)}
                 </Badge>
               </div>
 
-              <p className="text-gray-600 text-[11px] sm:text-sm truncate mt-0.5">{invitation.landlord.email}</p>
+              <p className="text-gray-600 text-[10px] sm:text-xs truncate mt-0.5">{invitation.landlord.email}</p>
             </div>
           </div>
 
-          <div className="flex-shrink-0">
-            {invitation.status === 'PENDING' ? (
+          {invitation.status === 'PENDING' && (
+            <div className="flex-shrink-0">
               <Button
-                onClick={onAccept}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAccept();
+                }}
                 size="sm"
-                className={`bg-gradient-to-r ${SCREENING_STATUS_THEME.APPROVED.gradientButton} text-white text-xs sm:text-sm font-semibold h-9 sm:h-10 px-4 sm:px-5 shadow-md shadow-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/40 transition-all duration-200 rounded-lg gap-2`}
+                className={`bg-gradient-to-r ${SCREENING_STATUS_THEME.APPROVED.gradientButton} text-white text-[10px] sm:text-xs font-semibold h-8 sm:h-9 px-3 sm:px-4 shadow-md shadow-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/40 transition-all duration-200 rounded-lg gap-1.5`}
               >
-                <CheckCircle className="w-4 h-4" />
-                Accept
+                <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Accept</span>
+                <span className="sm:hidden">Accept</span>
               </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={onViewDetails}
-                size="sm"
-                className={getViewDetailsButtonClasses(invitation.status)}
-              >
-                View Details
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

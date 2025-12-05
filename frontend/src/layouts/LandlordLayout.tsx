@@ -183,6 +183,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/landlord/reports": { name: "Reports & Analytics" },
   "/landlord/engagement": { name: "Engagement Analytics", parent: "/landlord/reports" },
   "/landlord/lease-analytics": { name: "Lease & Rent Analytics", parent: "/landlord/reports" },
+  "/landlord/maintenance-analytics": { name: "Maintenance Analytics", parent: "/landlord/reports" },
   "/landlord/account": { name: "Account" },
   "/landlord/settings": { name: "Settings" },
 };

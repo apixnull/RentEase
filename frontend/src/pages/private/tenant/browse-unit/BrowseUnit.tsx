@@ -9,6 +9,7 @@ import {
   Star, Home, Bot, X, Send, ArrowLeft, Building
 } from "lucide-react";
 import { getCitiesAndMunicipalitiesRequest, searchListingsRequest, sendAIChatbotMessage } from "@/api/tenant/browseUnitApi";
+import { processImageUrl } from "@/api/utils";
 
 // ============================================================================
 // TYPES
@@ -893,12 +894,12 @@ const BrowseUnit = () => {
           transition={{ duration: 0.4, ease: "easeOut" }}
           className="mb-6"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
                 {appliedQuery === "AI Search Results" ? "AI Search Results" : appliedQuery ? "Search Results" : "Filtered Results"}
               </h2>
-              <p className="text-lg text-gray-700">
+              <p className="text-sm sm:text-base md:text-lg text-gray-700">
                 {filteredUnits.length > 0 ? (
                   <>
                     {appliedQuery === "AI Search Results" ? (
@@ -953,10 +954,11 @@ const BrowseUnit = () => {
                   sortBy: "ALL",
                 });
               }}
-              className="border-emerald-100 text-gray-600 hover:bg-emerald-50"
+              className="border-emerald-100 text-gray-600 hover:bg-emerald-50 w-full sm:w-auto shrink-0 text-sm sm:text-base h-9 sm:h-10 px-3 sm:px-4"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Browse
+              <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+              <span className="hidden sm:inline">Back to Browse</span>
+              <span className="sm:hidden">Back</span>
             </Button>
           </div>
         </motion.div>
@@ -1005,7 +1007,7 @@ const BrowseUnit = () => {
                   <div className="relative aspect-[5/3] bg-gray-50 overflow-hidden">
                     {unit.mainImageUrl ? (
                       <img 
-                        src={unit.mainImageUrl} 
+                        src={processImageUrl(unit.mainImageUrl) || unit.mainImageUrl || ""} 
                         alt={unit.label} 
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
@@ -1026,7 +1028,7 @@ const BrowseUnit = () => {
                   </div>
                   
                   {/* Content area */}
-                  <div className="p-4 space-y-3 flex-1 flex flex-col">
+                  <div className="p-3 sm:p-4 space-y-2 sm:space-y-3 flex-1 flex flex-col">
                     {/* Title */}
                     <div>
                       <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2 mb-1">
@@ -1077,33 +1079,36 @@ const BrowseUnit = () => {
                     )}
 
                     {/* Viewers and Price Section */}
-                    <div className="pt-3 mt-auto border-t border-gray-100 space-y-2">
-                      {/* Viewers */}
-                      <div className="flex items-center gap-2">
-                        <div className="flex -space-x-1.5">
-                          {[1, 2, 3, 4].map((index) => (
-                            <img
-                              key={index}
-                              src={`https://i.pravatar.cc/150?img=${index + 10}`}
-                              alt={`Viewer ${index}`}
-                              className="w-6 h-6 rounded-full border-2 border-white object-cover"
-                            />
-                          ))}
+                    <div className="pt-2 sm:pt-3 mt-auto border-t border-gray-100 space-y-1.5 sm:space-y-2">
+                      {/* Viewers - Only show if viewCount > 0 */}
+                      {unit.viewCount > 0 && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex -space-x-1.5">
+                            {[1, 2, 3, 4].map((index) => (
+                              <img
+                                key={index}
+                                src={`https://i.pravatar.cc/150?img=${index + 10}`}
+                                alt={`Viewer ${index}`}
+                                className="w-6 h-6 rounded-full border-2 border-white object-cover"
+                              />
+                            ))}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            <span className="font-medium">{unit.viewCount}</span> viewed
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-600">
-                          <span className="font-medium">{unit.viewCount}</span> viewed
-                        </div>
-                      </div>
+                      )}
 
                       {/* Price */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-baseline gap-1">
-                          <span className="font-bold text-gray-900 text-lg">₱{unit.targetPrice.toLocaleString()}</span>
-                          <span className="text-xs text-gray-500">/mo</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-baseline gap-1 min-w-0">
+                          <span className="font-bold text-gray-900 text-base sm:text-lg">₱{unit.targetPrice.toLocaleString()}</span>
+                          <span className="text-[10px] sm:text-xs text-gray-500">/mo</span>
                         </div>
                         {unit.requiresScreening && (
-                          <div className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700 font-medium">
-                            Screening Required
+                          <div className="px-1.5 sm:px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-[9px] sm:text-xs text-blue-700 font-medium whitespace-nowrap shrink-0">
+                            <span className="hidden sm:inline">Screening Required</span>
+                            <span className="sm:hidden">Screening</span>
                           </div>
                         )}
                       </div>
@@ -1221,7 +1226,7 @@ const BrowseUnit = () => {
                           <div className="relative aspect-[5/3] bg-gray-50 overflow-hidden">
                             {unit.mainImageUrl ? (
                               <img 
-                                src={unit.mainImageUrl} 
+                                src={processImageUrl(unit.mainImageUrl) || unit.mainImageUrl || ""} 
                                 alt={unit.label} 
                                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                               />
@@ -1242,7 +1247,7 @@ const BrowseUnit = () => {
                           </div>
                           
                           {/* Content area */}
-                          <div className="p-4 space-y-3 flex-1 flex flex-col">
+                          <div className="p-3 sm:p-4 space-y-2 sm:space-y-3 flex-1 flex flex-col">
                             {/* Title */}
                             <div>
                               <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2 mb-1">
@@ -1293,33 +1298,36 @@ const BrowseUnit = () => {
                             )}
 
                             {/* Viewers and Price Section */}
-                            <div className="pt-3 mt-auto border-t border-gray-100 space-y-2">
-                              {/* Viewers */}
-                              <div className="flex items-center gap-2">
-                                <div className="flex -space-x-1.5">
-                                  {[1, 2, 3, 4].map((index) => (
-                                    <img
-                                      key={index}
-                                      src={`https://i.pravatar.cc/150?img=${index + 10}`}
-                                      alt={`Viewer ${index}`}
-                                      className="w-6 h-6 rounded-full border-2 border-white object-cover"
-                                    />
-                                  ))}
+                            <div className="pt-2 sm:pt-3 mt-auto border-t border-gray-100 space-y-1.5 sm:space-y-2">
+                              {/* Viewers - Only show if viewCount > 0 */}
+                              {unit.viewCount > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex -space-x-1.5">
+                                    {[1, 2, 3, 4].map((index) => (
+                                      <img
+                                        key={index}
+                                        src={`https://i.pravatar.cc/150?img=${index + 10}`}
+                                        alt={`Viewer ${index}`}
+                                        className="w-6 h-6 rounded-full border-2 border-white object-cover"
+                                      />
+                                    ))}
+                                  </div>
+                                  <div className="text-xs text-gray-600">
+                                    <span className="font-medium">{unit.viewCount}</span> viewed
+                                  </div>
                                 </div>
-                                <div className="text-xs text-gray-600">
-                                  <span className="font-medium">{unit.viewCount}</span> viewed
-                                </div>
-                              </div>
+                              )}
 
                               {/* Price */}
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-baseline gap-1">
-                                  <span className="font-bold text-gray-900 text-lg">₱{unit.targetPrice.toLocaleString()}</span>
-                                  <span className="text-xs text-gray-500">/mo</span>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-baseline gap-1 min-w-0">
+                                  <span className="font-bold text-gray-900 text-base sm:text-lg">₱{unit.targetPrice.toLocaleString()}</span>
+                                  <span className="text-[10px] sm:text-xs text-gray-500">/mo</span>
                                 </div>
                                 {unit.requiresScreening && (
-                                  <div className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700 font-medium">
-                                    Screening Required
+                                  <div className="px-1.5 sm:px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-[9px] sm:text-xs text-blue-700 font-medium whitespace-nowrap shrink-0">
+                                    <span className="hidden sm:inline">Screening Required</span>
+                                    <span className="sm:hidden">Screening</span>
                                   </div>
                                 )}
                               </div>

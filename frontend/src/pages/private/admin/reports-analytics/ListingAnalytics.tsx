@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { 
   Loader2, 
   RefreshCcw, 
@@ -54,13 +54,6 @@ import autoTable from 'jspdf-autotable';
 const listingsChartConfig = {
   listings: {
     label: 'Listings Created',
-    color: 'hsl(199, 89%, 48%)', // Blue-600
-  },
-} satisfies ChartConfig;
-
-const featuredChartConfig = {
-  count: {
-    label: 'Listings',
     color: 'hsl(199, 89%, 48%)', // Blue-600
   },
 } satisfies ChartConfig;
@@ -319,20 +312,6 @@ const ListingAnalytics = () => {
   // Prepare featured vs standard comparison data
   // Featured: paymentAmount = 150 AND isFeatured = true
   // Standard: paymentAmount = 100 AND isFeatured = false
-  const featuredComparisonData = useMemo(() => {
-    if (!listingsData?.metrics) return [];
-    return [
-      {
-        type: 'Featured',
-        count: listingsData.metrics.featuredListings,
-      },
-      {
-        type: 'Standard',
-        count: listingsData.metrics.standardListings,
-      },
-    ];
-  }, [listingsData]);
-
   // Prepare filtered listings for breakdown table
   const filteredListings = useMemo(() => {
     if (!listingsData?.listings) return [];

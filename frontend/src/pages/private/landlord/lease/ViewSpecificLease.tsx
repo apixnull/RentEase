@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -36,7 +37,6 @@ import {
   Home,
   ScrollText,
   Sparkles,
-  DollarSign,
   Ban,
   User,
   Mail,
@@ -56,12 +56,17 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
+import { CalendarIcon } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { cancelLeaseRequest, getLeaseByIdRequest, terminateLeaseRequest, completeLeaseRequest, addLandlordNoteRequest, updateLandlordNoteRequest, deleteLandlordNoteRequest } from '@/api/landlord/leaseApi';
 import { createPaymentRequest, markPaymentAsPaidRequest, updatePaymentRequest, deletePaymentRequest } from '@/api/landlord/paymentApi';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { processImageUrl } from '@/api/utils';
 
 // Complete Color Schema for Lease Statuses
 const LEASE_STATUS_THEME = {
@@ -339,115 +344,61 @@ interface RecordPaymentForm {
   note: string;
 }
 
-// Date picker helper constants
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-];
-
-const getDaysInMonth = (year: number, month: number) => {
-  return new Date(year, month + 1, 0).getDate();
+// Format date to local YYYY-MM-DD string (avoids timezone issues)
+const formatDateLocal = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
-const getYears = () => {
-  const currentYear = new Date().getFullYear();
-  return Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
-};
-
-// Custom Date Picker Component - Simple Design
-const CustomDatePicker = ({ 
+// Date Picker Component using Calendar
+const DatePicker = ({ 
   value, 
   onChange 
 }: { 
   value: string; 
   onChange: (date: string) => void;
 }) => {
-  const dateValue = value ? new Date(value) : new Date();
-  const [selectedYear, setSelectedYear] = useState(dateValue.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(dateValue.getMonth());
-  const [selectedDay, setSelectedDay] = useState(dateValue.getDate());
-
-  useEffect(() => {
-    if (value) {
-      const date = new Date(value);
-      setSelectedYear(date.getFullYear());
-      setSelectedMonth(date.getMonth());
-      setSelectedDay(date.getDate());
+  const [open, setOpen] = useState(false);
+  
+  // Parse date correctly to avoid timezone issues
+  const selectedDate = value ? (() => {
+    try {
+      const [year, month, day] = value.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    } catch {
+      return undefined;
     }
-  }, [value]);
-
-  const handleDateChange = (year: number, month: number, day: number) => {
-    const newDate = new Date(year, month, day);
-    const dateString = newDate.toISOString().split('T')[0];
-    onChange(dateString);
-  };
-
-  const maxDay = getDaysInMonth(selectedYear, selectedMonth);
+  })() : undefined;
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Select
-        value={selectedMonth.toString()}
-        onValueChange={(val) => {
-          const month = parseInt(val);
-          setSelectedMonth(month);
-          const day = Math.min(selectedDay, getDaysInMonth(selectedYear, month));
-          handleDateChange(selectedYear, month, day);
-        }}
-      >
-        <SelectTrigger className="h-10 flex-1">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="z-[100]">
-          {MONTHS.map((month, index) => (
-            <SelectItem key={month} value={index.toString()}>
-              {month}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
-        value={selectedDay.toString()}
-        onValueChange={(val) => {
-          const day = parseInt(val);
-          setSelectedDay(day);
-          handleDateChange(selectedYear, selectedMonth, day);
-        }}
-      >
-        <SelectTrigger className="h-10 w-20">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="z-[100]">
-          {Array.from({ length: maxDay }, (_, i) => i + 1).map((day) => (
-            <SelectItem key={day} value={day.toString()}>
-              {day}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
-        value={selectedYear.toString()}
-        onValueChange={(val) => {
-          const year = parseInt(val);
-          setSelectedYear(year);
-          const day = Math.min(selectedDay, getDaysInMonth(year, selectedMonth));
-          handleDateChange(year, selectedMonth, day);
-        }}
-      >
-        <SelectTrigger className="h-10 w-24">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="z-[100] max-h-60">
-          {getYears().map((year) => (
-            <SelectItem key={year} value={year.toString()}>
-              {year}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full justify-start text-left font-normal"
+        >
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          {selectedDate ? format(selectedDate, 'PPP') : 'Pick a date'}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0 z-[100]" align="start">
+        <CalendarComponent
+          mode="single"
+          selected={selectedDate}
+          onSelect={(date) => {
+            if (date) {
+              onChange(formatDateLocal(date));
+              setOpen(false);
+            }
+          }}
+          className="rounded-md border shadow-sm"
+          captionLayout="dropdown"
+        />
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -593,21 +544,21 @@ const ViewSpecificLease = () => {
     fetchLeaseData(true);
   };
 
-  // Get upcoming payments that need reminders
-  const getUpcomingPayments = () => {
+  // Get upcoming payments for this month
+  const getUpcomingPaymentsThisMonth = () => {
     if (!lease?.payments?.length) return [];
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const sevenDaysFromNow = new Date(today);
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    endOfMonth.setHours(23, 59, 59, 999);
 
     return lease.payments
       .filter(payment => {
         if (payment.status === 'PAID') return false;
         const dueDate = new Date(payment.dueDate);
         dueDate.setHours(0, 0, 0, 0);
-        return dueDate <= sevenDaysFromNow;
+        return dueDate >= today && dueDate <= endOfMonth;
       })
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   };
@@ -628,22 +579,6 @@ const ViewSpecificLease = () => {
       })
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   };
-
-  // Get reminder stage display text
-  const getReminderStageText = (stage: number) => {
-    switch (stage) {
-      case 0:
-        return 'No reminder sent';
-      case 1:
-        return 'Reminder sent (pre-due)';
-      case 2:
-        return 'Reminders sent twice (pre-due & due-day)';
-      default:
-        return 'Unknown';
-    }
-  };
-
-
 
   const getPaymentStatusVariant = (status: string) => {
     switch (status) {
@@ -1591,7 +1526,7 @@ const ViewSpecificLease = () => {
             />
 
             <div className="px-4 sm:px-6 py-5 space-y-4">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                 <div className="flex items-center gap-4 min-w-0 flex-1">
                   {/* Status Icon with Gradient */}
                   <motion.div
@@ -1636,7 +1571,7 @@ const ViewSpecificLease = () => {
                         <span className="truncate font-medium">{lease.property.title}</span>
                       </div>
                       <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} text-xs sm:text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>
-                        <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <span className="text-base sm:text-lg font-bold">₱</span>
                         <span className="font-semibold">{formatCurrency(lease.rentAmount)}</span>
                       </div>
                       <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.border || 'border-gray-200'} text-xs sm:text-sm ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>
@@ -1655,29 +1590,31 @@ const ViewSpecificLease = () => {
                 </div>
                 
                 {/* Status Badge and Action Buttons */}
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                  <Badge className={`${themeColor} flex items-center gap-1.5 text-xs sm:text-sm px-3 py-1.5 border shadow-sm font-medium`}>
+                <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-end lg:items-end gap-2 flex-shrink-0">
+                  <Badge className={`${themeColor} flex items-center gap-1.5 text-xs sm:text-sm px-3 py-1.5 border shadow-sm font-medium w-fit`}>
                     {getStatusIcon(lease.status)}
                     {lease.status}
                   </Badge>
-                  <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full sm:w-auto">
                     {lease.status !== 'PENDING' && (
                       <Button
                         onClick={generateLeasePDF}
                         variant="outline"
                         size="sm"
                         disabled={generatingPdf}
-                        className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
+                        className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm flex-1 sm:flex-initial"
                       >
                         {generatingPdf ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Generating...
+                            <span className="hidden sm:inline">Generating...</span>
+                            <span className="sm:hidden">Generating</span>
                           </>
                         ) : (
                           <>
                             <Download className="h-4 w-4 mr-2" />
-                            Download PDF
+                            <span className="hidden sm:inline">Download PDF</span>
+                            <span className="sm:hidden">PDF</span>
                           </>
                         )}
                       </Button>
@@ -1686,27 +1623,29 @@ const ViewSpecificLease = () => {
                       onClick={() => handleSettingsModalChange(true)}
                       variant="outline"
                       size="sm"
-                      className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
+                      className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm flex-1 sm:flex-initial"
                     >
-                      <Settings className="h-4 w-4 mr-2" />
-                      Settings
+                      <Settings className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Settings</span>
                     </Button>
                     <Button
                       onClick={handleRefresh}
                       variant="outline"
                       size="sm"
                       disabled={refreshing}
-                      className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm"
+                      className="bg-white/90 hover:bg-white border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm flex-1 sm:flex-initial"
                     >
                       {refreshing ? (
                         <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Refresh
+                          <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
+                          <span className="hidden sm:inline">Refreshing</span>
+                          <span className="sm:hidden">Refresh</span>
                         </>
                       ) : (
                         <>
-                          <RotateCcw className="h-4 w-4 mr-2" />
-                          Refresh
+                          <RotateCcw className="h-4 w-4 sm:mr-2" />
+                          <span className="hidden sm:inline">Refresh</span>
+                          <span className="sm:hidden">Refresh</span>
                         </>
                       )}
                     </Button>
@@ -1756,9 +1695,8 @@ const ViewSpecificLease = () => {
                       : `bg-gray-50/50 border border-gray-200 hover:bg-gray-100/50 text-gray-600`
                   }`}
                 >
-                  <FileText className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activeTab === 'info' ? LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700' : 'text-gray-500'}`} />
-                  <span className="hidden sm:inline">Lease Information</span>
-                  <span className="sm:hidden">Lease</span>
+                  <FileText className={`w-4 h-4 sm:w-4 sm:h-4 ${activeTab === 'info' ? LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700' : 'text-gray-500'}`} />
+                  <span className="hidden md:inline">Lease Information</span>
                 </TabsTrigger>
                 {lease.status !== 'PENDING' && (
                   <TabsTrigger 
@@ -1769,9 +1707,8 @@ const ViewSpecificLease = () => {
                         : `bg-gray-50/50 border border-gray-200 hover:bg-gray-100/50 text-gray-600`
                     }`}
                   >
-                    <CreditCard className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activeTab === 'payments' ? LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700' : 'text-gray-500'}`} />
-                    <span className="hidden sm:inline">Payments</span>
-                    <span className="sm:hidden">Payments</span>
+                    <CreditCard className={`w-4 h-4 sm:w-4 sm:h-4 ${activeTab === 'payments' ? LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700' : 'text-gray-500'}`} />
+                    <span className="hidden md:inline">Payments</span>
                     {lease.payments.length > 0 && (
                       <Badge className={`ml-1 text-xs px-1.5 py-0 ${
                         activeTab === 'payments' 
@@ -1792,9 +1729,8 @@ const ViewSpecificLease = () => {
                         : `bg-gray-50/50 border border-gray-200 hover:bg-gray-100/50 text-gray-600`
                     }`}
                   >
-                    <BarChart3 className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activeTab === 'behavior' ? LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700' : 'text-gray-500'}`} />
-                    <span className="hidden sm:inline">Tenant Behavior</span>
-                    <span className="sm:hidden">Behavior</span>
+                    <BarChart3 className={`w-4 h-4 sm:w-4 sm:h-4 ${activeTab === 'behavior' ? LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700' : 'text-gray-500'}`} />
+                    <span className="hidden md:inline">Tenant Behavior</span>
                   </TabsTrigger>
                 )}
               </TabsList>
@@ -1903,7 +1839,7 @@ const ViewSpecificLease = () => {
                     {/* Financial Details */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 mb-3">
-                        <DollarSign className={`h-4 w-4 ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor}`} />
+                        <span className={`text-lg font-bold ${LEASE_STATUS_THEME[lease.status as keyof typeof LEASE_STATUS_THEME]?.textColor || 'text-slate-700'}`}>₱</span>
                         <h3 className="font-semibold text-sm text-gray-700">Financial Details</h3>
                       </div>
                       <div className="space-y-2.5">
@@ -2101,7 +2037,7 @@ const ViewSpecificLease = () => {
                     <div className="p-4 bg-white/80 rounded-lg border border-indigo-100 shadow-sm">
                       <div className="flex items-center gap-3 mb-3">
                         <Avatar className="h-10 w-10 border border-indigo-200">
-                          <AvatarImage src={lease.tenant.avatarUrl || undefined} />
+                          <AvatarImage src={processImageUrl(lease.tenant.avatarUrl) || undefined} />
                           <AvatarFallback className="text-sm bg-indigo-100 text-indigo-700">
                             {lease.tenant.firstName[0]}{lease.tenant.lastName[0]}
                           </AvatarFallback>
@@ -2129,7 +2065,7 @@ const ViewSpecificLease = () => {
                     <div className="p-4 bg-white/80 rounded-lg border border-blue-100 shadow-sm">
                       <div className="flex items-center gap-3 mb-3">
                         <Avatar className="h-10 w-10 border border-blue-200">
-                          <AvatarImage src={currentUser?.avatarUrl || undefined} />
+                          <AvatarImage src={processImageUrl(currentUser?.avatarUrl) || undefined} />
                           <AvatarFallback className="text-sm bg-blue-100 text-blue-700">
                             {currentUser?.firstName?.[0] || 'L'}{currentUser?.lastName?.[0] || 'L'}
                           </AvatarFallback>
@@ -2172,123 +2108,42 @@ const ViewSpecificLease = () => {
             {/* Payments Tab */}
             {lease.status !== 'PENDING' && (
               <TabsContent value="payments" className="m-0 p-3 sm:p-4 md:p-6 space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-800">Payment Management</h3>
-                  <p className="text-gray-600">Track and manage all payment transactions</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-800">Payment Management</h3>
+                  <p className="text-sm sm:text-base text-gray-600">Track and manage all payment transactions</p>
                 </div>
                 {lease.status === 'ACTIVE' && (
                   <Button 
-                    className="bg-green-600 hover:bg-green-700 shadow-lg"
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg w-full sm:w-auto"
                     onClick={handleRecordPayment}
+                    size="lg"
                   >
-                    <Receipt className="w-4 h-4 mr-2" />
-                    Record New Payment
+                    <Plus className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Record New Payment</span>
+                    <span className="sm:hidden">New Payment</span>
                   </Button>
                 )}
               </div>
 
-              {/* Payment Reminders */}
+              {/* Simple Reminders */}
               {(() => {
-                const upcomingPayments = getUpcomingPayments();
-                const overduePayments = getOverduePayments();
-                const allReminderPayments = [...overduePayments, ...upcomingPayments.filter(p => !overduePayments.find(op => op.id === p.id))];
+                const overduePaymentsList = getOverduePayments();
+                const upcomingPaymentsThisMonth = getUpcomingPaymentsThisMonth();
                 
-                if (allReminderPayments.length > 0) {
+                if (overduePaymentsList.length > 0 || upcomingPaymentsThisMonth.length > 0) {
                   return (
-                    <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 shadow-md">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 bg-amber-500 rounded-lg">
-                            <AlertTriangle className="w-5 h-5 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
-                              Payment Reminders
-                              <Badge className="bg-amber-600 text-white">{allReminderPayments.length}</Badge>
-                            </h4>
-                            <p className="text-sm text-amber-800 mb-3">
-                              The following payments are due soon or overdue and have not been paid. Reminders will be sent to the tenant.
-                            </p>
-                            <div className="space-y-2">
-                              {allReminderPayments.map((payment) => {
-                                const dueDate = new Date(payment.dueDate);
-                                dueDate.setHours(0, 0, 0, 0);
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                const timeDiff = dueDate.getTime() - today.getTime();
-                                const daysUntilDue = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-                                const isOverdue = daysUntilDue < 0;
-                                
-                                return (
-                                  <div key={payment.id} className={`flex items-center justify-between p-3 rounded-lg border ${
-                                    isOverdue 
-                                      ? 'bg-red-50/80 border-red-300' 
-                                      : 'bg-white/80 border-amber-200'
-                                  }`}>
-                                    <div className="flex items-center gap-3 flex-1">
-                                      <Calendar className={`w-4 h-4 ${isOverdue ? 'text-red-600' : 'text-amber-600'}`} />
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <p className="font-semibold text-gray-900">{formatCurrency(payment.amount)}</p>
-                                          <Badge variant="outline" className="text-xs px-1.5 py-0 border-gray-300 text-gray-700">
-                                            {payment.type || 'RENT'}
-                                          </Badge>
-                                        </div>
-                                        <p className="text-xs text-gray-600">Due: {formatDate(payment.dueDate)}</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                          {getReminderStageText(payment.reminderStage)}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {payment.note && (
-                                        <Button 
-                                          variant="outline" 
-                                          size="sm"
-                                          onClick={() => setNoteModal({ isOpen: true, note: payment.note })}
-                                          className="border-blue-200 text-blue-700 hover:bg-blue-50 h-8 px-2"
-                                        >
-                                          <FileText className="w-3 h-3 mr-1" />
-                                          Note
-                                        </Button>
-                                      )}
-                                      {lease.status === 'ACTIVE' && (
-                                        <Button 
-                                          variant="outline" 
-                                          size="sm"
-                                          onClick={() => handleMarkAsPaid(payment)}
-                                          className="border-green-200 text-green-700 hover:bg-green-50 h-8 px-2"
-                                        >
-                                          Mark as Paid
-                                        </Button>
-                                      )}
-                                      <Badge className={
-                                        isOverdue 
-                                          ? "bg-red-500 text-white" 
-                                          : daysUntilDue === 0 
-                                            ? "bg-red-500 text-white" 
-                                            : daysUntilDue === 1 
-                                              ? "bg-orange-500 text-white" 
-                                              : "bg-amber-500 text-white"
-                                      }>
-                                        {isOverdue 
-                                          ? `${Math.abs(daysUntilDue)} day${Math.abs(daysUntilDue) !== 1 ? 's' : ''} overdue` 
-                                          : daysUntilDue === 0 
-                                            ? 'Due Today' 
-                                            : daysUntilDue === 1 
-                                              ? 'Due Tomorrow' 
-                                              : `${daysUntilDue} days left`}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <Alert className={overduePaymentsList.length > 0 ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}>
+                      <AlertTriangle className={`h-4 w-4 ${overduePaymentsList.length > 0 ? "text-red-600" : "text-amber-600"}`} />
+                      <AlertDescription className={overduePaymentsList.length > 0 ? "text-red-800" : "text-amber-800"}>
+                        {overduePaymentsList.length > 0 && (
+                          <span className="font-semibold">You have {overduePaymentsList.length} overdue payment{overduePaymentsList.length !== 1 ? 's' : ''}. </span>
+                        )}
+                        {upcomingPaymentsThisMonth.length > 0 && (
+                          <span>You have {upcomingPaymentsThisMonth.length} upcoming payment{upcomingPaymentsThisMonth.length !== 1 ? 's' : ''} due this month.</span>
+                        )}
+                      </AlertDescription>
+                    </Alert>
                   );
                 }
                 return null;
@@ -2339,45 +2194,65 @@ const ViewSpecificLease = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <Table>
-                    <TableHeader className="bg-gray-50">
-                      <TableRow>
-                        <TableHead className="font-semibold">Amount</TableHead>
-                        <TableHead className="font-semibold">Due Date</TableHead>
-                        <TableHead className="font-semibold">Status</TableHead>
-                        <TableHead className="font-semibold">Paid Date</TableHead>
-                        <TableHead className="font-semibold">Method</TableHead>
-                        <TableHead className="font-semibold">Timing</TableHead>
-                        <TableHead className="font-semibold">Type</TableHead>
-                        <TableHead className="font-semibold">Reminder</TableHead>
-                        <TableHead className="font-semibold text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {lease.payments.length === 0 ? (
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-gray-50">
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center text-gray-500 py-12">
-                            <div className="flex flex-col items-center gap-3">
-                              <CreditCard className="w-16 h-16 text-gray-300" />
-                              <p className="text-lg font-medium text-gray-600">No payments recorded yet</p>
-                              <p className="text-gray-500">Start by recording your first payment</p>
-                              {lease.status === 'ACTIVE' && (
-                                <Button 
-                                  className="mt-2 bg-green-600 hover:bg-green-700"
-                                  onClick={handleRecordPayment}
-                                >
-                                  <Receipt className="w-4 h-4 mr-2" />
-                                  Record Payment
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
+                          <TableHead className="font-semibold">Amount</TableHead>
+                          <TableHead className="font-semibold">Due Date</TableHead>
+                          <TableHead className="font-semibold">Status</TableHead>
+                          <TableHead className="font-semibold">Paid Date</TableHead>
+                          <TableHead className="font-semibold">Method</TableHead>
+                          <TableHead className="font-semibold">Timing</TableHead>
+                          <TableHead className="font-semibold">Type</TableHead>
+                          <TableHead className="font-semibold">Reminder</TableHead>
+                          <TableHead className="font-semibold text-right">Actions</TableHead>
                         </TableRow>
-                      ) : (
-                        lease.payments.map((payment) => (
+                      </TableHeader>
+                      <TableBody>
+                        {lease.payments.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center text-gray-500 py-12">
+                              <div className="flex flex-col items-center gap-3">
+                                <CreditCard className="w-16 h-16 text-gray-300" />
+                                <p className="text-lg font-medium text-gray-600">No payments recorded yet</p>
+                                <p className="text-gray-500">Start by recording your first payment</p>
+                                {lease.status === 'ACTIVE' && (
+                                  <Button 
+                                    className="mt-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
+                                    onClick={handleRecordPayment}
+                                  >
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Record Payment
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          lease.payments.map((payment) => {
+                            // Check if payment is overdue or upcoming
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const dueDate = new Date(payment.dueDate);
+                            dueDate.setHours(0, 0, 0, 0);
+                            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                            endOfMonth.setHours(23, 59, 59, 999);
+                            
+                            const isOverdue = payment.status === 'PENDING' && dueDate < today;
+                            const isUpcomingThisMonth = payment.status === 'PENDING' && dueDate >= today && dueDate <= endOfMonth;
+                            
+                            const rowClassName = isOverdue 
+                              ? 'bg-red-50/60 hover:bg-red-50 border-l-4 border-red-500' 
+                              : isUpcomingThisMonth 
+                                ? 'bg-amber-50/60 hover:bg-amber-50 border-l-4 border-amber-500'
+                                : 'hover:bg-gray-50';
+                            
+                            return (
                           <TableRow 
                             key={payment.id} 
-                            className={`hover:bg-gray-50 transition-colors ${
+                            className={`${rowClassName} transition-colors ${
                               payment.status === 'PENDING' && lease.status === 'ACTIVE' 
                                 ? 'cursor-pointer' 
                                 : ''
@@ -2402,12 +2277,49 @@ const ViewSpecificLease = () => {
                               {formatCurrency(payment.amount)}
                             </TableCell>
                             <TableCell className="min-w-[140px]">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-medium text-gray-900">{formatDate(payment.dueDate)}</span>
-                                <span className="text-xs text-gray-500">
-                                  {new Date(payment.dueDate).toLocaleDateString('en-US', { weekday: 'short' })}
-                                </span>
-                              </div>
+                              {(() => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const dueDate = new Date(payment.dueDate);
+                                dueDate.setHours(0, 0, 0, 0);
+                                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                                endOfMonth.setHours(23, 59, 59, 999);
+                                
+                                const isOverdue = payment.status === 'PENDING' && dueDate < today;
+                                const isUpcomingThisMonth = payment.status === 'PENDING' && dueDate >= today && dueDate <= endOfMonth;
+                                const isDueToday = payment.status === 'PENDING' && dueDate.getTime() === today.getTime();
+                                
+                                const dateBgColor = isOverdue 
+                                  ? 'bg-red-100/80' 
+                                  : isDueToday 
+                                    ? 'bg-orange-100/80'
+                                    : isUpcomingThisMonth 
+                                      ? 'bg-amber-100/80'
+                                      : '';
+                                const dateTextColor = isOverdue 
+                                  ? 'text-red-900 font-bold' 
+                                  : isDueToday 
+                                    ? 'text-orange-900 font-bold'
+                                    : isUpcomingThisMonth 
+                                      ? 'text-amber-900 font-semibold'
+                                      : 'text-gray-900';
+                                const dateBorderColor = isOverdue 
+                                  ? 'border-red-300' 
+                                  : isDueToday 
+                                    ? 'border-orange-300'
+                                    : isUpcomingThisMonth 
+                                      ? 'border-amber-300'
+                                      : '';
+                                
+                                return (
+                                  <div className={`flex flex-col gap-0.5 px-2 py-1.5 rounded-md border ${dateBorderColor} ${dateBgColor}`}>
+                                    <span className={`font-medium ${dateTextColor}`}>{formatDate(payment.dueDate)}</span>
+                                    <span className={`text-xs ${isOverdue || isDueToday || isUpcomingThisMonth ? 'text-gray-700' : 'text-gray-500'}`}>
+                                      {new Date(payment.dueDate).toLocaleDateString('en-US', { weekday: 'short' })}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell>
                               <Badge 
@@ -2532,10 +2444,275 @@ const ViewSpecificLease = () => {
                               </div>
                             </TableCell>
                           </TableRow>
-                        ))
+                          );
+                        })
                       )}
                     </TableBody>
                   </Table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden">
+                    {lease.payments.length === 0 ? (
+                      <div className="text-center text-gray-500 py-12 px-4">
+                        <div className="flex flex-col items-center gap-3">
+                          <CreditCard className="w-16 h-16 text-gray-300" />
+                          <p className="text-lg font-medium text-gray-600">No payments recorded yet</p>
+                          <p className="text-sm text-gray-500">Start by recording your first payment</p>
+                          {lease.status === 'ACTIVE' && (
+                            <Button 
+                              className="mt-2 bg-green-600 hover:bg-green-700"
+                              onClick={handleRecordPayment}
+                            >
+                              <Receipt className="w-4 h-4 mr-2" />
+                              Record Payment
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 p-4">
+                        {lease.payments.map((payment) => {
+                          // Check if payment is overdue or upcoming
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const dueDate = new Date(payment.dueDate);
+                          dueDate.setHours(0, 0, 0, 0);
+                          const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                          endOfMonth.setHours(23, 59, 59, 999);
+                          
+                          const isOverdue = payment.status === 'PENDING' && dueDate < today;
+                          const isUpcomingThisMonth = payment.status === 'PENDING' && dueDate >= today && dueDate <= endOfMonth;
+                          
+                          const cardBorderColor = isOverdue 
+                            ? 'border-red-500 border-l-4' 
+                            : isUpcomingThisMonth 
+                              ? 'border-amber-500 border-l-4'
+                              : 'border-gray-200';
+                          const cardBgColor = isOverdue 
+                            ? 'bg-red-50/60' 
+                            : isUpcomingThisMonth 
+                              ? 'bg-amber-50/60'
+                              : '';
+                          
+                          return (
+                          <Card key={payment.id} className={`${cardBorderColor} ${cardBgColor} shadow-sm`}>
+                            <CardContent className="p-4 space-y-3">
+                              {/* Amount and Status - Top Row */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <p className="text-lg font-bold text-green-600">{formatCurrency(payment.amount)}</p>
+                                  <Badge variant="outline" className="mt-1 text-xs">
+                                    {payment.type || 'RENT'}
+                                  </Badge>
+                                </div>
+                                <Badge 
+                                  variant={getPaymentStatusVariant(payment.status)}
+                                  className={`font-medium px-2.5 py-1.5 ${
+                                    payment.status === 'PAID' 
+                                      ? 'bg-green-100 text-green-700 border-green-300' 
+                                      : 'bg-gray-100 text-gray-700 border-gray-300'
+                                  }`}
+                                >
+                                  {payment.status === 'PAID' ? (
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                  ) : (
+                                    <Clock className="w-3 h-3 mr-1" />
+                                  )}
+                                  {payment.status}
+                                </Badge>
+                              </div>
+
+                              {/* Due Date */}
+                              {(() => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const dueDate = new Date(payment.dueDate);
+                                dueDate.setHours(0, 0, 0, 0);
+                                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                                endOfMonth.setHours(23, 59, 59, 999);
+                                
+                                const isOverdue = payment.status === 'PENDING' && dueDate < today;
+                                const isUpcomingThisMonth = payment.status === 'PENDING' && dueDate >= today && dueDate <= endOfMonth;
+                                const isDueToday = payment.status === 'PENDING' && dueDate.getTime() === today.getTime();
+                                
+                                const dateBgColor = isOverdue 
+                                  ? 'bg-red-100/80' 
+                                  : isDueToday 
+                                    ? 'bg-orange-100/80'
+                                    : isUpcomingThisMonth 
+                                      ? 'bg-amber-100/80'
+                                      : '';
+                                const dateTextColor = isOverdue 
+                                  ? 'text-red-900 font-bold' 
+                                  : isDueToday 
+                                    ? 'text-orange-900 font-bold'
+                                    : isUpcomingThisMonth 
+                                      ? 'text-amber-900 font-semibold'
+                                      : 'text-gray-900';
+                                const dateBorderColor = isOverdue 
+                                  ? 'border-red-300' 
+                                  : isDueToday 
+                                    ? 'border-orange-300'
+                                    : isUpcomingThisMonth 
+                                      ? 'border-amber-300'
+                                      : 'border-gray-100';
+                                const iconColor = isOverdue 
+                                  ? 'text-red-600' 
+                                  : isDueToday 
+                                    ? 'text-orange-600'
+                                    : isUpcomingThisMonth 
+                                      ? 'text-amber-600'
+                                      : 'text-gray-500';
+                                
+                                return (
+                                  <div className={`flex items-center gap-2 pt-2 border-t ${dateBorderColor} ${dateBgColor ? `px-2 py-2 rounded-md ${dateBgColor}` : ''}`}>
+                                    <Calendar className={`w-4 h-4 flex-shrink-0 ${iconColor}`} />
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`text-xs ${isOverdue || isDueToday || isUpcomingThisMonth ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>Due Date</p>
+                                      <p className={`text-sm font-semibold ${dateTextColor}`}>{formatDate(payment.dueDate)}</p>
+                                      <p className={`text-xs ${isOverdue || isDueToday || isUpcomingThisMonth ? 'text-gray-700' : 'text-gray-500'}`}>
+                                        {new Date(payment.dueDate).toLocaleDateString('en-US', { weekday: 'long' })}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Additional Info */}
+                              <div className="pt-2 border-t border-gray-100 space-y-2">
+                                {payment.paidAt && (
+                                  <div className="flex items-center gap-2">
+                                    <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs text-gray-500">Paid Date</p>
+                                      <p className="text-sm font-medium text-gray-900">{formatDate(payment.paidAt)}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                {payment.method && (
+                                  <div className="flex items-center gap-2">
+                                    <CreditCard className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs text-gray-500">Method</p>
+                                      <p className="text-sm font-medium text-gray-900">{payment.method}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                {payment.timingStatus && (
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs text-gray-500">Timing</p>
+                                      <Badge 
+                                        variant={payment.timingStatus === 'ONTIME' ? 'default' : payment.timingStatus === 'LATE' ? 'destructive' : 'outline'}
+                                        className={`text-xs ${
+                                          payment.timingStatus === 'ONTIME'
+                                            ? 'bg-blue-100 text-blue-700 border-blue-300'
+                                            : payment.timingStatus === 'ADVANCE'
+                                              ? 'bg-green-100 text-green-700 border-green-300'
+                                              : 'bg-red-100 text-red-700 border-red-300'
+                                        }`}
+                                      >
+                                        {payment.timingStatus}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <Info className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-gray-500">Reminder</p>
+                                    <Badge 
+                                      className={`text-xs ${
+                                        payment.reminderStage === 0
+                                          ? 'bg-gray-100 text-gray-700 border-gray-300'
+                                          : payment.reminderStage === 1
+                                            ? 'bg-green-100 text-green-700 border-green-300'
+                                            : 'bg-blue-100 text-blue-700 border-blue-300'
+                                      }`}
+                                    >
+                                      {payment.reminderStage === 0 
+                                        ? 'No reminder' 
+                                        : payment.reminderStage === 1 
+                                          ? 'Pre-due sent' 
+                                          : 'Due-day sent'}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                {payment.note && (
+                                  <div className="pt-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => setNoteModal({ isOpen: true, note: payment.note })}
+                                      className="w-full border-blue-200 text-blue-700 hover:bg-blue-50 text-xs"
+                                    >
+                                      <FileText className="w-3 h-3 mr-1" />
+                                      View Note
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Actions */}
+                              {lease.status === 'ACTIVE' && (
+                                <div className="pt-2 border-t border-gray-100 flex gap-2">
+                                  {payment.status === 'PENDING' && (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleMarkAsPaid(payment)}
+                                        className="flex-1 border-green-200 text-green-700 hover:bg-green-50 text-xs"
+                                      >
+                                        Mark as Paid
+                                      </Button>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => {
+                                          setEditPaymentModal({
+                                            isOpen: true,
+                                            payment,
+                                          });
+                                          setEditPaymentForm({
+                                            amount: payment.amount,
+                                            dueDate: payment.dueDate.split('T')[0],
+                                            type: payment.type || 'RENT',
+                                            note: payment.note || '',
+                                          });
+                                        }}
+                                        className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50 text-xs"
+                                      >
+                                        <Edit className="w-3 h-3 mr-1" />
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleDeletePayment(payment)}
+                                        className="border-red-200 text-red-700 hover:bg-red-50 text-xs"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                    </>
+                                  )}
+                                  {payment.status === 'PAID' && (
+                                    <Button variant="outline" size="sm" disabled className="w-full text-xs">
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Paid
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -3074,7 +3251,7 @@ const ViewSpecificLease = () => {
               <Label>
                 Date Paid *
               </Label>
-              <CustomDatePicker
+              <DatePicker
                 value={markAsPaidForm.paidAt}
                 onChange={(newDate) => {
                   setMarkAsPaidForm(prev => {
@@ -3341,7 +3518,7 @@ const ViewSpecificLease = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="dueDate">Due Date *</Label>
-                <CustomDatePicker
+                <DatePicker
                   value={recordPaymentForm.dueDate}
                   onChange={(newDate) => {
                     setRecordPaymentForm(prev => {
@@ -3360,7 +3537,7 @@ const ViewSpecificLease = () => {
               {recordPaymentForm.status === 'PAID' && (
                 <div className="space-y-2">
                   <Label htmlFor="paidAt">Paid Date *</Label>
-                  <CustomDatePicker
+                  <DatePicker
                     value={recordPaymentForm.paidAt}
                     onChange={(newDate) => {
                       setRecordPaymentForm(prev => {
@@ -3731,7 +3908,7 @@ const ViewSpecificLease = () => {
 
             <div className="space-y-2">
               <Label htmlFor="edit-dueDate">Due Date *</Label>
-              <CustomDatePicker
+              <DatePicker
                 value={editPaymentForm.dueDate}
                 onChange={(newDate) => setEditPaymentForm({ ...editPaymentForm, dueDate: newDate })}
               />

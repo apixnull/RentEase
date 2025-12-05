@@ -34,6 +34,7 @@ import { getAmenitiesRequest } from "@/api/landlord/propertyApi";
 import { getUnitDetailsRequest, updateUnitRequest } from "@/api/landlord/unitApi";
 import { supabase } from "@/lib/supabaseClient";
 import { privateApi } from "@/api/axios";
+import { getLocalImageUrl } from "@/api/utils";
 import { motion } from "framer-motion";
 import {
   AlertDialog,
@@ -432,8 +433,7 @@ const EditUnit = () => {
 
         // In development, prepend backend URL to make it accessible
         if (import.meta.env.MODE === "development") {
-          const backendUrl = "http://localhost:5000";
-          return `${backendUrl}${mockUrl}`;
+          return getLocalImageUrl(mockUrl);
         }
 
         // In production with local storage, return as-is

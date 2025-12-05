@@ -1084,19 +1084,19 @@ const Financials = () => {
             {renderFilterBadges('timeline', 'mt-2')}
           </div>
           <div className="flex flex-wrap">
-            <div className="relative z-30 flex flex-1 min-w-[120px] flex-col justify-center gap-1 border-t px-3 py-2.5 text-left sm:border-t-0 sm:border-l sm:px-4 sm:py-3">
+            <div className="relative z-30 flex flex-1 min-w-[140px] flex-col justify-center gap-1 border-t px-3 py-2.5 text-left sm:border-t-0 sm:border-l sm:px-4 sm:py-3">
               <span className="text-muted-foreground text-[10px] sm:text-xs">Income</span>
               <span className="text-sm leading-none font-bold sm:text-xl text-emerald-600">
                 {formatCurrency(accountingMetrics.income)}
               </span>
             </div>
-            <div className="relative z-30 flex flex-1 min-w-[120px] flex-col justify-center gap-1 border-t border-l px-3 py-2.5 text-left sm:border-t-0 sm:px-4 sm:py-3">
+            <div className="relative z-30 flex flex-1 min-w-[140px] flex-col justify-center gap-1 border-t border-l px-3 py-2.5 text-left sm:border-t-0 sm:px-4 sm:py-3">
               <span className="text-muted-foreground text-[10px] sm:text-xs">Expense</span>
               <span className="text-sm leading-none font-bold sm:text-xl text-red-600">
                 {formatCurrency(accountingMetrics.expense)}
               </span>
             </div>
-            <div className="relative z-30 flex flex-1 min-w-[120px] flex-col justify-center gap-1 border-t border-l px-3 py-2.5 text-left sm:border-t-0 sm:px-4 sm:py-3">
+            <div className="relative z-30 flex flex-[1.2] min-w-[160px] flex-col justify-center gap-1 border-t border-l px-3 py-2.5 text-left sm:border-t-0 sm:px-4 sm:py-3">
               <span className="text-muted-foreground text-[10px] sm:text-xs">Net Profit</span>
               <span className={`text-sm leading-none font-bold sm:text-xl ${accountingMetrics.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {formatCurrency(accountingMetrics.netProfit)}

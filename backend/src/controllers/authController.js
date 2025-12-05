@@ -41,7 +41,9 @@ export const register = async (req, res) => {
     }
 
     // Check password strength
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+    // Updated regex to accept any special character (non-alphanumeric) instead of a limited set
+    // This allows passwords with #, @, $, !, %, *, ?, &, ^, (, ), _, +, -, =, [, ], {, }, |, ;, :, ,, ., <, >, ~, etc.
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
         message: "Password must have at least 8 characters including uppercase, lowercase, number, and symbol"

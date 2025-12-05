@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { getLocalImageUrl, processImageUrl } from "@/api/utils";
 import {
   User,
   Mail,
@@ -207,8 +208,7 @@ const AccountProfile = () => {
 
         // In development, prepend backend URL to make it accessible
         if (import.meta.env.MODE === "development") {
-          const backendUrl = "http://localhost:5000";
-          return `${backendUrl}${mockUrl}`;
+          return getLocalImageUrl(mockUrl);
         }
 
         // In production with local storage, return as-is
@@ -485,7 +485,7 @@ const AccountProfile = () => {
               transition={{ type: "spring", stiffness: 300 }}
             >
               <Avatar className="h-16 w-16 ring-2 ring-white shadow-md">
-                <AvatarImage src={user.avatarUrl || undefined} alt="avatar" />
+                <AvatarImage src={processImageUrl(user.avatarUrl) || undefined} alt="avatar" />
                 <AvatarFallback
                   className={`bg-gradient-to-br ${theme.iconGradientFrom} ${theme.iconGradientTo} text-white text-xl font-bold`}
                 >

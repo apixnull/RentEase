@@ -18,6 +18,7 @@ import {
   updatePropertyRequest,
 } from "@/api/landlord/propertyApi";
 import { privateApi } from "@/api/axios";
+import { getLocalImageUrl } from "@/api/utils";
 import { supabase } from "@/lib/supabaseClient";
 import {
   AlertTriangle,
@@ -232,8 +233,7 @@ const uploadMainImage = async (file: File): Promise<string> => {
 
       // In development, prepend backend URL to make it accessible
       if (import.meta.env.MODE === "development") {
-        const backendUrl = "http://localhost:5000";
-        return `${backendUrl}${mockUrl}`;
+        return getLocalImageUrl(mockUrl);
       }
 
       // In production with local storage, return as-is (backend should handle full URL)

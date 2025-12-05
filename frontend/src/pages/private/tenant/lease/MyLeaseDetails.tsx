@@ -49,6 +49,7 @@ import {
 import { getLeaseDetailsRequest, handleTenantLeaseActionRequest } from '@/api/tenant/leaseApi';
 import { getAllTenantMaintenanceRequestsRequest, createMaintenanceRequestRequest, cancelMaintenanceRequestRequest } from '@/api/tenant/maintenanceApi';
 import { privateApi } from '@/api/axios';
+import { getLocalImageUrl, processImageUrl, getBackendBaseUrl } from '@/api/utils';
 import { supabase } from '@/lib/supabaseClient';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -450,8 +451,7 @@ const MyLeaseDetails = () => {
 
         // In development, prepend backend URL to make it accessible
         if (import.meta.env.MODE === "development") {
-          const backendUrl = "http://localhost:5000";
-          return `${backendUrl}${mockUrl}`;
+          return getLocalImageUrl(mockUrl);
         }
 
         // In production with local storage, return as-is (backend should handle full URL)
@@ -1044,14 +1044,39 @@ const MyLeaseDetails = () => {
   };
 
 
-  const downloadLeaseDocument = () => {
-    if (lease?.leaseDocumentUrl) {
+  const downloadLeaseDocument = async () => {
+    if (!lease?.leaseDocumentUrl) return;
+    
+    try {
+      // Process the URL to ensure it's a full URL (not relative)
+      let processedUrl = processImageUrl(lease.leaseDocumentUrl) || lease.leaseDocumentUrl;
+      
+      // If it's still a relative path, convert it to full URL
+      if (processedUrl.startsWith('/')) {
+        const backendBaseUrl = getBackendBaseUrl();
+        processedUrl = `${backendBaseUrl}${processedUrl}`;
+      }
+      
+      // Fetch the file and create a blob for download
+      const response = await fetch(processedUrl);
+      if (!response.ok) {
+        throw new Error('Failed to download document');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = lease.leaseDocumentUrl;
-      link.download = `Lease-Document-${lease.leaseNickname}.pdf`;
+      link.href = url;
+      link.download = `Lease-Document-${lease.leaseNickname || 'document'}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Document downloaded successfully');
+    } catch (error: any) {
+      console.error('Error downloading document:', error);
+      toast.error('Failed to download document. Please try again.');
     }
   };
 
@@ -1088,21 +1113,21 @@ const MyLeaseDetails = () => {
   const overduePayments = getOverduePayments();
   const overdueAmount = overduePayments.reduce((sum, payment) => sum + payment.amount, 0);
 
-  // Get upcoming payments (due within 3 days)
-  const getUpcomingPayments = () => {
+  // Get upcoming payments for this month
+  const getUpcomingPaymentsThisMonth = () => {
     if (!lease?.payments) return [];
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const threeDaysFromNow = new Date(today);
-    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    endOfMonth.setHours(23, 59, 59, 999);
 
     return lease.payments
       .filter(payment => {
         if (payment.status === 'PAID') return false;
         const dueDate = new Date(payment.dueDate);
         dueDate.setHours(0, 0, 0, 0);
-        return dueDate >= today && dueDate <= threeDaysFromNow;
+        return dueDate >= today && dueDate <= endOfMonth;
       })
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   };
@@ -1283,16 +1308,6 @@ const MyLeaseDetails = () => {
                     </span>
                   )}
                 </Button>
-                {lease.leaseDocumentUrl && (
-                  <Button 
-                    onClick={downloadLeaseDocument} 
-                    variant="outline"
-                    className="h-11 rounded-xl border-slate-200 bg-white/80 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download Document
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -1530,9 +1545,8 @@ const MyLeaseDetails = () => {
                   {activeTab === 'lease' && (
                     <div className={`absolute inset-0 bg-gradient-to-r ${themeGradient}/10 opacity-50`} />
                   )}
-                  <FileText className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'lease' ? 'text-slate-700' : 'text-gray-500'}`} />
-                  <span className="relative z-10 hidden sm:inline">Lease</span>
-                  <span className="relative z-10 sm:hidden">Lease</span>
+                  <FileText className={`w-4 h-4 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'lease' ? 'text-slate-700' : 'text-gray-500'}`} />
+                  <span className="relative z-10 hidden md:inline">Lease</span>
                 </TabsTrigger>
                 {showPaymentsTab && (
                   <TabsTrigger 
@@ -1546,9 +1560,8 @@ const MyLeaseDetails = () => {
                     {activeTab === 'payments' && (
                       <div className={`absolute inset-0 bg-gradient-to-r ${themeGradient}/10 opacity-50`} />
                     )}
-                    <CreditCard className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'payments' ? 'text-slate-700' : 'text-gray-500'}`} />
-                    <span className="relative z-10 hidden sm:inline">Payments</span>
-                    <span className="relative z-10 sm:hidden">Payments</span>
+                    <CreditCard className={`w-4 h-4 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'payments' ? 'text-slate-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 hidden md:inline">Payments</span>
                     {lease && pendingPayments.length > 0 && (
                       <Badge className={`ml-1 text-xs px-1.5 py-0 relative z-10 ${
                         activeTab === 'payments' 
@@ -1572,9 +1585,8 @@ const MyLeaseDetails = () => {
                     {activeTab === 'maintenance' && (
                       <div className={`absolute inset-0 bg-gradient-to-r ${themeGradient}/10 opacity-50`} />
                     )}
-                    <Wrench className={`w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'maintenance' ? 'text-slate-700' : 'text-gray-500'}`} />
-                    <span className="relative z-10 hidden sm:inline">Maintenance</span>
-                    <span className="relative z-10 sm:hidden">Maintenance</span>
+                    <Wrench className={`w-4 h-4 sm:w-4 sm:h-4 relative z-10 ${activeTab === 'maintenance' ? 'text-slate-700' : 'text-gray-500'}`} />
+                    <span className="relative z-10 hidden md:inline">Maintenance</span>
                   </TabsTrigger>
                 )}
               </TabsList>
@@ -1700,7 +1712,17 @@ const MyLeaseDetails = () => {
                               Download
                             </Button>
                             <Button 
-                              onClick={() => lease.leaseDocumentUrl && window.open(lease.leaseDocumentUrl, '_blank')}
+                              onClick={() => {
+                                if (lease.leaseDocumentUrl) {
+                                  let processedUrl = processImageUrl(lease.leaseDocumentUrl) || lease.leaseDocumentUrl;
+                                  // If it's still a relative path, convert it to full URL
+                                  if (processedUrl.startsWith('/')) {
+                                    const backendBaseUrl = getBackendBaseUrl();
+                                    processedUrl = `${backendBaseUrl}${processedUrl}`;
+                                  }
+                                  window.open(processedUrl, '_blank');
+                                }
+                              }}
                               variant="outline"
                               className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
                             >
@@ -1798,7 +1820,7 @@ const MyLeaseDetails = () => {
                     <div className="p-4 bg-white/80 rounded-lg border border-indigo-100 shadow-sm">
                       <div className="flex items-center gap-3 mb-3">
                         <Avatar className="h-10 w-10 border border-indigo-200">
-                          <AvatarImage src={lease.tenant.avatarUrl || undefined} />
+                          <AvatarImage src={processImageUrl(lease.tenant.avatarUrl) || undefined} />
                           <AvatarFallback className="text-sm bg-indigo-100 text-indigo-700">
                             {lease.tenant.firstName[0]}{lease.tenant.lastName[0]}
                           </AvatarFallback>
@@ -1826,7 +1848,7 @@ const MyLeaseDetails = () => {
                     <div className="p-4 bg-white/80 rounded-lg border border-blue-100 shadow-sm">
                       <div className="flex items-center gap-3 mb-3">
                         <Avatar className="h-10 w-10 border border-blue-200">
-                          <AvatarImage src={lease.landlord.avatarUrl || undefined} />
+                          <AvatarImage src={processImageUrl(lease.landlord.avatarUrl) || undefined} />
                           <AvatarFallback className="text-sm bg-blue-100 text-blue-700">
                             {lease.landlord.firstName[0]}{lease.landlord.lastName[0]}
                           </AvatarFallback>
@@ -1855,57 +1877,42 @@ const MyLeaseDetails = () => {
             {/* Payments Tab - Only shown for non-pending, non-rejected leases */}
             {showPaymentsTab && (
               <TabsContent value="payments" className="m-0 p-3 sm:p-4 md:p-6 space-y-6">
-            {/* Payment Reminders */}
+            {/* Simple Reminders */}
             {(() => {
-              const upcomingPayments = getUpcomingPayments();
-              if (upcomingPayments.length > 0) {
-                return (
-                  <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 shadow-md">
-                    <CardContent className="p-3 sm:p-4">
-                      <div className="flex flex-col sm:flex-row items-start gap-3">
-                        <div className="p-2 bg-amber-500 rounded-lg flex-shrink-0">
-                          <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-amber-900 mb-2 flex flex-wrap items-center gap-2 text-sm sm:text-base">
-                            Payment Reminders
-                            <Badge className="bg-amber-600 text-white text-xs">{upcomingPayments.length}</Badge>
-                          </h4>
-                          <p className="text-xs sm:text-sm text-amber-800 mb-3">
-                            The following payments are due soon. Please pay your landlord on time to avoid late fees and penalties.
-                          </p>
-                          <div className="space-y-2">
-                            {upcomingPayments.map((payment) => {
-                              const dueDate = new Date(payment.dueDate);
-                              dueDate.setHours(0, 0, 0, 0);
-                              const today = new Date();
-                              today.setHours(0, 0, 0, 0);
-                              const timeDiff = dueDate.getTime() - today.getTime();
-                              const daysUntilDue = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-                              
-                              return (
-                                <div key={payment.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 p-2.5 sm:p-3 bg-white/80 rounded-lg border border-amber-200">
-                                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                                    <Calendar className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                      <p className="font-semibold text-sm sm:text-base text-gray-900 truncate">{formatCurrency(payment.amount)}</p>
-                                      <p className="text-xs text-gray-600">Due: {formatDate(payment.dueDate)}</p>
-                                    </div>
-                                  </div>
-                                  <Badge className={`flex-shrink-0 text-xs ${daysUntilDue === 0 ? "bg-red-500 text-white" : daysUntilDue === 1 ? "bg-orange-500 text-white" : "bg-amber-500 text-white"}`}>
-                                    {daysUntilDue === 0 ? 'Due Today' : daysUntilDue === 1 ? 'Due Tomorrow' : `${daysUntilDue} days left`}
-                                  </Badge>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              }
-              return null;
+              const overduePaymentsList = getOverduePayments();
+              const upcomingPaymentsThisMonth = getUpcomingPaymentsThisMonth();
+              const pendingPaymentsList = lease ? lease.payments.filter(p => p.status === 'PENDING') : [];
+              
+              return (
+                <>
+                  {overduePaymentsList.length > 0 && (
+                    <Alert className="bg-red-50 border-red-200">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <AlertDescription className="text-red-800">
+                        <span className="font-semibold">You have {overduePaymentsList.length} overdue payment{overduePaymentsList.length !== 1 ? 's' : ''}. </span>
+                        <span>Please contact your landlord immediately to arrange payment. Timely payments help maintain a good relationship with your landlord.</span>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {upcomingPaymentsThisMonth.length > 0 && (
+                    <Alert className="bg-amber-50 border-amber-200">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800">
+                        <span className="font-semibold">You have {upcomingPaymentsThisMonth.length} upcoming payment{upcomingPaymentsThisMonth.length !== 1 ? 's' : ''} due this month. </span>
+                        <span>Please make sure to pay your landlord on time to avoid any late fees or issues.</span>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {overduePaymentsList.length === 0 && upcomingPaymentsThisMonth.length === 0 && pendingPaymentsList.length > 0 && (
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <AlertTriangle className="h-4 w-4 text-blue-600" />
+                      <AlertDescription className="text-blue-800">
+                        <span>Remember to pay your landlord on time. Keeping up with your rent payments helps maintain a positive rental relationship.</span>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              );
             })()}
 
             {/* Payment Statistics */}
@@ -1984,8 +1991,26 @@ const MyLeaseDetails = () => {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        lease.payments.map((payment) => (
-                          <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
+                        lease.payments.map((payment) => {
+                          // Check if payment is overdue or upcoming
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const dueDate = new Date(payment.dueDate);
+                          dueDate.setHours(0, 0, 0, 0);
+                          const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                          endOfMonth.setHours(23, 59, 59, 999);
+                          
+                          const isOverdue = payment.status === 'PENDING' && dueDate < today;
+                          const isUpcomingThisMonth = payment.status === 'PENDING' && dueDate >= today && dueDate <= endOfMonth;
+                          
+                          const rowClassName = isOverdue 
+                            ? 'bg-red-50/60 hover:bg-red-50 border-l-4 border-red-500' 
+                            : isUpcomingThisMonth 
+                              ? 'bg-amber-50/60 hover:bg-amber-50 border-l-4 border-amber-500'
+                              : 'hover:bg-gray-50';
+                          
+                          return (
+                          <TableRow key={payment.id} className={`${rowClassName} transition-colors`}>
                             <TableCell className="font-semibold text-green-600">
                               {formatCurrency(payment.amount)}
                             </TableCell>
@@ -2085,7 +2110,8 @@ const MyLeaseDetails = () => {
                               )}
                             </TableCell>
                           </TableRow>
-                        ))
+                          );
+                        })
                       )}
                     </TableBody>
                   </Table>
@@ -2103,8 +2129,31 @@ const MyLeaseDetails = () => {
                     </div>
                   ) : (
                     <div className="space-y-3 p-4">
-                      {lease.payments.map((payment) => (
-                        <Card key={payment.id} className="border border-gray-200 shadow-sm">
+                      {lease.payments.map((payment) => {
+                        // Check if payment is overdue or upcoming
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const dueDate = new Date(payment.dueDate);
+                        dueDate.setHours(0, 0, 0, 0);
+                        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                        endOfMonth.setHours(23, 59, 59, 999);
+                        
+                        const isOverdue = payment.status === 'PENDING' && dueDate < today;
+                        const isUpcomingThisMonth = payment.status === 'PENDING' && dueDate >= today && dueDate <= endOfMonth;
+                        
+                        const cardBorderColor = isOverdue 
+                          ? 'border-red-500 border-l-4' 
+                          : isUpcomingThisMonth 
+                            ? 'border-amber-500 border-l-4'
+                            : 'border-gray-200';
+                        const cardBgColor = isOverdue 
+                          ? 'bg-red-50/60' 
+                          : isUpcomingThisMonth 
+                            ? 'bg-amber-50/60'
+                            : '';
+                        
+                        return (
+                        <Card key={payment.id} className={`${cardBorderColor} ${cardBgColor} shadow-sm`}>
                           <CardContent className="p-4 space-y-3">
                             {/* Amount and Status - Top Row */}
                             <div className="flex items-center justify-between">
@@ -2199,7 +2248,8 @@ const MyLeaseDetails = () => {
                             </div>
                           </CardContent>
                         </Card>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2255,28 +2305,29 @@ const MyLeaseDetails = () => {
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-2.5">
+                      <div className="space-y-3">
                         {maintenanceRequests.map((request: any) => (
                           <Card 
                             key={request.id} 
-                            className="border border-gray-200 hover:border-gray-300 transition-colors shadow-sm cursor-pointer hover:shadow-md"
+                            className="border border-gray-200 hover:border-gray-300 transition-all shadow-sm cursor-pointer hover:shadow-md active:scale-[0.98]"
                             onClick={() => setDetailModal({ isOpen: true, request })}
                           >
-                            <CardContent className="p-3">
+                            <CardContent className="p-3 sm:p-4">
                               <div className="flex items-start gap-3">
                                 {/* Photo Thumbnail */}
                                 {request.photoUrl && (
                                   <div 
-                                    className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20"
+                                    className="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border border-gray-200"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      window.open(request.photoUrl, '_blank');
+                                      const processedUrl = processImageUrl(request.photoUrl) || request.photoUrl;
+                                      window.open(processedUrl, '_blank');
                                     }}
                                   >
                                     <img
-                                      src={request.photoUrl}
+                                      src={processImageUrl(request.photoUrl) || ""}
                                       alt="Maintenance issue"
-                                      className="w-full h-full object-cover rounded-md border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                      className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                                     />
                                   </div>
                                 )}
@@ -2286,13 +2337,14 @@ const MyLeaseDetails = () => {
                                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
                                     {/* Status Badge - More Prominent */}
                                     <div className="flex items-center gap-2">
-                                      <Badge className={`${getMaintenanceStatusColor(request.status)} text-xs px-2.5 py-1 font-semibold border`}>
-                                        {request.status === 'OPEN' && <Clock className="w-3 h-3 mr-1" />}
-                                        {request.status === 'IN_PROGRESS' && <Wrench className="w-3 h-3 mr-1" />}
-                                        {request.status === 'RESOLVED' && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                                        {request.status === 'CANCELLED' && <XCircle className="w-3 h-3 mr-1" />}
-                                        {request.status === 'INVALID' && <AlertTriangle className="w-3 h-3 mr-1" />}
-                                        {request.status.replace('_', ' ')}
+                                      <Badge className={`${getMaintenanceStatusColor(request.status)} text-xs sm:text-sm px-2.5 py-1 font-semibold border`}>
+                                        {request.status === 'OPEN' && <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />}
+                                        {request.status === 'IN_PROGRESS' && <Wrench className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />}
+                                        {request.status === 'RESOLVED' && <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />}
+                                        {request.status === 'CANCELLED' && <XCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />}
+                                        {request.status === 'INVALID' && <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />}
+                                        <span className="hidden sm:inline">{request.status.replace('_', ' ')}</span>
+                                        <span className="sm:hidden">{request.status.replace('_', ' ').substring(0, 8)}</span>
                                       </Badge>
                                     </div>
                                     
@@ -2305,23 +2357,24 @@ const MyLeaseDetails = () => {
                                           e.stopPropagation();
                                           setCancelModal({ isOpen: true, requestId: request.id });
                                         }}
-                                        className="border-red-200 text-red-700 hover:bg-red-50 h-7 text-xs px-2.5 flex-shrink-0"
+                                        className="border-red-200 text-red-700 hover:bg-red-50 h-7 sm:h-8 text-xs px-2 sm:px-2.5 flex-shrink-0"
                                       >
                                         <X className="h-3 w-3 mr-1" />
-                                        Cancel
+                                        <span className="hidden sm:inline">Cancel</span>
+                                        <span className="sm:hidden">Cancel</span>
                                       </Button>
                                     )}
                                   </div>
                                   
                                   {/* Description */}
-                                  <p className="text-sm text-gray-700 mb-2.5 line-clamp-2 break-words leading-relaxed">
+                                  <p className="text-sm sm:text-base text-gray-700 mb-2.5 line-clamp-2 break-words leading-relaxed">
                                     {request.description}
                                   </p>
                                   
                                   {/* Date Information */}
-                                  <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-500">
                                     <div className="flex items-center gap-1">
-                                      <Calendar className="w-3.5 h-3.5" />
+                                      <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
                                       <span>
                                         Created: {new Date(request.createdAt).toLocaleDateString('en-US', {
                                           month: 'short',
@@ -2332,7 +2385,7 @@ const MyLeaseDetails = () => {
                                     </div>
                                     {request.updatedAt && new Date(request.updatedAt).getTime() !== new Date(request.createdAt).getTime() && (
                                       <div className="flex items-center gap-1">
-                                        <Clock className="w-3.5 h-3.5" />
+                                        <Clock className="w-3.5 h-3.5 flex-shrink-0" />
                                         <span>
                                           Updated: {new Date(request.updatedAt).toLocaleDateString('en-US', {
                                             month: 'short',
@@ -2357,7 +2410,7 @@ const MyLeaseDetails = () => {
 
             {/* Create Maintenance Request Modal */}
             <Dialog open={showCreateMaintenanceModal} onOpenChange={setShowCreateMaintenanceModal}>
-              <DialogContent className="w-[90vw] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto p-3 sm:p-6 mx-auto">
+              <DialogContent className="w-[95vw] sm:w-full max-w-lg max-h-[85vh] overflow-y-auto p-4 sm:p-6 mx-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Wrench className="w-5 h-5 text-blue-600" />
@@ -2367,27 +2420,27 @@ const MyLeaseDetails = () => {
                     Describe the maintenance issue you're experiencing in your unit
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <Alert className="bg-blue-50 border-blue-200">
-                    <AlertTriangle className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-800 text-sm">
+                <div className="space-y-3 sm:space-y-4 py-2 sm:py-4">
+                  <Alert className="bg-blue-50 border-blue-200 p-2 sm:p-3">
+                    <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800 text-xs sm:text-sm">
                       <strong>Note:</strong> Once submitted, this request cannot be deleted and will be visible to your landlord. You can cancel it if the issue is resolved or was reported by mistake, but the cancelled request will still be visible to the landlord.
                     </AlertDescription>
                   </Alert>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description *</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="description" className="text-sm">Description *</Label>
                     <Textarea
                       id="description"
                       value={maintenanceForm.description}
                       onChange={(e) => setMaintenanceForm({ ...maintenanceForm, description: e.target.value })}
                       placeholder="Describe the maintenance issue in detail..."
-                      rows={5}
-                      className="resize-none"
+                      rows={4}
+                      className="resize-none text-sm"
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="photo">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="photo" className="text-sm">
                       Photo <span className="text-red-500">*</span>
                     </Label>
                     <input
@@ -2404,50 +2457,51 @@ const MyLeaseDetails = () => {
                           <img
                             src={maintenanceForm.photoPreview}
                             alt="Preview"
-                            className="w-full h-48 object-cover rounded-lg border border-gray-200"
+                            className="w-full h-40 sm:h-48 object-cover rounded-lg border border-gray-200"
                           />
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="absolute top-2 right-2 bg-red-500 text-white hover:bg-red-600"
+                            className="absolute top-2 right-2 bg-red-500 text-white hover:bg-red-600 h-7 w-7"
                             onClick={() => setMaintenanceForm({ ...maintenanceForm, photo: null, photoPreview: '' })}
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => document.getElementById('photo')?.click()}
-                          className="w-full"
+                          className="w-full text-sm"
+                          size="sm"
                         >
-                          <ImageIcon className="h-4 w-4 mr-2" />
+                          <ImageIcon className="h-3.5 w-3.5 mr-2" />
                           Change Photo
                         </Button>
                       </div>
                     ) : (
                       <div className="space-y-2">
                         <div
-                          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition-colors"
+                          className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center cursor-pointer hover:border-blue-400 transition-colors"
                           onClick={() => document.getElementById('photo')?.click()}
                         >
-                          <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600 font-medium">Click to upload a photo</p>
-                          <p className="text-xs text-gray-500 mt-1">Required: Help us understand the issue better</p>
+                          <Upload className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-xs sm:text-sm text-gray-600 font-medium">Click to upload a photo</p>
+                          <p className="text-[10px] sm:text-xs text-gray-500 mt-1">Required: Help us understand the issue better</p>
                         </div>
-                        <Alert className="bg-blue-50 border-blue-200">
-                          <ImageIcon className="h-4 w-4 text-blue-600" />
-                          <AlertDescription className="text-blue-800 text-xs">
+                        <Alert className="bg-blue-50 border-blue-200 p-2 sm:p-3">
+                          <ImageIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
+                          <AlertDescription className="text-blue-800 text-[10px] sm:text-xs">
                             <strong>Photo Tips:</strong> Make sure the image is clear and well-lit. Take the photo in good lighting, focus on the issue, and ensure the image is not blurry. A clear photo helps your landlord understand and address the problem faster.
                           </AlertDescription>
                         </Alert>
                       </div>
                     )}
                     {maintenanceForm.photoPreview && (
-                      <Alert className="bg-amber-50 border-amber-200">
-                        <ImageIcon className="h-4 w-4 text-amber-600" />
-                        <AlertDescription className="text-amber-800 text-xs">
+                      <Alert className="bg-amber-50 border-amber-200 p-2 sm:p-3">
+                        <ImageIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600" />
+                        <AlertDescription className="text-amber-800 text-[10px] sm:text-xs">
                           <strong>Image Quality Check:</strong> Ensure the photo is clear, well-lit, and shows the issue clearly. If the image is blurry or unclear, please take another photo before submitting.
                         </AlertDescription>
                       </Alert>
@@ -2540,7 +2594,7 @@ const MyLeaseDetails = () => {
 
       {/* Maintenance Request Detail Modal */}
       <Dialog open={detailModal.isOpen} onOpenChange={(open) => setDetailModal({ isOpen: open, request: null })}>
-        <DialogContent className="w-[90vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto p-3 sm:p-6 mx-auto">
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 mx-auto">
           {detailModal.request && (
             <>
               <DialogHeader>
@@ -2588,14 +2642,17 @@ const MyLeaseDetails = () => {
                     <Label className="text-sm font-medium text-gray-700">Photo</Label>
                     <div className="relative">
                       <img
-                        src={detailModal.request.photoUrl}
+                        src={processImageUrl(detailModal.request.photoUrl) || ""}
                         alt="Maintenance issue"
                         className="w-full max-h-64 object-contain rounded-lg border border-gray-200 bg-gray-50"
                       />
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(detailModal.request.photoUrl, '_blank')}
+                        onClick={() => {
+                          const processedUrl = processImageUrl(detailModal.request.photoUrl) || detailModal.request.photoUrl;
+                          window.open(processedUrl, '_blank');
+                        }}
                         className="absolute top-2 right-2 bg-white/90 hover:bg-white"
                       >
                         <ExternalLink className="h-4 w-4 mr-1" />

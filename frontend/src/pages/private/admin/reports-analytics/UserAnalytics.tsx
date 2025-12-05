@@ -34,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { 
   Loader2, 
   RefreshCcw, 
@@ -63,6 +63,17 @@ const usersCreatedChartConfig = {
   usersCreated: {
     label: 'Users Created',
     color: 'hsl(142, 71%, 45%)', // Green-600 - easier on the eyes
+  },
+} satisfies ChartConfig;
+
+const userTypeChartConfig = {
+  tenants: {
+    label: 'Tenants',
+    color: 'hsl(142, 71%, 45%)', // Emerald-600
+  },
+  landlords: {
+    label: 'Landlords',
+    color: 'hsl(217, 91%, 60%)', // Blue-600
   },
 } satisfies ChartConfig;
 
@@ -1206,7 +1217,7 @@ const UserAnalytics = () => {
       </motion.div>
 
       {/* Key Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-purple-700">
@@ -1282,6 +1293,91 @@ const UserAnalytics = () => {
             <p className="text-xs text-amber-600 mt-1">
               {timeFilter === 'month' ? 'Logins this month' : timeFilter === 'year' ? 'Logins this year' : 'Total login events all time'}
             </p>
+          </CardContent>
+        </Card>
+
+        {/* User Type Distribution Pie Chart */}
+        <Card className="bg-gradient-to-br from-slate-50 to-gray-50 border-slate-100">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-700">User Distribution</CardTitle>
+            <Users className="h-4 w-4 text-slate-600" />
+          </CardHeader>
+          <CardContent>
+            {filteredMetrics.totalUsers > 0 ? (
+              <div className="space-y-3">
+                <ChartContainer config={userTypeChartConfig} className="h-[240px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Tenants', value: filteredMetrics.tenants },
+                          { name: 'Landlords', value: filteredMetrics.landlords },
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                          if (percent < 0.05) return null; // Hide label if too small
+                          const RADIAN = Math.PI / 180;
+                          const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                          const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                          const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                          
+                          return (
+                            <text
+                              x={x}
+                              y={y}
+                              fill="#1e293b"
+                              textAnchor={x > cx ? 'start' : 'end'}
+                              dominantBaseline="central"
+                              style={{
+                                fontSize: '16px',
+                                fontWeight: '700',
+                              }}
+                            >
+                              {`${(percent * 100).toFixed(0)}%`}
+                            </text>
+                          );
+                        }}
+                        outerRadius={85}
+                        innerRadius={45}
+                        fill="#8884d8"
+                        dataKey="value"
+                        strokeWidth={2}
+                        stroke="#fff"
+                      >
+                        <Cell fill="hsl(142, 71%, 45%)" />
+                        <Cell fill="hsl(217, 91%, 60%)" />
+                      </Pie>
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent
+                            formatter={(value: any) => [value, '']}
+                            labelFormatter={(label) => label}
+                          />
+                        }
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+                <div className="flex items-center justify-center gap-4 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-3 w-3 rounded-full bg-emerald-600" />
+                    <span className="text-slate-600">Tenants</span>
+                    <span className="font-semibold text-slate-900">({filteredMetrics.tenants})</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-3 w-3 rounded-full bg-blue-600" />
+                    <span className="text-slate-600">Landlords</span>
+                    <span className="font-semibold text-slate-900">({filteredMetrics.landlords})</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="h-[240px] flex items-center justify-center text-sm text-slate-500">
+                No data available
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

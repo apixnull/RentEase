@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { getAmenitiesRequest } from "@/api/landlord/propertyApi";
 import { supabase } from "@/lib/supabaseClient";
 import { privateApi } from "@/api/axios";
+import { getLocalImageUrl } from "@/api/utils";
 import { createUnitRequest } from "@/api/landlord/unitApi";
 import { motion } from "framer-motion";
 
@@ -482,8 +483,7 @@ const CreateUnit = () => {
 
         // In development, prepend backend URL to make it accessible
         if (import.meta.env.MODE === "development") {
-          const backendUrl = "http://localhost:5000";
-          return `${backendUrl}${mockUrl}`;
+          return getLocalImageUrl(mockUrl);
         }
 
         // In production with local storage, return as-is
