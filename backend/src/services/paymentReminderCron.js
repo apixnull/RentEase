@@ -173,7 +173,15 @@ export const sendPaymentReminders = async () => {
         const dueDateFormatted = formatDate(payment.dueDate);
         const paymentType = payment.type || 'RENT';
         
-        const emailResult = await sendEmail({
+        // Update reminderStage optimistically (assume email will succeed)
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { reminderStage: 1 },
+        });
+        sentCount++;
+        
+        // Send email (non-blocking)
+        sendEmail({
           to: payment.lease.tenant.email,
           subject: `Payment Reminder: ${paymentType} Due in 2 Days - ${payment.lease.property.title}`,
           html: paymentReminderTemplate(
@@ -184,20 +192,15 @@ export const sendPaymentReminders = async () => {
             payment.lease.unit.label,
             paymentType
           ),
+        }).then((emailResult) => {
+          if (emailResult.success) {
+            console.log(`✅ Sent 2-day reminder for payment ${payment.id} to ${payment.lease.tenant.email}`);
+          } else {
+            console.error(`❌ Failed to send 2-day reminder for payment ${payment.id}:`, emailResult.error);
+          }
+        }).catch((error) => {
+          console.error(`❌ Error sending 2-day reminder for payment ${payment.id}:`, error);
         });
-        
-        if (emailResult.success) {
-          // Update reminderStage to 1
-          await prisma.payment.update({
-            where: { id: payment.id },
-            data: { reminderStage: 1 },
-          });
-          sentCount++;
-          console.log(`✅ Sent 2-day reminder for payment ${payment.id} to ${payment.lease.tenant.email}`);
-        } else {
-          errorCount++;
-          console.error(`❌ Failed to send 2-day reminder for payment ${payment.id}:`, emailResult.error);
-        }
       } catch (error) {
         errorCount++;
         console.error(`❌ Error processing 2-day reminder for payment ${payment.id}:`, error);
@@ -212,7 +215,15 @@ export const sendPaymentReminders = async () => {
         const dueDateFormatted = formatDate(payment.dueDate);
         const paymentType = payment.type || 'RENT';
         
-        const emailResult = await sendEmail({
+        // Update reminderStage optimistically (assume email will succeed)
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { reminderStage: 2 },
+        });
+        sentCount++;
+        
+        // Send email (non-blocking)
+        sendEmail({
           to: payment.lease.tenant.email,
           subject: `Payment Due Today: ${paymentType} - ${payment.lease.property.title}`,
           html: paymentDueTodayTemplate(
@@ -223,20 +234,15 @@ export const sendPaymentReminders = async () => {
             payment.lease.unit.label,
             paymentType
           ),
+        }).then((emailResult) => {
+          if (emailResult.success) {
+            console.log(`✅ Sent due today reminder (skipped 2-day) for payment ${payment.id} to ${payment.lease.tenant.email}`);
+          } else {
+            console.error(`❌ Failed to send due today reminder for payment ${payment.id}:`, emailResult.error);
+          }
+        }).catch((error) => {
+          console.error(`❌ Error sending due today reminder for payment ${payment.id}:`, error);
         });
-        
-        if (emailResult.success) {
-          // Update reminderStage directly to 2 (no more reminders)
-          await prisma.payment.update({
-            where: { id: payment.id },
-            data: { reminderStage: 2 },
-          });
-          sentCount++;
-          console.log(`✅ Sent due today reminder (skipped 2-day) for payment ${payment.id} to ${payment.lease.tenant.email}`);
-        } else {
-          errorCount++;
-          console.error(`❌ Failed to send due today reminder for payment ${payment.id}:`, emailResult.error);
-        }
       } catch (error) {
         errorCount++;
         console.error(`❌ Error processing due today reminder for payment ${payment.id}:`, error);
@@ -250,7 +256,15 @@ export const sendPaymentReminders = async () => {
         const dueDateFormatted = formatDate(payment.dueDate);
         const paymentType = payment.type || 'RENT';
         
-        const emailResult = await sendEmail({
+        // Update reminderStage optimistically (assume email will succeed)
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { reminderStage: 2 },
+        });
+        sentCount++;
+        
+        // Send email (non-blocking)
+        sendEmail({
           to: payment.lease.tenant.email,
           subject: `Payment Due Today: ${paymentType} - ${payment.lease.property.title}`,
           html: paymentDueTodayTemplate(
@@ -261,20 +275,15 @@ export const sendPaymentReminders = async () => {
             payment.lease.unit.label,
             paymentType
           ),
+        }).then((emailResult) => {
+          if (emailResult.success) {
+            console.log(`✅ Sent due today reminder for payment ${payment.id} to ${payment.lease.tenant.email}`);
+          } else {
+            console.error(`❌ Failed to send due today reminder for payment ${payment.id}:`, emailResult.error);
+          }
+        }).catch((error) => {
+          console.error(`❌ Error sending due today reminder for payment ${payment.id}:`, error);
         });
-        
-        if (emailResult.success) {
-          // Update reminderStage to 2 (no more reminders)
-          await prisma.payment.update({
-            where: { id: payment.id },
-            data: { reminderStage: 2 },
-          });
-          sentCount++;
-          console.log(`✅ Sent due today reminder for payment ${payment.id} to ${payment.lease.tenant.email}`);
-        } else {
-          errorCount++;
-          console.error(`❌ Failed to send due today reminder for payment ${payment.id}:`, emailResult.error);
-        }
       } catch (error) {
         errorCount++;
         console.error(`❌ Error processing due today reminder for payment ${payment.id}:`, error);

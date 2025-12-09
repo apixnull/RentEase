@@ -516,7 +516,7 @@ const LeaseAnalytics = () => {
     }));
   }, [filteredPayments, monthlyPayments, allTimePayments, dateRangePreset, filterType, selectedPropertyId, selectedUnitId]);
 
-  // Payment Status Distribution Data - includes unpaid for THIS_MONTH and THIS_YEAR
+  // Payment Status Distribution Data - includes unpaid for THIS_MONTH, THIS_YEAR, and ALL_TIME
   const paymentStatusData = useMemo(() => {
     const now = new Date();
     const monthStart = startOfMonth(now);
@@ -527,7 +527,7 @@ const LeaseAnalytics = () => {
     // Get paid payments from filteredPayments
     let paidPayments = filteredPayments;
     
-    // Get unpaid payments if viewing THIS_MONTH or THIS_YEAR
+    // Get unpaid payments if viewing THIS_MONTH, THIS_YEAR, or ALL_TIME
     let unpaidCount = 0;
     if (dateRangePreset === 'THIS_MONTH' || dateRangePreset === 'THIS_YEAR') {
       let filteredUnpaid = monthlyPayments.filter(p => {
@@ -554,6 +554,22 @@ const LeaseAnalytics = () => {
       }
       
       unpaidCount = filteredUnpaid.length;
+    } else if (dateRangePreset === 'ALL_TIME') {
+      // For ALL_TIME, get unpaid payments from allTimePayments
+      let filteredUnpaid = allTimePayments.filter(p => p.status === 'PENDING');
+      
+      // Apply filters
+      if (filterType === 'PROPERTY' && selectedPropertyId) {
+        filteredUnpaid = filteredUnpaid.filter(p => 
+          p.lease?.property?.id === selectedPropertyId
+        );
+      } else if (filterType === 'UNIT' && selectedUnitId) {
+        filteredUnpaid = filteredUnpaid.filter(p => 
+          p.lease?.unit?.id === selectedUnitId
+        );
+      }
+      
+      unpaidCount = filteredUnpaid.length;
     }
     
     const onTime = paidPayments.filter(p => p && p.timingStatus === 'ONTIME').length;
@@ -566,13 +582,13 @@ const LeaseAnalytics = () => {
       { name: 'Advance', value: advance, color: 'hsl(217, 91%, 60%)' },
     ];
     
-    // Add unpaid if viewing THIS_MONTH or THIS_YEAR
-    if ((dateRangePreset === 'THIS_MONTH' || dateRangePreset === 'THIS_YEAR') && unpaidCount > 0) {
+    // Add unpaid if viewing THIS_MONTH, THIS_YEAR, or ALL_TIME
+    if ((dateRangePreset === 'THIS_MONTH' || dateRangePreset === 'THIS_YEAR' || dateRangePreset === 'ALL_TIME') && unpaidCount > 0) {
       result.push({ name: 'Pending', value: unpaidCount, color: 'hsl(45, 93%, 47%)' });
     }
     
     return result.filter(item => item.value > 0);
-  }, [filteredPayments, monthlyPayments, dateRangePreset, filterType, selectedPropertyId, selectedUnitId]);
+  }, [filteredPayments, monthlyPayments, allTimePayments, dateRangePreset, filterType, selectedPropertyId, selectedUnitId]);
 
   // Payment Counts Over Time Data (varies by time period)
   const paymentCountsData = useMemo(() => {

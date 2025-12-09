@@ -76,6 +76,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/tenant/screening/:screeningId/details": { name: "Details", parent: "/tenant/screening" },
   "/tenant/messages": { name: "Messages" },
   "/tenant/messages/:channelId": { name: "Convo",  parent: "/tenant/messages" },
+  "/tenant/notifications": { name: "Notifications" },
   "/tenant/settings": { name: "Settings" },
   "/tenant/account": { name: "Account" },
 };
@@ -832,7 +833,7 @@ const Header = ({
                       asChild
                       onClick={() => setNotifsOpen(false)}
                     >
-                      <Link to="/tenant/notifications">View notifications</Link>
+                      <Link to="/tenant/notifications">View all notifications</Link>
                     </Button>
                   </div>
                 </div>

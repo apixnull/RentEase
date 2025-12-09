@@ -674,7 +674,8 @@ export const getListingByUnitIdForSuccess = async (req, res) => {
               day: "numeric",
             });
 
-        const emailResult = await sendEmail({
+        // Send receipt email (non-blocking)
+        sendEmail({
           to: landlord.email,
           subject: `Payment Receipt - Listing for ${listing.unit.property.title}`,
           html: listingReceiptTemplate(
@@ -687,15 +688,17 @@ export const getListingByUnitIdForSuccess = async (req, res) => {
             listing.isFeatured,
             listing.providerName || "GCASH"
           ),
+        }).then((emailResult) => {
+          if (emailResult.success) {
+            console.log(`✅ Receipt email sent to landlord: ${landlord.email}`);
+          } else {
+            console.error(`❌ Failed to send receipt email:`, emailResult.error);
+          }
+        }).catch((emailError) => {
+          console.error("❌ Error sending receipt email:", emailError);
         });
-
-        if (emailResult.success) {
-          console.log(`✅ Receipt email sent to landlord: ${landlord.email}`);
-        } else {
-          console.error(`❌ Failed to send receipt email:`, emailResult.error);
-        }
       } catch (emailError) {
-        console.error("❌ Error sending receipt email:", emailError);
+        console.error("❌ Error preparing receipt email:", emailError);
         // Don't fail the request if email fails
       }
     }

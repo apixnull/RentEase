@@ -35,7 +35,6 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  UserCircle,
   BadgeCheck,
   AlertCircle,
   Lock,
@@ -45,8 +44,6 @@ import { privateApi } from "@/api/axios";
 import { supabase } from "@/lib/supabaseClient";
 import { v4 as uuidv4 } from "uuid";
 import { forgotPasswordRequest, updateProfileRequest } from "@/api/authApi";
-import PageHeader from "@/components/PageHeader";
-import AdminPageHeader from "@/components/AdminPageHeader";
 import { motion } from "framer-motion";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -158,7 +155,6 @@ const AccountProfile = () => {
     iconGradientTo: isAdmin ? "to-blue-600" : "to-sky-600",
   } as const;
 
-  const HeaderComponent = isAdmin ? AdminPageHeader : PageHeader;
 
   const avatarPreviewUrl = avatarFile
     ? URL.createObjectURL(avatarFile)
@@ -446,102 +442,112 @@ const AccountProfile = () => {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-6 space-y-4 max-w-7xl mx-auto relative">
-      <div className="relative z-10">
-        {/* Page Header */}
+    <div className="min-h-screen p-4 md:p-6 max-w-7xl mx-auto relative">
+      <div className="relative z-10 space-y-8">
+        {/* Enhanced Profile Header Card */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-4"
+          className="relative overflow-hidden bg-gradient-to-br from-white via-white to-gray-50/50 rounded-3xl border border-gray-200/60 shadow-2xl"
         >
-          <HeaderComponent
-            title="Account Profile"
-            description="Manage your personal information, account settings, and security preferences"
-            icon={UserCircle}
-            actions={
-              <Button
-                onClick={openEditModal}
-                className={`gap-2 bg-gradient-to-r ${theme.buttonGradientFrom} ${theme.buttonGradientTo} hover:brightness-110 shadow-lg hover:shadow-xl transition-all duration-300 text-white`}
-              >
-                <Edit3 size={16} />
-                Edit Profile
-              </Button>
-            }
-          />
-        </motion.div>
+          {/* Decorative background elements */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className={`absolute -top-20 -right-20 w-64 h-64 rounded-full bg-gradient-to-br ${isAdmin ? 'from-purple-200/30 to-blue-200/30' : 'from-emerald-200/30 to-sky-200/30'} blur-3xl`}></div>
+            <div className={`absolute -bottom-20 -left-20 w-48 h-48 rounded-full bg-gradient-to-br ${isAdmin ? 'from-blue-200/30 to-purple-200/30' : 'from-sky-200/30 to-emerald-200/30'} blur-3xl`}></div>
+          </div>
 
-        {/* Profile Overview Card - Compact */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/50 shadow-xl p-4"
-        >
-          <div className="flex items-center gap-4">
-            <motion.div
-              className="relative flex-shrink-0"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
-              <Avatar className="h-16 w-16 ring-2 ring-white shadow-md">
-                <AvatarImage src={processImageUrl(user.avatarUrl) || undefined} alt="avatar" />
-                <AvatarFallback
-                  className={`bg-gradient-to-br ${theme.iconGradientFrom} ${theme.iconGradientTo} text-white text-xl font-bold`}
-                >
-                  {initialsOf(user.firstName, user.lastName)}
-                </AvatarFallback>
-              </Avatar>
-              {user.isVerified && (
+          <div className="relative p-6 md:p-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+              {/* Left: Avatar and User Info */}
+              <div className="flex items-center gap-5 flex-1 min-w-0">
                 <motion.div
-                  className="absolute -bottom-0.5 -right-0.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full p-1 shadow-md border-2 border-white"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.3, type: "spring" }}
+                  className="relative flex-shrink-0"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 300 }}
                 >
-                  <BadgeCheck className="h-3.5 w-3.5 text-white" />
+                  <Avatar className="h-20 w-20 md:h-24 md:w-24 ring-4 ring-white shadow-xl">
+                    <AvatarImage src={processImageUrl(user.avatarUrl) || undefined} alt="avatar" />
+                    <AvatarFallback
+                      className={`bg-gradient-to-br ${theme.iconGradientFrom} ${theme.iconGradientTo} text-white text-2xl font-bold`}
+                    >
+                      {initialsOf(user.firstName, user.lastName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {user.isVerified && (
+                    <motion.div
+                      className="absolute -bottom-1 -right-1 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full p-1.5 shadow-lg border-3 border-white"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.3, type: "spring" }}
+                    >
+                      <BadgeCheck className="h-4 w-4 text-white" />
+                    </motion.div>
+                  )}
                 </motion.div>
-              )}
-            </motion.div>
 
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate mb-1">
-                {user.firstName} {user.lastName}
-              </h1>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/60 backdrop-blur-sm border border-gray-200/50 shadow-sm">
-                  <Mail size={14} className={theme.accentText600} />
-                  <span className="font-medium text-gray-700 text-xs truncate max-w-[200px]">{user.email}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 truncate">
+                      {user.firstName} {user.lastName}
+                    </h1>
+                    {user.isVerified && (
+                      <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold shadow-md">
+                        <BadgeCheck className="h-3 w-3" />
+                        Verified
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/80 backdrop-blur-sm border border-gray-200/60 shadow-sm">
+                      <Mail size={14} className={theme.accentText600} />
+                      <span className="font-medium text-gray-700 text-sm truncate max-w-[250px]">{user.email}</span>
+                    </div>
+                    <span
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize shadow-sm ${
+                        isAdmin
+                          ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white"
+                          : isLandlord
+                          ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
+                          : "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
+                      }`}
+                    >
+                      {user.role.toLowerCase()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Manage your personal information, account settings, and security preferences
+                  </p>
                 </div>
-                <span
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold capitalize shadow-sm ${
-                    isAdmin
-                      ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white"
-                      : isLandlord
-                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
-                      : "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
-                  }`}
+              </div>
+
+              {/* Right: Edit Button */}
+              <div className="flex-shrink-0">
+                <Button
+                  onClick={openEditModal}
+                  className={`gap-2 bg-gradient-to-r ${theme.buttonGradientFrom} ${theme.buttonGradientTo} hover:brightness-110 shadow-lg hover:shadow-xl transition-all duration-300 text-white px-6 py-6 text-base font-semibold`}
                 >
-                  {user.role.toLowerCase()}
-                </span>
+                  <Edit3 size={18} />
+                  Edit Profile
+                </Button>
               </div>
             </div>
           </div>
         </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6 mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Profile Details Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/50 p-5 md:p-6 space-y-4 shadow-xl hover:shadow-2xl transition-all duration-300"
+          className="bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200/60 p-6 space-y-5 shadow-lg hover:shadow-xl transition-all duration-300"
         >
-          <div className="flex items-center gap-3 pb-3 border-b border-gray-200/50">
-            <div className={`p-2.5 rounded-xl ${theme.accentBg50} shadow-md`}>
+          <div className="flex items-center gap-3 pb-4 border-b border-gray-200/60">
+            <div className={`p-3 rounded-xl ${theme.accentBg50} shadow-sm`}>
               <User className={`h-5 w-5 ${theme.accentText600}`} />
             </div>
-            <h2 className="font-bold text-gray-900 text-lg">
+            <h2 className="font-bold text-gray-900 text-xl">
               Profile Details
             </h2>
           </div>
@@ -608,11 +614,11 @@ const AccountProfile = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/50 p-5 md:p-6 space-y-4 shadow-xl hover:shadow-2xl transition-all duration-300"
+          className="bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200/60 p-6 space-y-5 shadow-lg hover:shadow-xl transition-all duration-300"
         >
-          <div className="flex items-center gap-3 pb-3 border-b border-gray-200/50">
+          <div className="flex items-center gap-3 pb-4 border-b border-gray-200/60">
             <div
-              className={`p-2.5 rounded-xl shadow-md ${
+              className={`p-3 rounded-xl shadow-sm ${
                 isAdmin ? "bg-blue-50" : "bg-sky-50"
               }`}
             >
@@ -622,7 +628,7 @@ const AccountProfile = () => {
                 }`}
               />
             </div>
-            <h2 className="font-bold text-gray-900 text-lg">
+            <h2 className="font-bold text-gray-900 text-xl">
               Contact Information
             </h2>
           </div>
@@ -694,13 +700,13 @@ const AccountProfile = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/50 p-5 md:p-6 space-y-4 shadow-xl hover:shadow-2xl transition-all duration-300 lg:col-span-2 mt-5"
+          className="bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200/60 p-6 space-y-5 shadow-lg hover:shadow-xl transition-all duration-300 lg:col-span-2"
         >
-          <div className="flex items-center gap-3 pb-3 border-b border-gray-200/50">
-            <div className={`p-2.5 rounded-xl ${theme.accentBg50} shadow-md`}>
+          <div className="flex items-center gap-3 pb-4 border-b border-gray-200/60">
+            <div className={`p-3 rounded-xl ${theme.accentBg50} shadow-sm`}>
               <Shield className={`h-5 w-5 ${theme.accentText600}`} />
             </div>
-            <h2 className="font-bold text-gray-900 text-lg">
+            <h2 className="font-bold text-gray-900 text-xl">
               Account & Security
             </h2>
           </div>
@@ -815,9 +821,9 @@ const AccountProfile = () => {
             </div>
           </div>
         </motion.div>
-      </div>
+        </div>
 
-      {/* Edit Profile Modal */}
+        {/* Edit Profile Modal */}
       <Dialog
         open={isEditProfileModalOpen}
         onOpenChange={setIsEditProfileModalOpen}

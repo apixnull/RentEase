@@ -76,13 +76,17 @@ export const register = async (req, res) => {
     await redis.hset(key, { email, otp, attempts: "0", resends: "0"});
     await redis.expire(key, OTP_TTL);
 
-    // Send verification email
-    await sendEmail({
+    // Send verification email (non-blocking - don't await)
+    sendEmail({
       to: email,
       subject: "RentEase Email Verification",
       html: emailVerificationTemplate(email, otp)
+    }).catch((err) => {
+      // Log error but don't block the response
+      console.error("Failed to send verification email:", err);
     });
 
+    // Return response immediately without waiting for email
     return res.status(201).json({
       message: "Success! Check your email for the OTP code.",
       token
@@ -131,13 +135,16 @@ export const verifyEmail = async (req, res) => {
       data: { isVerified: true },
     });
 
-    await sendEmail({
+    await redis.del(key);
+
+    // Send welcome email (non-blocking)
+    sendEmail({
       to: data.email,
       subject: "Welcome to RentEase!",
       html: registrationWelcomeTemplate(data.email),
+    }).catch((err) => {
+      console.error("Failed to send welcome email:", err);
     });
-
-    await redis.del(key);
 
     return res.status(200).json({
       message: "Email verified successfully",
@@ -192,11 +199,13 @@ export const resendVerification = async (req, res) => {
         await redis.hset(key, { otp: newOtp, resends: resends.toString() });
         await redis.expire(key, OTP_TTL);
 
-        // send verification email
-        await sendEmail({
+        // send verification email (non-blocking)
+        sendEmail({
             to: data.email,
             subject: "RentEase Email Verification (Resent)",
             html: emailVerificationTemplate(data.email, newOtp)
+        }).catch((err) => {
+            console.error("Failed to resend verification email:", err);
         });
 
         return res.status(200).json({ message: "Verification email resent successfully" });
@@ -302,11 +311,13 @@ export const forgotPassword = async (req, res) => {
     // Build reset URL (frontend route)
     const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password/${token}`;
 
-    // Send reset email
-    await sendEmail({
+    // Send reset email (non-blocking)
+    sendEmail({
       to: user.email,
       subject: "Reset your RentEase password",
       html: resetPasswordTemplate(user.email, resetUrl),
+    }).catch((err) => {
+      console.error("Failed to send password reset email:", err);
     });
 
     return res.status(200).json({ message: "Password reset instructions sent to your email" });
@@ -434,10 +445,13 @@ export const login = async (req, res) => {
       });
       await redis.expire(key, OTP_TTL);
 
-      await sendEmail({
+      // Send verification email (non-blocking)
+      sendEmail({
         to: user.email,
         subject: "RentEase Email Verification",
         html: emailVerificationTemplate(user.email, otp),
+      }).catch((err) => {
+        console.error("Failed to send login verification email:", err);
       });
 
       // Return login pending verification

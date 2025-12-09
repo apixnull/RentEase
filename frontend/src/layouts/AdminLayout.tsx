@@ -93,6 +93,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin/payments": { name: "All Payments" },
   "/admin/logs": { name: "System Logs" },
   "/admin/alerts": { name: "Alerts" },
+  "/admin/notifications": { name: "Notifications" },
   "/admin/account": { name: "Account" },
   "/admin/settings": { name: "Settings" },
 };
@@ -818,7 +819,7 @@ const Header = ({
                       asChild
                       onClick={() => setNotifsOpen(false)}
                     >
-                      <Link to="/admin/alerts">View notifications</Link>
+                      <Link to="/admin/notifications">View all notifications</Link>
                     </Button>
                   </div>
                 </motion.div>

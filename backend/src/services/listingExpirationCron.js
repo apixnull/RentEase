@@ -96,11 +96,15 @@ export const processExpiredListings = async () => {
           },
         });
         
-        // Send email notification to landlord
+        // Send email notification to landlord (non-blocking)
         const landlordName = `${listing.landlord.firstName} ${listing.landlord.lastName}`;
         const expirationDateFormatted = formatDate(listing.expiresAt);
         
-        const emailResult = await sendEmail({
+        // Mark as processed immediately (email is sent in background)
+        processedCount++;
+        console.log(`✅ Processed expired listing ${listing.id}, sending notification to ${listing.landlord.email}`);
+        
+        sendEmail({
           to: listing.landlord.email,
           subject: `Your Listing Has Expired - ${listing.unit.property.title}`,
           html: listingExpirationTemplate(
@@ -110,15 +114,16 @@ export const processExpiredListings = async () => {
             expirationDateFormatted,
             listing.id
           ),
-        });
-        
-        if (emailResult.success) {
-          processedCount++;
-          console.log(`✅ Processed expired listing ${listing.id} and notified landlord ${listing.landlord.email}`);
-        } else {
+        }).then((emailResult) => {
+          if (emailResult.success) {
+            console.log(`✅ Expiration email sent to landlord ${listing.landlord.email} for listing ${listing.id}`);
+          } else {
+            console.error(`❌ Failed to send expiration email for listing ${listing.id}:`, emailResult.error);
+          }
+        }).catch((emailError) => {
           errorCount++;
-          console.error(`❌ Failed to send expiration email for listing ${listing.id}:`, emailResult.error);
-        }
+          console.error(`❌ Failed to send expiration email for listing ${listing.id}:`, emailError);
+        });
       } catch (error) {
         errorCount++;
         console.error(`❌ Error processing expired listing ${listing.id}:`, error);

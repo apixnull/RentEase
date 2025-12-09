@@ -125,6 +125,9 @@ const MaintenanceAnalytics = lazy(
 const RentPayments = lazy(
   () => import("./pages/private/landlord/payments/RentPayments.tsx")
 );
+const Notifications = lazy(
+  () => import("./pages/private/landlord/notifications/Notifications.tsx")
+);
 
 // Private pages - Tenant
 const TenantDashboard = lazy(
@@ -158,6 +161,9 @@ const ViewSpecificScreeningTenant = lazy(
 );
 const TenantSettings = lazy(
   () => import("./pages/private/tenant/settings/TenantSettings.tsx")
+);
+const TenantNotifications = lazy(
+  () => import("./pages/private/tenant/notifications/Notifications.tsx")
 );
 
 // Private pages - Admin
@@ -194,6 +200,9 @@ const FraudReportAnalytics = lazy(
 );
 const AdminSettings = lazy(
   () => import("./pages/private/admin/settings/AdminSettings.tsx")
+);
+const AdminNotifications = lazy(
+  () => import("./pages/private/admin/notifications/Notifications.tsx")
 );
 
 // Shared private pages
@@ -306,6 +315,9 @@ const router = createBrowserRouter([
       // payments
       { path: "payments", element: <Suspense fallback={<Loader />}><RentPayments /></Suspense>},
 
+      // notifications
+      { path: "notifications", element: <Suspense fallback={<Loader />}><Notifications /></Suspense>},
+
     ],    
   },
 
@@ -345,6 +357,9 @@ const router = createBrowserRouter([
       { path: "screening", element: <Suspense fallback={<Loader />}><TenantScreeningTenant /></Suspense> },
       { path: "screening/:screeningId/details", element: <Suspense fallback={<Loader />}><ViewSpecificScreeningTenant /></Suspense> }, // view specific screening detials tenant perspective
 
+      // notifications
+      { path: "notifications", element: <Suspense fallback={<Loader />}><TenantNotifications /></Suspense> },
+
     ],
   },
 
@@ -380,6 +395,9 @@ const router = createBrowserRouter([
       { path: "listing/:listingId/details", element: <Suspense fallback={<Loader />}><AdminListingDetails/></Suspense> },
       // fraud reports
       { path: "fraud-reports", element: <Suspense fallback={<Loader />}><AdminFraudReports /></Suspense> },
+      
+      // notifications
+      { path: "notifications", element: <Suspense fallback={<Loader />}><AdminNotifications /></Suspense> },
     ],
   },
   { path: "*", element: <Suspense fallback={<Loader />}><NotFound /></Suspense> },
