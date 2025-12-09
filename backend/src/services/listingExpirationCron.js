@@ -38,20 +38,14 @@ export const processExpiredListings = async () => {
   try {
     console.log('🔄 Starting listing expiration cron job...');
     
-    const phDate = getPHDate();
-    const today = new Date(phDate);
-    today.setHours(0, 0, 0, 0);
+    // Get current date/time in Philippines timezone
+    const now = getPHDate();
     
-    // End of today
-    const todayEnd = new Date(today);
-    todayEnd.setHours(23, 59, 59, 999);
-    
-    // Get listings that expired today and are still in VISIBLE or HIDDEN status
+    // Get listings that have already expired (expiresAt <= now) and are still in VISIBLE or HIDDEN status
     const expiredListings = await prisma.listing.findMany({
       where: {
         expiresAt: {
-          gte: today,
-          lte: todayEnd,
+          lte: now, // Listings that have already expired
         },
         lifecycleStatus: {
           in: ['VISIBLE', 'HIDDEN'], // Only process listings that are still active

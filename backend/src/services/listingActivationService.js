@@ -10,6 +10,31 @@ const geminiModel = genAI.getGenerativeModel({
   },
 });
 
+// Helper function for retry logic with exponential backoff
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function runGeminiWithRetry(prompt, retries = 2) {
+  let attempt = 0;
+  while (attempt <= retries) {
+    try {
+      return await geminiModel.generateContent([{ text: prompt }]);
+    } catch (error) {
+      const message = error?.message || "";
+      const status = error?.status || error?.response?.status;
+      const overloaded = status === 503 || /503|overload/i.test(message);
+
+      if (!overloaded || attempt === retries) {
+        throw error;
+      }
+
+      const delay = 500 * Math.pow(2, attempt);
+      console.warn(`⚠️ Gemini overloaded (attempt ${attempt + 1}). Retrying in ${delay}ms...`);
+      await sleep(delay);
+      attempt += 1;
+    }
+  }
+}
+
 async function sanitizeListingData({ property, unit }) {
   const sanitizePrompt = `
 You are a content sanitization AI for RentEase.
@@ -98,7 +123,7 @@ Return JSON only, no commentary.
   try {
     console.log("🧹 Running sanitization for listing...");
 
-    const result = await geminiModel.generateContent([{ text: sanitizePrompt }]);
+    const result = await runGeminiWithRetry(sanitizePrompt);
     const text =
       result?.response?.candidates?.[0]?.content?.parts?.[0]?.text ||
       result?.response?.text?.() ||
