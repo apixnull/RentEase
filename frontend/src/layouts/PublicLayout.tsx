@@ -1,7 +1,7 @@
 import { Outlet, Link, NavLink, useLocation, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Zap, Home, Info, Sparkles, DollarSign, 
+  Zap, Home, Info, Sparkles, Coins, 
   Mail, Phone, MapPin, Heart, Github, Youtube,
   Linkedin, Facebook, LogIn, UserPlus, Menu, X, Cookie, LayoutDashboard
 } from "lucide-react";
@@ -117,7 +117,7 @@ function Navbar() {
                 isActive("/pricing") ? "text-emerald-600 font-semibold" : "text-gray-600 hover:text-emerald-600"
               }`}
             >
-              <DollarSign className="w-5 h-5" />
+              <Coins className="w-5 h-5" />
               Pricing
             </NavLink>
           </motion.div>
@@ -247,7 +247,7 @@ function Navbar() {
                   }`}
                   onClick={closeMenu}
                 >
-                  <DollarSign className="w-5 h-5" />
+                  <Coins className="w-5 h-5" />
                   Pricing
                 </NavLink>
               </motion.div>
@@ -377,7 +377,7 @@ const Footer = () => {
                 { icon: Home, label: "Home", path: "/" },
                 { icon: Info, label: "About Us", path: "/about" },
                 { icon: Sparkles, label: "Features", path: "/features" },
-                { icon: DollarSign, label: "Pricing", path: "/pricing" },
+                { icon: Coins, label: "Pricing", path: "/pricing" },
               ].map((link, index) => (
                 <li key={index}>
                   <a 

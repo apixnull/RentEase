@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Search, Star, MapPin, Zap, Building, Key, MessageCircle, Users, FileText, Eye, Globe, Bot, Wrench, DollarSign, BarChart3, Shield } from "lucide-react";
+import { Search, Star, MapPin, Zap, Building, Key, MessageCircle, Users, FileText, Eye, Globe, Bot, Wrench, Coins, BarChart3, Shield } from "lucide-react";
 
 /* ****************** LANDING ****************** */
 const Landing = () => {
@@ -512,9 +512,9 @@ const ForLandlordsSection = () => {
       desc: "Create and manage advertisements for each unit to find prospective tenants and generate leads." 
     },
     { 
-      icon: DollarSign, 
+      icon: Coins, 
       title: "Financial Management", 
-      desc: "Record income and expenses. Know your current financial status at a glance." 
+      desc: "Record income and expenses in ₱ (Philippine Pesos). Know your current financial status at a glance." 
     },
     { 
       icon: BarChart3, 

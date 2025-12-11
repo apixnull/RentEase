@@ -1080,11 +1080,6 @@ const MyLeaseDetails = () => {
     }
   };
 
-  const handleNavigateToProperty = () => {
-    if (lease?.property.id) {
-      navigate(`/properties/${lease.property.id}?unit=${lease.unit.id}`);
-    }
-  };
 
 
   // Get overdue payments
@@ -1757,23 +1752,12 @@ const MyLeaseDetails = () => {
               {/* Property and Unit Information - Condensed with Colors */}
               <Card className="bg-gradient-to-br from-blue-50/20 to-indigo-50/20 border border-blue-100/50">
                 <CardHeader className="bg-white/90 border-b border-blue-100/50">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-gray-700">
-                      <div className="p-1.5 rounded-lg bg-blue-500 text-white">
-                        <Home className="h-4 w-4 sm:h-5 sm:w-5" />
-                      </div>
-                      Property & Unit
-                    </CardTitle>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleNavigateToProperty}
-                      className="w-full sm:w-auto border-blue-200 text-blue-700 hover:bg-blue-50"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5" />
-                      View Details
-                    </Button>
-                  </div>
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-gray-700">
+                    <div className="p-1.5 rounded-lg bg-blue-500 text-white">
+                      <Home className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </div>
+                    Property & Unit
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

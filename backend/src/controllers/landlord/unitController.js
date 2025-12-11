@@ -299,6 +299,7 @@ export const updateUnit = async (req, res) => {
       targetPrice,
       requiresScreening,
       amenities,
+      unitCondition,
     } = req.body;
 
     const ownerId = req.user?.id;
@@ -364,23 +365,38 @@ export const updateUnit = async (req, res) => {
         .json({ message: "Target price cannot exceed ₱100,000" });
     }
 
+    // ✅ Validate unitCondition if provided
+    const validConditions = ["GOOD", "NEED_MAINTENANCE", "UNDER_MAINTENANCE", "UNUSABLE"];
+    if (unitCondition && !validConditions.includes(unitCondition)) {
+      return res.status(400).json({
+        message: `Invalid unit condition. Must be one of: ${validConditions.join(", ")}`,
+      });
+    }
+
     // ✅ Update unit
+    const updateData = {
+      label: label.trim(),
+      description,
+      floorNumber: parsedFloorNumber,
+      maxOccupancy: parsedMaxOccupancy,
+      mainImageUrl: mainImageUrl || null,
+      otherImages: otherImages || null,
+      unitLeaseRules: unitLeaseRules || null,
+      targetPrice: parsedTargetPrice,
+      requiresScreening: requiresScreening ?? false,
+      amenities: amenities
+        ? { set: [], connect: amenities.map((id) => ({ id })) }
+        : { set: [] },
+    };
+
+    // Only update unitCondition if provided
+    if (unitCondition) {
+      updateData.unitCondition = unitCondition;
+    }
+
     const updatedUnit = await prisma.unit.update({
       where: { id: unitId },
-      data: {
-        label: label.trim(),
-        description,
-        floorNumber: parsedFloorNumber,
-        maxOccupancy: parsedMaxOccupancy,
-        mainImageUrl: mainImageUrl || null,
-        otherImages: otherImages || null,
-        unitLeaseRules: unitLeaseRules || null,
-        targetPrice: parsedTargetPrice,
-        requiresScreening: requiresScreening ?? false,
-        amenities: amenities
-          ? { set: [], connect: amenities.map((id) => ({ id })) }
-          : { set: [] },
-      },
+      data: updateData,
       include: { amenities: true },
     });
 
@@ -416,6 +432,77 @@ export const updateUnit = async (req, res) => {
     console.error("Error updating unit:", error);
     return res.status(500).json({
       message: "Failed to update unit",
+      error: error.message,
+    });
+  }
+};
+
+// ---------------------------------------------- UPDATE UNIT CONDITION ONLY ----------------------------------------------
+export const updateUnitCondition = async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    const { unitCondition } = req.body;
+    const ownerId = req.user?.id;
+
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized: owner not found" });
+    }
+
+    if (!unitId) {
+      return res.status(400).json({ message: "Unit ID is required" });
+    }
+
+    if (!unitCondition) {
+      return res.status(400).json({ message: "Unit condition is required" });
+    }
+
+    // ✅ Validate unitCondition
+    const validConditions = ["GOOD", "NEED_MAINTENANCE", "UNDER_MAINTENANCE", "UNUSABLE"];
+    if (!validConditions.includes(unitCondition)) {
+      return res.status(400).json({
+        message: `Invalid unit condition. Must be one of: ${validConditions.join(", ")}`,
+      });
+    }
+
+    // ✅ Validate unit ownership
+    const existingUnit = await prisma.unit.findFirst({
+      where: {
+        id: unitId,
+        property: { ownerId },
+      },
+      select: { id: true, unitCondition: true },
+    });
+
+    if (!existingUnit) {
+      return res
+        .status(404)
+        .json({ message: "Unit not found or not owned by landlord" });
+    }
+
+    // ✅ Only update if condition actually changed
+    if (existingUnit.unitCondition === unitCondition) {
+      return res.status(200).json({
+        message: "Unit condition unchanged",
+        unitCondition: existingUnit.unitCondition,
+      });
+    }
+
+    // ✅ Update only the unit condition (does NOT affect listing status)
+    const updatedUnit = await prisma.unit.update({
+      where: { id: unitId },
+      data: { unitCondition },
+      select: { id: true, unitCondition: true, updatedAt: true },
+    });
+
+    return res.status(200).json({
+      message: "Unit condition updated successfully",
+      unitCondition: updatedUnit.unitCondition,
+      updatedAt: updatedUnit.updatedAt,
+    });
+  } catch (error) {
+    console.error("Error updating unit condition:", error);
+    return res.status(500).json({
+      message: "Failed to update unit condition",
       error: error.message,
     });
   }

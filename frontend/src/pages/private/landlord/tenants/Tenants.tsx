@@ -32,6 +32,7 @@ import {
   Sparkles,
   Loader2,
   RotateCcw,
+  Grid3x3,
 } from 'lucide-react';
 import { getAllLeasesRequest } from '@/api/landlord/leaseApi';
 import { getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
@@ -437,7 +438,7 @@ const Tenants = () => {
 
                 <div className="min-w-0 flex-1">
                   <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    Tenant Records & Insights
+                    Tenants
                   </h1>
                   <p className="mt-1 text-sm text-slate-600">
                     Keep a pulse on tenant relationships, leases, and contact info in one glance.
@@ -446,6 +447,14 @@ const Tenants = () => {
               </div>
 
               <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/landlord/tenants/visualization')}
+                  className="h-11 rounded-xl border-slate-200 bg-white/85 px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white"
+                >
+                  <Grid3x3 className="h-4 w-4 mr-2" />
+                  Visualization
+                </Button>
                 <Button
                   variant="outline"
                   onClick={handleRefresh}

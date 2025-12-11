@@ -31,6 +31,15 @@ const About = lazy(() => import("./pages/public/About"));
 const Features = lazy(() => import("./pages/public/Features"));
 const Pricing = lazy(() => import("./pages/public/Pricing"));
 const TermsAndPrivacy = lazy(() => import("./pages/public/TermsAndPrivacy"));
+const Guidelines = lazy(() => import("./pages/public/Guidelines"));
+const PropertyManagementGuideline = lazy(() => import("./pages/public/guidelines/PropertyManagementGuideline"));
+const ListingBestPracticesGuideline = lazy(() => import("./pages/public/guidelines/ListingBestPracticesGuideline"));
+const TenantScreeningGuideline = lazy(() => import("./pages/public/guidelines/TenantScreeningGuideline"));
+const CommunicationGuideline = lazy(() => import("./pages/public/guidelines/CommunicationGuideline"));
+const LeaseManagementGuideline = lazy(() => import("./pages/public/guidelines/LeaseManagementGuideline"));
+const FinancialTrackingGuideline = lazy(() => import("./pages/public/guidelines/FinancialTrackingGuideline"));
+const MaintenanceRequestsGuideline = lazy(() => import("./pages/public/guidelines/MaintenanceRequestsGuideline"));
+const SafetyTipsGuideline = lazy(() => import("./pages/public/guidelines/SafetyTipsGuideline"));
 
 // Authentication pages
 const Register = lazy(() => import("./pages/authentication/Register"));
@@ -106,7 +115,13 @@ const EditLease = lazy(
 const Maintenance = lazy(
   () => import("./pages/private/landlord/maintenance/Maintenance.tsx")
 );
+const MaintenanceVisualization = lazy(
+  () => import("./pages/private/landlord/maintenance/MaintenanceVisualization.tsx")
+);
 const Tenants = lazy(() => import("./pages/private/landlord/tenants/Tenants.tsx"));
+const TenantsVisualization = lazy(
+  () => import("./pages/private/landlord/tenants/TenantsVisualization.tsx")
+);
 const Financials = lazy(
   () => import("./pages/private/landlord/financials/Financials.tsx")
 );
@@ -121,6 +136,9 @@ const LeaseAnalytics = lazy(
 );
 const MaintenanceAnalytics = lazy(
   () => import("./pages/private/landlord/reports/MaintenanceAnalytics")
+);
+const OccupancyAnalytics = lazy(
+  () => import("./pages/private/landlord/reports/OccupancyAnalytics")
 );
 const RentPayments = lazy(
   () => import("./pages/private/landlord/payments/RentPayments.tsx")
@@ -204,6 +222,9 @@ const AdminSettings = lazy(
 const AdminNotifications = lazy(
   () => import("./pages/private/admin/notifications/Notifications.tsx")
 );
+const SystemInfo = lazy(
+  () => import("./pages/private/admin/system-info/SystemInfo.tsx")
+);
 
 // Shared private pages
 const AccountProfile = lazy(() => import("./pages/private/AccountProfile"));
@@ -241,6 +262,15 @@ const router = createBrowserRouter([
 
   // standalone routes
   { path: "terms-privacy", element: <Suspense fallback={<Loader />}><TermsAndPrivacy /></Suspense> },
+  { path: "guidelines", element: <Suspense fallback={<Loader />}><Guidelines /></Suspense> },
+  { path: "guidelines/property-management", element: <Suspense fallback={<Loader />}><PropertyManagementGuideline /></Suspense> },
+  { path: "guidelines/listing-best-practices", element: <Suspense fallback={<Loader />}><ListingBestPracticesGuideline /></Suspense> },
+  { path: "guidelines/tenant-screening", element: <Suspense fallback={<Loader />}><TenantScreeningGuideline /></Suspense> },
+  { path: "guidelines/communication", element: <Suspense fallback={<Loader />}><CommunicationGuideline /></Suspense> },
+  { path: "guidelines/lease-management", element: <Suspense fallback={<Loader />}><LeaseManagementGuideline /></Suspense> },
+  { path: "guidelines/financial-tracking", element: <Suspense fallback={<Loader />}><FinancialTrackingGuideline /></Suspense> },
+  { path: "guidelines/maintenance", element: <Suspense fallback={<Loader />}><MaintenanceRequestsGuideline /></Suspense> },
+  { path: "guidelines/safety-tips", element: <Suspense fallback={<Loader />}><SafetyTipsGuideline /></Suspense> },
 
   // auth routes
   {
@@ -297,9 +327,11 @@ const router = createBrowserRouter([
       
       // maintenance
       { path: "maintenance", element: <Suspense fallback={<Loader />}><Maintenance /></Suspense>},                                                    // display specific lease 
+      { path: "maintenance/visualization", element: <Suspense fallback={<Loader />}><MaintenanceVisualization /></Suspense>},
 
       // tenants 
       { path: "tenants", element: <Suspense fallback={<Loader />}><Tenants /></Suspense>},                                                    // display specific lease 
+      { path: "tenants/visualization", element: <Suspense fallback={<Loader />}><TenantsVisualization /></Suspense>},
 
       // financials
       { path: "financials", element: <Suspense fallback={<Loader />}><Financials /></Suspense>},
@@ -311,6 +343,7 @@ const router = createBrowserRouter([
       // lease analytics
       { path: "lease-analytics", element: <Suspense fallback={<Loader />}><LeaseAnalytics /></Suspense>},
       { path: "maintenance-analytics", element: <Suspense fallback={<Loader />}><MaintenanceAnalytics /></Suspense>},
+      { path: "occupancy-analytics", element: <Suspense fallback={<Loader />}><OccupancyAnalytics /></Suspense>},
 
       // payments
       { path: "payments", element: <Suspense fallback={<Loader />}><RentPayments /></Suspense>},
@@ -398,6 +431,9 @@ const router = createBrowserRouter([
       
       // notifications
       { path: "notifications", element: <Suspense fallback={<Loader />}><AdminNotifications /></Suspense> },
+      
+      // system info
+      { path: "system-info", element: <Suspense fallback={<Loader />}><SystemInfo /></Suspense> },
     ],
   },
   { path: "*", element: <Suspense fallback={<Loader />}><NotFound /></Suspense> },

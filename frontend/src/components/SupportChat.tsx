@@ -162,7 +162,7 @@ const SupportChat = ({ isOpen, onClose }: SupportChatProps) => {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[9998] bg-black/20 backdrop-blur-sm"
+        className="fixed inset-0 z-[9998] bg-black/10"
         onClick={onClose}
       />
 

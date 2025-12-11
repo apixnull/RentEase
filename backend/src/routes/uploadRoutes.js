@@ -23,6 +23,7 @@ const unitImagesPath = path.join(__dirname, "../../public/uploads/unit_images");
 const avatarsPath = path.join(__dirname, "../../public/uploads/avatars");
 const leaseDocumentsPath = path.join(__dirname, "../../public/uploads/lease_documents");
 const maintenanceRequestPath = path.join(__dirname, "../../public/uploads/maintenance_request");
+const fraudReportsPath = path.join(__dirname, "../../public/uploads/fraud_reports");
 if (!fs.existsSync(propertyImagesPath)) {
   fs.mkdirSync(propertyImagesPath, { recursive: true });
 }
@@ -37,6 +38,9 @@ if (!fs.existsSync(leaseDocumentsPath)) {
 }
 if (!fs.existsSync(maintenanceRequestPath)) {
   fs.mkdirSync(maintenanceRequestPath, { recursive: true });
+}
+if (!fs.existsSync(fraudReportsPath)) {
+  fs.mkdirSync(fraudReportsPath, { recursive: true });
 }
 
 // Configure multer storage for property images
@@ -207,6 +211,33 @@ const uploadMaintenanceRequestImage = multer({
   fileFilter: fileFilter,
 });
 
+// Configure multer storage for fraud report images
+const fraudReportStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, "../../public/uploads/fraud_reports");
+    // Ensure directory exists before saving (create if it doesn't exist)
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+      console.log("📁 Created fraud_reports directory:", uploadPath);
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const uniqueName = `${randomUUID()}${ext}`;
+    cb(null, uniqueName);
+  },
+});
+
+// Configure multer for fraud report images
+const uploadFraudReportImage = multer({
+  storage: fraudReportStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: fileFilter,
+});
+
 // ------------------------------
 // Routes
 // ------------------------------
@@ -365,6 +396,38 @@ router.post(
       console.error("❌ Error uploading maintenance request image:", error);
       return res.status(500).json({
         error: "Failed to upload maintenance request image",
+        details: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * @desc Upload fraud report image
+ * @route POST /api/upload/fraud-report-image
+ * @access Private (TENANT)
+ */
+router.post(
+  "/fraud-report-image",
+  requireAuthentication(["TENANT"]),
+  uploadFraudReportImage.single("image"),
+  (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No image file provided" });
+      }
+
+      // Return mock URL path
+      const mockUrl = `/local-images/fraud_reports/${req.file.filename}`;
+
+      return res.status(200).json({
+        url: mockUrl,
+        message: "Fraud report image uploaded successfully",
+      });
+    } catch (error) {
+      console.error("❌ Error uploading fraud report image:", error);
+      return res.status(500).json({
+        error: "Failed to upload fraud report image",
         details: error.message,
       });
     }

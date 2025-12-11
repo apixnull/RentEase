@@ -20,6 +20,7 @@ import {
   FileBarChart,
   X,
   Sparkles,
+  BookOpen,
 } from "lucide-react";
 // Removed framer-motion for better performance - using CSS transitions instead
 import { cn } from "@/lib/utils";
@@ -174,6 +175,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   
   // maintenance
   "/landlord/maintenance": { name: "Maintenance" },
+  "/landlord/maintenance/visualization": { name: "Visualization", parent: "/landlord/maintenance" },
 
   "/landlord/messages": { name: "Messages" },
   "/landlord/messages/:channelId": { name: "Convo",  parent: "/landlord/messages" },
@@ -185,11 +187,14 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/landlord/financials": { name: "Financials" },
 
   "/landlord/tenants": { name: "Tenants" },
+  "/landlord/tenants/visualization": { name: "Visualization", parent: "/landlord/tenants" },
   "/landlord/payments": { name: "Rent Payments" },
+  "/landlord/payments/visualization": { name: "Visualization", parent: "/landlord/payments" },
   "/landlord/reports": { name: "Reports & Analytics" },
   "/landlord/engagement": { name: "Engagement Analytics", parent: "/landlord/reports" },
   "/landlord/lease-analytics": { name: "Lease & Rent Analytics", parent: "/landlord/reports" },
   "/landlord/maintenance-analytics": { name: "Maintenance Analytics", parent: "/landlord/reports" },
+  "/landlord/occupancy-analytics": { name: "Occupancy Analytics", parent: "/landlord/reports" },
   "/landlord/account": { name: "Account" },
   "/landlord/settings": { name: "Settings" },
 };
@@ -815,6 +820,18 @@ const Header = ({
 
         {/* Right Section - Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          {/* Guidelines Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => window.open("/guidelines", "_blank")}
+            className="hover:bg-gray-50/80 active:bg-gray-100/80 h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-all duration-200 touch-manipulation"
+            aria-label="Open guidelines"
+            title="Guidelines"
+          >
+            <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600 hover:text-green-600 transition-colors" />
+          </Button>
+
           {/* AI Support Chat */}
           <div className="relative">
             <Button

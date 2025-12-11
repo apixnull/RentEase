@@ -65,3 +65,12 @@ export const getEligibleUnitsForListingRequest = (options?: { signal?: AbortSign
     signal: options?.signal,
   });
 
+// 🗑️ Delete listing on payment failure/cancellation
+export const deleteListingOnPaymentFailureRequest = (
+  listingId: string,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.delete(apiRoutes.landlord(`/listing/${listingId}/payment-failure`), {
+    signal: options?.signal,
+  });
+

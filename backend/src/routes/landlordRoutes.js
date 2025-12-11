@@ -2,8 +2,8 @@
 import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 import { createProperty, getAmenities, getCitiesAndMunicipalities, getLandlordProperties, getPropertyDetailsAndUnits, getPropertyEditableData, updateProperty, deleteProperty, } from "../controllers/landlord/propertyController.js";
-import { createUnit, getUnitDetails, updateUnit, deleteUnit } from "../controllers/landlord/unitController.js";
-import { createPaymentSession, getEligibleUnitsForListing, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview, getListingByUnitIdForSuccess, toggleListingVisibility} from "../controllers/landlord/listingController.js";
+import { createUnit, getUnitDetails, updateUnit, updateUnitCondition, deleteUnit } from "../controllers/landlord/unitController.js";
+import { createPaymentSession, getEligibleUnitsForListing, getLandlordListings, getLandlordSpecificListing, getUnitForListingReview, getListingByUnitIdForSuccess, toggleListingVisibility, deleteListingOnPaymentFailure} from "../controllers/landlord/listingController.js";
 import { getLandlordScreeningsList, getSpeceficScreeningLandlord, inviteTenantForScreening, landlordReviewTenantScreening, deletePendingScreening} from "../controllers/landlord/tenantScreeningController.js";
 import { cancelLease, createLease, createPayment, findTenantForLease, getAllLeases, getAllPropertiesWithUnits, getAllPropertiesWithUnitsAndSuggestedTenants, getLeaseById, getLandlordMonthlyPayments, markPaymentAsPaid, updatePayment, deletePayment, terminateLease, completeLease, updateLease, addLandlordNote, updateLandlordNote, deleteLandlordNote } from "../controllers/landlord/leaseController.js";
 import { getAllMaintenanceRequestsByLandlord, updateMaintenanceStatus} from "../controllers/landlord/maintenanceController.js";
@@ -13,6 +13,7 @@ import { getDashboardMetrics, getDashboardPayments, getDashboardLeases, getDashb
 import { getReportsData } from "../controllers/landlord/reportsController.js";
 import { getLeaseAnalytics } from "../controllers/landlord/leaseAnalyticsController.js";
 import { getMaintenanceAnalytics } from "../controllers/landlord/maintenanceAnalyticsController.js";
+import { getOccupancyAnalytics } from "../controllers/landlord/occupancyAnalyticsController.js";
 
 
 const router = Router();
@@ -31,6 +32,7 @@ router.get("/property/:propertyId", requireAuthentication(["LANDLORD"]), getProp
 router.get("/unit/:unitId", requireAuthentication(["LANDLORD"]), getUnitDetails);                                     // get specific unit details 
 router.post("/unit/:propertyId/create", requireAuthentication(["LANDLORD"]), createUnit);                             // create a new unit
 router.patch("/unit/:unitId", requireAuthentication(["LANDLORD"]), updateUnit);                                       // update an existing unit
+router.patch("/unit/:unitId/condition", requireAuthentication(["LANDLORD"]), updateUnitCondition);                    // update unit condition only
 router.delete("/unit/:unitId", requireAuthentication(["LANDLORD"]), deleteUnit);                                     // delete a unit
 
 
@@ -41,7 +43,8 @@ router.get("/listing/payment-success", requireAuthentication(["LANDLORD"]), getL
 router.get("/listing/:unitId/review", requireAuthentication(["LANDLORD"]), getUnitForListingReview);                      // review unit before listing
 router.post("/listing/:unitId/payment-session", requireAuthentication(["LANDLORD"]), createPaymentSession);              // create payment session (listing created after payment via webhook)
 router.get("/listing/:listingId/details", requireAuthentication(["LANDLORD"]), getLandlordSpecificListing);               // get a specific listing information
-router.patch("/listing/:listingId/toggle-visibility", requireAuthentication(["LANDLORD"]), toggleListingVisibility);    // toggle listing visibility (VISIBLE ↔ HIDDEN) 
+router.patch("/listing/:listingId/toggle-visibility", requireAuthentication(["LANDLORD"]), toggleListingVisibility);    // toggle listing visibility (VISIBLE ↔ HIDDEN)
+router.delete("/listing/:listingId/payment-failure", requireAuthentication(["LANDLORD"]), deleteListingOnPaymentFailure); // delete listing on payment failure/cancellation 
 
 // ----------------------------------------------------- TENANT SCREENING
 router.post("/screening/invite", requireAuthentication(["LANDLORD"]), inviteTenantForScreening);                             // landlord invites tenant for screening
@@ -105,6 +108,8 @@ router.get("/engagement", requireAuthentication(["LANDLORD"]), getEngagementData
 router.get("/lease-analytics", requireAuthentication(["LANDLORD"]), getLeaseAnalytics);
 // ----------------------------------------------------- MAINTENANCE ANALYTICS
 router.get("/maintenance-analytics", requireAuthentication(["LANDLORD"]), getMaintenanceAnalytics);
+// ----------------------------------------------------- OCCUPANCY ANALYTICS
+router.get("/occupancy-analytics", requireAuthentication(["LANDLORD"]), getOccupancyAnalytics);
 
 export default router;
  

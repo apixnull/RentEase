@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts';
 import { 
   Loader2, 
   RefreshCcw, 
@@ -55,6 +55,17 @@ const listingsChartConfig = {
   listings: {
     label: 'Listings Created',
     color: 'hsl(199, 89%, 48%)', // Blue-600
+  },
+} satisfies ChartConfig;
+
+const comparisonChartConfig = {
+  featured: {
+    label: 'Featured',
+    color: 'hsl(45, 93%, 47%)', // Yellow-600
+  },
+  standard: {
+    label: 'Standard',
+    color: 'hsl(221, 83%, 53%)', // Blue-600
   },
 } satisfies ChartConfig;
 
@@ -355,6 +366,22 @@ const ListingAnalytics = () => {
     const earnings = standard.reduce((sum: number, l: any) => sum + (l.paymentAmount || 0), 0);
     return { count, earnings };
   }, [filteredListings]);
+
+  // Prepare comparison chart data
+  const comparisonChartData = useMemo(() => {
+    return [
+      {
+        name: 'Featured',
+        count: featuredMetrics.count,
+        earnings: featuredMetrics.earnings,
+      },
+      {
+        name: 'Standard',
+        count: standardMetrics.count,
+        earnings: standardMetrics.earnings,
+      },
+    ];
+  }, [featuredMetrics, standardMetrics]);
 
   // Get period label based on filter
   const periodLabel = useMemo(() => {
@@ -897,6 +924,7 @@ const ListingAnalytics = () => {
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
+                allowDecimals={false}
                 style={{
                   fontSize: '12px',
                   fill: 'hsl(var(--muted-foreground))',
@@ -927,6 +955,127 @@ const ListingAnalytics = () => {
               />
             </BarChart>
           </ChartContainer>
+        </CardContent>
+      </Card>
+
+      {/* Featured vs Standard Comparison Chart */}
+      <Card className="pt-0">
+        <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
+          <div className="grid flex-1 gap-1">
+            <CardTitle>Featured vs Standard Comparison</CardTitle>
+            <CardDescription>
+              Comparison of featured and standard listings for {periodLabel}
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+          <ChartContainer config={comparisonChartConfig} className="aspect-auto h-[350px] w-full">
+            <BarChart data={comparisonChartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="name"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                style={{
+                  fontSize: '12px',
+                  fill: 'hsl(var(--foreground))',
+                  fontWeight: 500,
+                }}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tickFormatter={(value) => {
+                  if (value >= 1000000) return `₱${(value / 1000000).toFixed(0)}M`;
+                  if (value >= 1000) return `₱${(value / 1000).toFixed(0)}K`;
+                  return `₱${value}`;
+                }}
+                style={{
+                  fontSize: '12px',
+                  fill: 'hsl(var(--muted-foreground))',
+                }}
+              />
+              <ChartTooltip
+                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="rounded-lg border bg-background p-2 shadow-sm">
+                        <div className="grid gap-2">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-muted-foreground">Count:</span>
+                            <span className="font-medium">{data.count}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-muted-foreground">Earnings:</span>
+                            <span className="font-medium">
+                              PHP {Number(data.earnings).toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar
+                dataKey="earnings"
+                radius={[8, 8, 0, 0]}
+              >
+                {comparisonChartData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={
+                      entry.name === 'Featured'
+                        ? 'hsl(45, 93%, 47%)'
+                        : 'hsl(221, 83%, 53%)'
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+
+          {/* Summary Stats */}
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50/50 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-yellow-700">Featured Listings</p>
+                  <p className="text-2xl font-bold text-yellow-900">{featuredMetrics.count}</p>
+                  <p className="text-xs text-yellow-600 mt-1">
+                    PHP {featuredMetrics.earnings.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+                <Star className="h-8 w-8 text-yellow-600" />
+              </div>
+            </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-700">Standard Listings</p>
+                  <p className="text-2xl font-bold text-blue-900">{standardMetrics.count}</p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    PHP {standardMetrics.earnings.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+                <FileText className="h-8 w-8 text-blue-600" />
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

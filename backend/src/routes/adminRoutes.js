@@ -5,6 +5,8 @@ import { getAllUsers, getUserDetails, updateUserStatus, deleteLandlordOffense } 
 import { getFraudReports, getFraudReportsAnalytics } from "../controllers/fraudReportController.js";
 import { getUserAnalytics, getListingAnalytics } from "../controllers/admin/reportAnalyticsController.js";
 import { getAdminDashboard } from "../controllers/admin/dashboardController.js";
+import { getSystemPerformance } from "../controllers/admin/systemPerformanceController.js";
+import { getApiLogs, getLogStatistics } from "../middlewares/apiLogger.js";
 import { triggerPaymentReminders } from "../controllers/admin/paymentReminderController.js";
 import { triggerListingExpiration } from "../controllers/admin/listingExpirationController.js";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
@@ -12,7 +14,23 @@ import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 const router = Router();
 
 // ----------------------------------------------------- Dashboard 
-router.get("/dashboard", requireAuthentication(["ADMIN"]), getAdminDashboard); 
+router.get("/dashboard", requireAuthentication(["ADMIN"]), getAdminDashboard);
+router.get("/system-performance", requireAuthentication(["ADMIN"]), getSystemPerformance); // 📊 System performance metrics
+router.get("/api-logs", requireAuthentication(["ADMIN"]), (req, res) => {
+  // Get query parameters for filtering
+  const { limit = 100, method, statusCode, path } = req.query;
+  const logs = getApiLogs({
+    limit: parseInt(limit),
+    method: method || null,
+    statusCode: statusCode ? (Array.isArray(statusCode) ? statusCode : [statusCode]).map(Number) : null,
+    path: path || null,
+  });
+  res.json({ logs, total: logs.length });
+}); // 📋 API request/response logs
+router.get("/api-logs/statistics", requireAuthentication(["ADMIN"]), (req, res) => {
+  const stats = getLogStatistics();
+  res.json(stats);
+}); // 📊 API logs statistics 
 
 // ----------------------------------------------------- USERS
 router.get("/users", requireAuthentication(["ADMIN"]), getAllUsers); // 👥 Get all users sorted by recently created

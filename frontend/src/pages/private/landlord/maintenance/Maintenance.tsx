@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ import {
   Sparkles,
   RotateCcw,
   Loader2,
+  Grid3x3,
 } from 'lucide-react';
 import { getAllMaintenanceRequestsRequest, updateMaintenanceStatusRequest } from '@/api/landlord/maintenanceApi';
 import { getPropertiesWithUnitsRequest } from '@/api/landlord/financialApi';
@@ -191,6 +193,7 @@ const HISTORY_STATUSES: MaintenanceRequest['status'][] = ['INVALID', 'RESOLVED',
 const HISTORY_STATUS_SET = new Set<MaintenanceRequest['status']>(HISTORY_STATUSES);
 
 const Maintenance = () => {
+  const navigate = useNavigate();
   const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
   const [propertiesWithUnits, setPropertiesWithUnits] = useState<PropertyWithUnits[]>([]);
   const [loading, setLoading] = useState(true);
@@ -698,6 +701,14 @@ const Maintenance = () => {
               </div>
 
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/landlord/maintenance/visualization')}
+                  className="h-10 rounded-xl border-slate-200 bg-white/90 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white"
+                >
+                  <Grid3x3 className="h-4 w-4 mr-2" />
+                  Visualization
+                </Button>
                 <Button
                   variant="outline"
                   onClick={handleRefresh}
@@ -1451,8 +1462,10 @@ const Maintenance = () => {
                         // Status transition rules
                         const canTransitionTo = (targetStatus: string) => {
                           const current = selectedRequest.status;
-                          // IN_PROGRESS cannot go back to OPEN
-                          if (current === 'IN_PROGRESS' && targetStatus === 'OPEN') return false;
+                          // IN_PROGRESS can only go to RESOLVED (not INVALID or back to OPEN)
+                          if (current === 'IN_PROGRESS') {
+                            return targetStatus === 'RESOLVED';
+                          }
                           // RESOLVED cannot go back to any previous status
                           if (current === 'RESOLVED') return false;
                           // INVALID cannot go back to any previous status

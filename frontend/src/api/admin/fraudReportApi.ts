@@ -7,6 +7,8 @@ export interface FraudReport {
   reporterId: string;
   reason: string;
   details?: string | null;
+  image1Url?: string | null;
+  image2Url?: string | null;
   createdAt: string;
   updatedAt: string;
   listing: {

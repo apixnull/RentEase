@@ -233,7 +233,7 @@ export const createPaymentSession = async (req, res) => {
           } ${isFeatured ? " (Featured)" : ""}`,
           show_line_items: true,
           show_description: true,
-          cancel_url: `${process.env.FRONTEND_URL}/landlord/listing/${unitId}/review`,
+          cancel_url: `${process.env.FRONTEND_URL}/landlord/listing/${unitId}/review?payment=failed&listingId=${listingRecord.id}`,
           success_url: `${process.env.FRONTEND_URL}/landlord/listing/payment-success?unitId=${unitId}`,
           metadata: {
             // All data needed to create listing after payment success
@@ -851,6 +851,72 @@ export const toggleListingVisibility = async (req, res) => {
     console.error("❌ Error in toggleListingVisibility:", error);
     return res.status(500).json({
       error: "Failed to toggle listing visibility.",
+    });
+  }
+};
+
+// -----------------------------------------------------------------------------
+// DELETE LISTING ON PAYMENT FAILURE/CANCELLATION
+// -----------------------------------------------------------------------------
+// Deletes a listing when payment is cancelled or fails.
+// Only works for listings that are in WAITING_REVIEW or WAITING_PAYMENT status
+// and were created within the last hour (to prevent accidental deletion of old listings)
+// -----------------------------------------------------------------------------
+export const deleteListingOnPaymentFailure = async (req, res) => {
+  const landlordId = req.user.id;
+  const { listingId } = req.params;
+
+  try {
+    // 1️⃣ Fetch the listing and verify ownership
+    const listing = await prisma.listing.findFirst({
+      where: {
+        id: listingId,
+        landlordId: landlordId,
+      },
+      select: {
+        id: true,
+        lifecycleStatus: true,
+        createdAt: true,
+      },
+    });
+
+    if (!listing) {
+      return res.status(404).json({
+        error: "Listing not found or not owned by you.",
+      });
+    }
+
+    // 2️⃣ Verify listing status - only allow deletion of listings waiting for payment/review
+    const allowedStatuses = ["WAITING_PAYMENT", "WAITING_REVIEW"];
+    if (!allowedStatuses.includes(listing.lifecycleStatus)) {
+      return res.status(400).json({
+        error: `Cannot delete listing. Current status is ${listing.lifecycleStatus}. Only listings with status WAITING_PAYMENT or WAITING_REVIEW can be deleted.`,
+      });
+    }
+
+    // 3️⃣ Verify listing was created within the last hour (safety check)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    if (listing.createdAt < oneHourAgo) {
+      return res.status(400).json({
+        error: "Cannot delete listing. Only recently created listings (within 1 hour) can be deleted through this endpoint.",
+      });
+    }
+
+    // 4️⃣ Delete the listing
+    await prisma.listing.delete({
+      where: { id: listingId },
+    });
+
+    console.log(`✅ Listing ${listingId} deleted due to payment failure/cancellation`);
+
+    return res.status(200).json({
+      message: "Listing deleted successfully due to payment failure/cancellation.",
+      deletedListingId: listingId,
+    });
+  } catch (error) {
+    console.error("❌ Error in deleteListingOnPaymentFailure:", error);
+    return res.status(500).json({
+      error: "Failed to delete listing.",
     });
   }
 };

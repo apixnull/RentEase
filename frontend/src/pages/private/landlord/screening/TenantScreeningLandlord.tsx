@@ -680,7 +680,7 @@ const TenantScreeningLandlord = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
-                      Tenant Screening Reports
+                      Tenant Screening
                     </h1>
                     <motion.div
                       animate={{ rotate: [0, 8, -8, 0] }}
@@ -689,9 +689,8 @@ const TenantScreeningLandlord = () => {
                       <Sparkles className="h-4 w-4 text-cyan-500" />
                     </motion.div>
                   </div>
-                  <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
-                    <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                    Manage and review tenant screening applications
+                  <p className="text-sm text-slate-600 leading-6">
+                    Invite, review, and manage prospective tenants before signing a lease.
                   </p>
                 </div>
               </div>

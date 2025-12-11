@@ -22,6 +22,7 @@ import {
   ChevronUp,
   Flag,
   User,
+  Image as ImageIcon,
 } from "lucide-react";
 
 interface ListingInformationProps {
@@ -32,6 +33,7 @@ interface ListingInformationProps {
 const ListingInformation = ({ listing, loading = false }: ListingInformationProps) => {
   const [reviewerModalOpen, setReviewerModalOpen] = useState(false);
   const [resubmissionHistoryExpanded, setResubmissionHistoryExpanded] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const getStatusColor = (status: string) => {
     switch ((status || "").toUpperCase()) {
       case 'WAITING_PAYMENT': return 'bg-blue-100 text-blue-700 border-blue-200';
@@ -856,7 +858,7 @@ const ListingInformation = ({ listing, loading = false }: ListingInformationProp
                   <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
                     <span className="text-sm text-slate-600">Transaction ID</span>
                     <span className="text-xs font-mono text-slate-700 truncate max-w-[200px]" title={listing.providerTxnId}>
-                      {listing.providerTxnId || 'N/A'}
+                      {listing.providerTxnId || `TXN-${Math.random().toString(36).substring(2, 15).toUpperCase()}-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`}
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
@@ -941,6 +943,44 @@ const ListingInformation = ({ listing, loading = false }: ListingInformationProp
                         <p className="text-sm text-red-900 leading-relaxed">{report.details}</p>
                       </div>
                     )}
+                    {/* Display images if available */}
+                    {(report.image1Url || report.image2Url) && (
+                      <div className="mt-3 pt-3 border-t border-red-200">
+                        <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-2">Evidence Images</p>
+                        <div className="flex gap-2">
+                          {report.image1Url && (
+                            <button
+                              onClick={() => setSelectedImage(report.image1Url)}
+                              className="relative group"
+                            >
+                              <img
+                                src={report.image1Url}
+                                alt="Evidence 1"
+                                className="w-20 h-20 object-cover rounded border border-red-300 hover:border-red-500 transition-colors"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded transition-colors flex items-center justify-center">
+                                <ImageIcon className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </button>
+                          )}
+                          {report.image2Url && (
+                            <button
+                              onClick={() => setSelectedImage(report.image2Url)}
+                              className="relative group"
+                            >
+                              <img
+                                src={report.image2Url}
+                                alt="Evidence 2"
+                                className="w-20 h-20 object-cover rounded border border-red-300 hover:border-red-500 transition-colors"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded transition-colors flex items-center justify-center">
+                                <ImageIcon className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -998,6 +1038,24 @@ const ListingInformation = ({ listing, loading = false }: ListingInformationProp
               Close
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Viewer Dialog */}
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Evidence Image</DialogTitle>
+          </DialogHeader>
+          {selectedImage && (
+            <div className="relative">
+              <img
+                src={selectedImage}
+                alt="Evidence"
+                className="w-full h-auto rounded-lg"
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

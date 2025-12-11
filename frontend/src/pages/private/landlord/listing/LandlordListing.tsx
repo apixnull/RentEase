@@ -694,9 +694,8 @@ const LandlordListing = () => {
                         <Sparkles className="h-4 w-4 text-cyan-500" />
                       </motion.div>
                     </div>
-                    <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
-                      <Building className="h-4 w-4 text-emerald-500" />
-                      Manage your unit listings and status
+                    <p className="text-sm text-slate-600 leading-6">
+                      Advertise your vacant units and connect with prospective tenants looking for their next home.
                     </p>
                   </div>
                 </div>

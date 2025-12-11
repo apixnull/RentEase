@@ -67,8 +67,13 @@ import {
   Send,
   Loader2,
   X,
+  Upload,
+  Trash2 as TrashIcon,
 } from "lucide-react";
 import { getSpecificListingRequest, recordUnitViewRequest, createUnitReviewRequest, updateUnitReviewRequest, deleteUnitReviewRequest, reportFraudulentListingRequest } from "@/api/tenant/browseUnitApi";
+import { privateApi } from "@/api/axios";
+import { getLocalImageUrl } from "@/api/utils";
+import { supabase } from "@/lib/supabaseClient";
 import { getUserChatChannelsRequest, getChannelMessagesRequest, sendMessageRequest, sendAndCreateChannelRequest, markMessagesAsReadRequest } from "@/api/chatApi";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
@@ -186,6 +191,8 @@ type ReviewFormData = {
 type FraudReportFormData = {
   reason: string;
   details: string;
+  image1Url?: string;
+  image2Url?: string;
 };
 
 // Message type
@@ -805,15 +812,143 @@ const FraudReportForm = ({
     details: "",
   });
   const [errors, setErrors] = useState<{ reason?: string; details?: string }>({});
+  const [image1, setImage1] = useState<File | null>(null);
+  const [image2, setImage2] = useState<File | null>(null);
+  const [image1Preview, setImage1Preview] = useState<string | null>(null);
+  const [image2Preview, setImage2Preview] = useState<string | null>(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
+
+  // Generate UUID for file naming
+  const generateUUID = () => {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+      /[xy]/g,
+      function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c == "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      }
+    );
+  };
+
+  // Upload image (dual-mode: local for development, Supabase for production)
+  const uploadFraudReportImage = async (file: File): Promise<string> => {
+    const useLocalStorage =
+      import.meta.env.VITE_USE_LOCAL_STORAGE === "true" ||
+      import.meta.env.MODE === "development";
+
+    if (useLocalStorage) {
+      // Local storage mode: Upload to backend endpoint
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const response = await privateApi.post("/upload/fraud-report-image", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        const mockUrl = response.data.url;
+
+        if (import.meta.env.MODE === "development") {
+          return getLocalImageUrl(mockUrl);
+        }
+
+        return mockUrl;
+      } catch (error: any) {
+        console.error("Local upload error:", error);
+        throw new Error(
+          error.response?.data?.error || "Failed to upload image to local storage"
+        );
+      }
+    } else {
+      // Supabase storage mode (production)
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${generateUUID()}.${fileExt}`;
+        const filePath = `fraud_reports/${fileName}`;
+
+        const { error } = await supabase.storage
+          .from("rentease-images")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("rentease-images").getPublicUrl(filePath);
+
+        return publicUrl;
+      } catch (error) {
+        console.error("Error uploading image to Supabase:", error);
+        throw new Error(`Failed to upload image: ${error}`);
+      }
+    }
+  };
+
+  const handleImage1Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type.startsWith("image/")) {
+        setImage1(file);
+        setImage1Preview(URL.createObjectURL(file));
+      } else {
+        toast.error("Please select a valid image file");
+      }
+    }
+  };
+
+  const handleImage2Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type.startsWith("image/")) {
+        setImage2(file);
+        setImage2Preview(URL.createObjectURL(file));
+      } else {
+        toast.error("Please select a valid image file");
+      }
+    }
+  };
+
+  const removeImage1 = () => {
+    setImage1(null);
+    if (image1Preview) {
+      URL.revokeObjectURL(image1Preview);
+      setImage1Preview(null);
+    }
+  };
+
+  const removeImage2 = () => {
+    setImage2(null);
+    if (image2Preview) {
+      URL.revokeObjectURL(image2Preview);
+      setImage2Preview(null);
+    }
+  };
 
   useEffect(() => {
     if (isOpen && !submitted) {
       setFormData({ reason: "", details: "" });
       setErrors({});
+      setImage1(null);
+      setImage2(null);
+      if (image1Preview) {
+        URL.revokeObjectURL(image1Preview);
+        setImage1Preview(null);
+      }
+      if (image2Preview) {
+        URL.revokeObjectURL(image2Preview);
+        setImage2Preview(null);
+      }
     }
   }, [isOpen, submitted]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: { reason?: string; details?: string } = {};
 
@@ -832,7 +967,32 @@ const FraudReportForm = ({
       return;
     }
 
-    onSubmit(formData);
+    // Upload images if provided
+    let image1Url: string | undefined;
+    let image2Url: string | undefined;
+
+    if (image1 || image2) {
+      setUploadingImages(true);
+      try {
+        if (image1) {
+          image1Url = await uploadFraudReportImage(image1);
+        }
+        if (image2) {
+          image2Url = await uploadFraudReportImage(image2);
+        }
+      } catch (error: any) {
+        toast.error(error.message || "Failed to upload images");
+        setUploadingImages(false);
+        return;
+      }
+      setUploadingImages(false);
+    }
+
+    onSubmit({
+      ...formData,
+      image1Url,
+      image2Url,
+    });
   };
 
   if (!isOpen) return null;
@@ -933,6 +1093,82 @@ const FraudReportForm = ({
               )}
             </div>
 
+            {/* Image Upload Section */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Evidence Images (Optional)
+              </label>
+              <p className="text-xs text-gray-500 mb-3">Upload up to 2 images as evidence</p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {/* Image 1 */}
+                <div>
+                  {image1Preview ? (
+                    <div className="relative">
+                      <img
+                        src={image1Preview}
+                        alt="Preview 1"
+                        className="w-full h-32 object-cover rounded-lg border border-gray-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage1}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <TrashIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="h-6 w-6 text-gray-400 mb-2" />
+                        <p className="text-xs text-gray-500">Image 1</p>
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleImage1Change}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Image 2 */}
+                <div>
+                  {image2Preview ? (
+                    <div className="relative">
+                      <img
+                        src={image2Preview}
+                        alt="Preview 2"
+                        className="w-full h-32 object-cover rounded-lg border border-gray-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage2}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <TrashIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="h-6 w-6 text-gray-400 mb-2" />
+                        <p className="text-xs text-gray-500">Image 2</p>
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleImage2Change}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-3">
               <Button
                 type="button"
@@ -945,12 +1181,12 @@ const FraudReportForm = ({
               <Button
                 type="submit"
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                disabled={submitting}
+                disabled={submitting || uploadingImages}
               >
-                {submitting ? (
+                {(submitting || uploadingImages) ? (
                   <>
                     <div className="h-4 w-4 border-2 border-white/50 border-t-white rounded-full animate-spin mr-2" />
-                    Submitting...
+                    {uploadingImages ? "Uploading images..." : "Submitting..."}
                   </>
                 ) : (
                   <>
@@ -1566,6 +1802,8 @@ I'd like to schedule a viewing. Please let me know about availability!`;
         listingId: listing.id,
         reason: reportData.reason,
         details: reportData.details,
+        image1Url: reportData.image1Url,
+        image2Url: reportData.image2Url,
       });
       setReportSubmitted(true);
       

@@ -80,4 +80,6 @@ export const reportFraudulentListingRequest = (payload: {
   listingId: string;
   reason: string;
   details?: string;
+  image1Url?: string;
+  image2Url?: string;
 }) => privateApi.post(apiRoutes.tenant("/fraud-reports"), payload);

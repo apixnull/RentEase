@@ -1,5 +1,6 @@
 import prisma from "../libs/prismaClient.js";
 import { emitChannelUpdate, emitNewMessage, emitReadReceipt } from "../services/socketService.js";
+import { createNotification } from "./notificationController.js";
 
 // ============================================================================
 // GET ALL CHAT CHANNELS FOR CURRENT USER (Raw Snapshot Data)
@@ -109,7 +110,35 @@ export const sendMessage = async (req, res) => {
     // Emit new message (for message view)
     emitNewMessage(newMessage, channelId, channel.tenantId, channel.landlordId);
 
-    // 5️⃣ Fire-and-forget response
+    // 5️⃣ Create notification for the recipient
+    try {
+      // Determine recipient (the other participant)
+      const recipientId = senderId === channel.tenantId ? channel.landlordId : channel.tenantId;
+      
+      // Get sender's name for the notification
+      const sender = senderId === channel.tenantId ? updatedChannel.tenant : updatedChannel.landlord;
+      const senderName = `${sender.firstName || ""} ${sender.lastName || ""}`.trim() || "Someone";
+      
+      // Truncate message content for notification (max 100 chars)
+      const truncatedContent = content.length > 100 ? content.substring(0, 100) + "..." : content;
+      
+      // Create notification for recipient
+      await createNotification(
+        recipientId,
+        "MESSAGE",
+        `${senderName} sent you a message: ${truncatedContent}`,
+        {
+          channelId: channelId,
+          senderId: senderId,
+          senderName: senderName,
+        }
+      );
+    } catch (notificationError) {
+      // Log error but don't fail the message send
+      console.error("Error creating message notification:", notificationError);
+    }
+
+    // 6️⃣ Fire-and-forget response
     return res.sendStatus(204);
   } catch (error) {
     console.error("Error sending message:", error);
@@ -283,7 +312,35 @@ export const sendMessageCreateChannel = async (req, res) => {
       landlordId
     );
 
-    // 1️⃣3️⃣ Return channel info
+    // 1️⃣3️⃣ Create notification for the recipient
+    try {
+      // Determine recipient (the other participant)
+      const recipientId = senderId === tenantId ? landlordId : tenantId;
+      
+      // Get sender's name for the notification
+      const sender = senderId === tenantId ? updatedChannel.tenant : updatedChannel.landlord;
+      const senderName = `${sender.firstName || ""} ${sender.lastName || ""}`.trim() || "Someone";
+      
+      // Truncate message content for notification (max 100 chars)
+      const truncatedContent = content.length > 100 ? content.substring(0, 100) + "..." : content;
+      
+      // Create notification for recipient
+      await createNotification(
+        recipientId,
+        "MESSAGE",
+        `${senderName} sent you a message: ${truncatedContent}`,
+        {
+          channelId: channel.id,
+          senderId: senderId,
+          senderName: senderName,
+        }
+      );
+    } catch (notificationError) {
+      // Log error but don't fail the message send
+      console.error("Error creating message notification:", notificationError);
+    }
+
+    // 1️⃣4️⃣ Return channel info
     return res.status(201).json({
       channelId: channel.id,
       message: existingChannel 

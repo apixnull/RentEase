@@ -19,6 +19,7 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
 import sessionMiddleware from "./middlewares/session.js";
+import { apiLogger } from "./middlewares/apiLogger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -101,6 +102,7 @@ app.use(morgan("dev"));
 // app.use(globalLimiter);
 app.use(cookieParser());
 app.use(sessionMiddleware);
+app.use(apiLogger); // API request/response logger
 
 // ------------------------------
 // Static File Serving (Local Storage - Development Only)

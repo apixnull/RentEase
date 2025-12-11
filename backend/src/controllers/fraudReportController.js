@@ -2,7 +2,7 @@ import prisma from "../libs/prismaClient.js";
 import { createNotification } from "./notificationController.js";
 
 export const createFraudReport = async (req, res) => {
-  const { listingId, reason, details } = req.body || {};
+  const { listingId, reason, details, image1Url, image2Url } = req.body || {};
   const reporterId = req.user?.id;
 
   if (!listingId || !reason) {
@@ -37,6 +37,8 @@ export const createFraudReport = async (req, res) => {
         reporterId,
         reason,
         details: details || null,
+        image1Url: image1Url || null,
+        image2Url: image2Url || null,
       },
     });
 

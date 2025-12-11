@@ -14,6 +14,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Edit, 
   Trash2, 
@@ -45,7 +52,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { getUnitDetailsRequest, deleteUnitRequest } from "@/api/landlord/unitApi";
+import { getUnitDetailsRequest, deleteUnitRequest, updateUnitConditionRequest } from "@/api/landlord/unitApi";
 
 // Types based on your backend response
 interface City {
@@ -1194,6 +1201,7 @@ const DisplaySpecificUnit = () => {
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [updatingCondition, setUpdatingCondition] = useState(false);
 
   const fetchUnitDetails = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!unitId) {
@@ -1473,7 +1481,7 @@ const DisplaySpecificUnit = () => {
                 </h3>
               </div>
               <div className={`p-4 rounded-xl border-2 ${getConditionColor(unit.unitCondition)}`}>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-4">
                   <div className={`p-2 rounded-lg ${getConditionColor(unit.unitCondition)}`}>
                     {getConditionIcon(unit.unitCondition)}
                   </div>
@@ -1483,6 +1491,71 @@ const DisplaySpecificUnit = () => {
                       {unit.unitCondition.replace(/_/g, ' ')}
                     </p>
                   </div>
+                </div>
+                
+                {/* Condition Selector */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Update Condition
+                  </label>
+                  <Select
+                    value={unit.unitCondition}
+                    onValueChange={async (newCondition) => {
+                      if (newCondition === unit.unitCondition) return;
+                      
+                      setUpdatingCondition(true);
+                      try {
+                        await updateUnitConditionRequest(
+                          unit.id, 
+                          newCondition as 'GOOD' | 'NEED_MAINTENANCE' | 'UNDER_MAINTENANCE' | 'UNUSABLE'
+                        );
+                        toast.success("Unit condition updated successfully");
+                        await fetchUnitDetails({ silent: true });
+                      } catch (err: any) {
+                        console.error("Error updating unit condition:", err);
+                        toast.error(err?.response?.data?.message || "Failed to update unit condition");
+                      } finally {
+                        setUpdatingCondition(false);
+                      }
+                    }}
+                    disabled={updatingCondition}
+                  >
+                    <SelectTrigger className="w-full" disabled={updatingCondition}>
+                      <SelectValue placeholder="Select condition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GOOD">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-emerald-600" />
+                          <span>Good</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="NEED_MAINTENANCE">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <span>Need Maintenance</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="UNDER_MAINTENANCE">
+                        <div className="flex items-center gap-2">
+                          <Wrench className="h-4 w-4 text-yellow-600" />
+                          <span>Under Maintenance</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="UNUSABLE">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="h-4 w-4 text-rose-600" />
+                          <span>Unusable</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {updatingCondition && (
+                    <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Updating condition...</span>
+                    </div>
+                  )}
                 </div>
                 {unit.unitCondition === 'UNDER_MAINTENANCE' && (
                   <div className="mt-3 pt-3 border-t border-yellow-300">

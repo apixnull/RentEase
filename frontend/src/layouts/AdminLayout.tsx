@@ -12,6 +12,7 @@ import {
   Shield,
   MoreHorizontal,
   Settings,
+  Activity,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,13 @@ const sidebarItems = [
     description: "System settings and utilities",
     badge: null,
   },
+  {
+    path: "/admin/system-info",
+    name: "System Info",
+    icon: Activity,
+    description: "Website performance",
+    badge: null,
+  },
 ];
 
 // Breadcrumb configuration
@@ -96,6 +104,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin/notifications": { name: "Notifications" },
   "/admin/account": { name: "Account" },
   "/admin/settings": { name: "Settings" },
+  "/admin/system-info": { name: "System Info" },
 };
 
 // Custom hook for sidebar state management

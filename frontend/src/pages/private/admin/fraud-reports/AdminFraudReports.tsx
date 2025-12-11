@@ -7,13 +7,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, RefreshCcw, Eye, Calendar, User, Building, Flag, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, RefreshCcw, Eye, Calendar, User, Building, Flag, Loader2, Sparkles, Image as ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import type { FraudReport } from "@/api/admin/fraudReportApi";
@@ -29,6 +35,7 @@ const AdminFraudReports = () => {
   const [dateFilter, setDateFilter] = useState<DateFilter>("this_week");
   const [tablePage, setTablePage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const fetchReports = async ({ silent = false }: { silent?: boolean } = {}) => {
     const abort = new AbortController();
@@ -396,6 +403,41 @@ const AdminFraudReports = () => {
                           <p className="text-sm text-gray-700 line-clamp-2">
                             {report.details || "No details provided"}
                           </p>
+                          {/* Display images if available */}
+                          {(report.image1Url || report.image2Url) && (
+                            <div className="flex gap-2 mt-2">
+                              {report.image1Url && (
+                                <button
+                                  onClick={() => setSelectedImage(report.image1Url || null)}
+                                  className="relative group"
+                                >
+                                  <img
+                                    src={report.image1Url}
+                                    alt="Evidence 1"
+                                    className="w-12 h-12 object-cover rounded border border-gray-300 hover:border-blue-500 transition-colors"
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded transition-colors flex items-center justify-center">
+                                    <ImageIcon className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                </button>
+                              )}
+                              {report.image2Url && (
+                                <button
+                                  onClick={() => setSelectedImage(report.image2Url || null)}
+                                  className="relative group"
+                                >
+                                  <img
+                                    src={report.image2Url}
+                                    alt="Evidence 2"
+                                    className="w-12 h-12 object-cover rounded border border-gray-300 hover:border-blue-500 transition-colors"
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded transition-colors flex items-center justify-center">
+                                    <ImageIcon className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -462,6 +504,24 @@ const AdminFraudReports = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Image Viewer Dialog */}
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Evidence Image</DialogTitle>
+          </DialogHeader>
+          {selectedImage && (
+            <div className="relative">
+              <img
+                src={selectedImage}
+                alt="Evidence"
+                className="w-full h-auto rounded-lg"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

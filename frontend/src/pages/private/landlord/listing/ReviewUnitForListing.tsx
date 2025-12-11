@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Star, Home, MapPin, Edit2, Sparkles, HelpCircle, CheckCircle2, AlertCircle, DollarSign, Info } from 'lucide-react';
-import { getUnitForListingReviewRequest, createPaymentSessionRequest } from '@/api/landlord/listingApi';
+import { Star, Home, MapPin, Edit2, Sparkles, HelpCircle, CheckCircle2, AlertCircle, DollarSign, Info, XCircle } from 'lucide-react';
+import { getUnitForListingReviewRequest, createPaymentSessionRequest, deleteListingOnPaymentFailureRequest } from '@/api/landlord/listingApi';
+import { toast } from 'sonner';
 import { Card, CardContent,  CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,6 +34,7 @@ interface ReviewData {
 const ReviewUnitForListing = () => {
   const { unitId } = useParams<{ unitId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,7 @@ const ReviewUnitForListing = () => {
   const [creatingListing, setCreatingListing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [paymentFailed, setPaymentFailed] = useState(false);
   
   const [agreed, setAgreed] = useState(false);
   
@@ -97,6 +100,38 @@ const ReviewUnitForListing = () => {
   const formatAddress = (property: Property) => {
     return `${property.street}, ${property.barangay}, ${property.zipCode}`;
   };
+
+  // Handle payment failure/cancellation
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment');
+    const listingId = searchParams.get('listingId');
+
+    if (paymentStatus === 'failed' && listingId) {
+      setPaymentFailed(true);
+      
+      // Delete the listing on payment failure
+      const handlePaymentFailure = async () => {
+        try {
+          await deleteListingOnPaymentFailureRequest(listingId);
+          toast.error('Payment was cancelled or failed. The listing has been removed.');
+          
+          // Remove query parameters from URL
+          setSearchParams({});
+          
+          // Hide the alert after a brief moment
+          setTimeout(() => {
+            setPaymentFailed(false);
+          }, 5000);
+        } catch (err: any) {
+          console.error('Error deleting listing on payment failure:', err);
+          toast.error(err?.response?.data?.error || 'Failed to clean up listing. Please contact support.');
+          setPaymentFailed(false);
+        }
+      };
+
+      handlePaymentFailure();
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!unitId) return;
@@ -328,6 +363,33 @@ const ReviewUnitForListing = () => {
             </div>
           </div>
         </motion.div>
+
+        {/* Payment Failure Alert */}
+        {paymentFailed && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="border-red-200 bg-red-50/80 backdrop-blur-sm shadow-sm">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <XCircle className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-red-900 mb-1">
+                      Payment Cancelled or Failed
+                    </h3>
+                    <p className="text-sm text-red-700">
+                      Your payment was cancelled or failed. The listing has been automatically removed. You can create a new listing by selecting your options below.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

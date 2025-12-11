@@ -657,7 +657,7 @@ const Leases = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
-                      Lease Operations Hub
+                      Lease Management
                     </h1>
                     <motion.div
                       animate={{ rotate: [0, 8, -8, 0] }}
@@ -668,7 +668,7 @@ const Leases = () => {
                   </div>
                   <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
                     <ShieldCheck className="h-4 w-4 text-cyan-500" />
-                    Keep agreements, renewals, and compliance synced across properties
+                    Keep agreements and compliance synced across properties
                   </p>
                 </div>
               </div>

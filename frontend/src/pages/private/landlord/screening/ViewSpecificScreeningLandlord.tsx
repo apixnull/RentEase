@@ -866,7 +866,7 @@ const ViewSpecificScreeningLandlord = () => {
                             headerClasses.titleGradient
                           )}
                         >
-                          Tenant Screening Report
+                          {screening.tenant.firstName} {screening.tenant.lastName}
                         </h1>
                         <motion.div
                           animate={{ rotate: [0, 10, -10, 0] }}
@@ -888,8 +888,7 @@ const ViewSpecificScreeningLandlord = () => {
                             headerClasses.text
                           )}
                         />
-                        {screening.tenant.firstName} {screening.tenant.lastName} •{" "}
-                        {utils.formatShortDate(screening.createdAt)}
+                        Screening Report • {utils.formatShortDate(screening.createdAt)}
                       </p>
                     </div>
                   </div>

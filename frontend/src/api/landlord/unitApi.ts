@@ -24,6 +24,14 @@ export const updateUnitRequest = (
 ) =>
   privateApi.patch(apiRoutes.landlord(`/unit/${unitId}`), data, { signal: options?.signal });
 
+// Update unit condition only (does not affect listing status)
+export const updateUnitConditionRequest = (
+  unitId: string,
+  unitCondition: 'GOOD' | 'NEED_MAINTENANCE' | 'UNDER_MAINTENANCE' | 'UNUSABLE',
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.patch(apiRoutes.landlord(`/unit/${unitId}/condition`), { unitCondition }, { signal: options?.signal });
+
 // Delete a unit
 export const deleteUnitRequest = (unitId: string, options?: { signal?: AbortSignal }) =>
   privateApi.delete(apiRoutes.landlord(`/unit/${unitId}`), { signal: options?.signal });

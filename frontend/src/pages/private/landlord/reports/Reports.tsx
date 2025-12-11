@@ -21,6 +21,7 @@ import {
   Home,
   Megaphone,
   UserCheck,
+  Percent,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -376,6 +377,7 @@ const Reports = () => {
             </div>
           </CardContent>
         </Card>
+
       </div>
 
       {/* Engagement Button Section */}
@@ -451,6 +453,32 @@ const Reports = () => {
             >
               <Wrench className="w-4 h-4 mr-2" />
               View Maintenance Analytics
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Occupancy Analytics Button Section */}
+      <Card className="border border-slate-200 shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-600 via-violet-600 to-fuchsia-600 text-white grid place-items-center shadow-lg">
+                <Percent className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Occupancy Analytics</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Track occupancy rates by property and unit, identify vacant units, and analyze occupancy trends
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => navigate('/landlord/occupancy-analytics')}
+              className="h-11 rounded-xl bg-gradient-to-r from-purple-500 via-violet-500 to-fuchsia-500 px-6 text-sm font-semibold text-white shadow-md shadow-violet-500/30 hover:brightness-110"
+            >
+              <Percent className="w-4 h-4 mr-2" />
+              View Occupancy Analytics
             </Button>
           </div>
         </CardContent>
