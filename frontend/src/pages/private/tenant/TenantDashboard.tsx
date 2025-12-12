@@ -185,10 +185,10 @@ const TenantDashboard = () => {
     fetchDashboard({ silent: true });
   };
 
-  // Get recent leases (any status, sorted by updatedAt)
+  // Get recent leases (any status, sorted by createdAt to show recently created)
   const recentLeases = useMemo(() => {
     return [...leases]
-      .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
+      .sort((a, b) => new Date(b.createdAt || b.updatedAt).getTime() - new Date(a.createdAt || a.updatedAt).getTime())
       .slice(0, 5);
   }, [leases]);
 
@@ -554,7 +554,7 @@ const TenantDashboard = () => {
                                 {lease.unit?.label || 'N/A'} - {lease.landlord?.firstName} {lease.landlord?.lastName}
                               </p>
                               <p className="text-[10px] text-slate-500 mt-1">
-                                Updated: {format(new Date(lease.updatedAt || lease.createdAt), 'MMM d, yyyy')}
+                                Created: {format(new Date(lease.createdAt || lease.updatedAt), 'MMM d, yyyy')}
                               </p>
                             </div>
                             <div className="text-right ml-2">
@@ -618,12 +618,14 @@ const TenantDashboard = () => {
                     {recentScreenings.map((screening: any) => {
                       const statusColors: Record<string, string> = {
                         PENDING: 'border-amber-500 bg-amber-50/50',
+                        'TENANT-REJECT': 'border-slate-500 bg-slate-50/50',
                         SUBMITTED: 'border-indigo-500 bg-indigo-50/50',
                         APPROVED: 'border-emerald-500 bg-emerald-50/50',
                         REJECTED: 'border-red-500 bg-red-50/50',
                       };
                       const statusTextColors: Record<string, string> = {
                         PENDING: 'text-amber-700',
+                        'TENANT-REJECT': 'text-slate-700',
                         SUBMITTED: 'text-indigo-700',
                         APPROVED: 'text-emerald-700',
                         REJECTED: 'text-red-700',

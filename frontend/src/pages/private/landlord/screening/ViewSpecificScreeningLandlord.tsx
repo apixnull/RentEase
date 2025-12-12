@@ -56,7 +56,7 @@ interface ScreeningDetail {
   id: string;
   tenantId: string;
   landlordId: string;
-  status: "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED";
+  status: "PENDING" | "TENANT-REJECT" | "SUBMITTED" | "APPROVED" | "REJECTED";
   remarks: string | null;
   reviewedAt: string | null;
   submitted: string | null;
@@ -264,6 +264,40 @@ const SCREENING_STATUS_THEME = {
     timelineCompleted: "bg-rose-500",
     timelineLine: "bg-rose-300",
   },
+  "TENANT-REJECT": {
+    // Badge & Pill
+    badge: "bg-slate-50 border border-slate-200 text-slate-700",
+    pill: "bg-slate-100 text-slate-800",
+    
+    // Gradients
+    gradient: "from-slate-500 to-gray-500",
+    gradientLight: "from-slate-200/70 via-slate-100/50 to-slate-200/70",
+    gradientButton: "from-slate-600 to-gray-600 hover:from-slate-700 hover:to-gray-700",
+    
+    // Backgrounds
+    background: "bg-slate-50 border-slate-300",
+    backgroundCard: "bg-gradient-to-br from-slate-50 to-gray-50",
+    
+    // Icon & Text
+    iconBackground: "bg-slate-500",
+    textColor: "text-slate-700",
+    textColorDark: "text-slate-900",
+    textColorLight: "text-slate-600",
+    
+    // Blur Effects
+    blurLight: "bg-slate-200/40",
+    blurDark: "bg-slate-300/40",
+    
+    // Borders
+    border: "border-slate-200",
+    borderDark: "border-slate-300",
+    borderCard: "border-2 border-slate-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-slate-500 ring-4 ring-slate-200",
+    timelineCompleted: "bg-slate-500",
+    timelineLine: "bg-slate-300",
+  },
 } as const;
 
 // ========== UTILITY FUNCTIONS ==========
@@ -278,6 +312,7 @@ const utils = {
       PENDING: <Clock className="w-5 h-5" />,
       SUBMITTED: <FileText className="w-5 h-5" />,
       REJECTED: <XCircle className="w-5 h-5" />,
+      "TENANT-REJECT": <XCircle className="w-5 h-5" />,
     };
     return icons[status as keyof typeof icons] || <Clock className="w-5 h-5" />;
   },
@@ -340,6 +375,20 @@ const utils = {
           bgBlur3: theme.blurLight,
           accentLine: "via-rose-400/70",
           underline: "from-rose-500/80 via-red-400/80 to-rose-400/80",
+          sparklesColor: theme.textColorLight,
+        };
+      case "TENANT-REJECT":
+        return {
+          gradient: "from-slate-300/80 via-gray-200/70 to-slate-200/60",
+          iconBg: "bg-gradient-to-br from-slate-600 via-gray-600 to-slate-600",
+          iconShadow: "shadow-slate-500/30",
+          text: theme.textColorLight,
+          titleGradient: "from-gray-900 via-slate-900 to-gray-900",
+          bgBlur1: "from-slate-300/50 to-gray-400/40",
+          bgBlur2: "from-gray-300/50 to-slate-300/40",
+          bgBlur3: theme.blurLight,
+          accentLine: "via-slate-400/70",
+          underline: "from-slate-500/80 via-gray-400/80 to-slate-400/80",
           sparklesColor: theme.textColorLight,
         };
       default:
@@ -732,7 +781,7 @@ const ViewSpecificScreeningLandlord = () => {
     date: string;
     status: "active" | "completed" | "pending";
     icon: any;
-    stepType: "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED";
+    stepType: "PENDING" | "TENANT-REJECT" | "SUBMITTED" | "APPROVED" | "REJECTED";
     description: string;
   }> = [];
 
@@ -745,6 +794,19 @@ const ViewSpecificScreeningLandlord = () => {
     stepType: "PENDING",
     description: "You sent a screening invitation to this tenant.",
   });
+
+  // Show TENANT-REJECT step if tenant declined
+  if (screening.status === "TENANT-REJECT") {
+    timelineSteps.push({
+      label: "Invitation Declined",
+      date: screening.updatedAt,
+      status: "active",
+      icon: XCircle,
+      stepType: "TENANT-REJECT",
+      description:
+        "The tenant has declined your screening invitation.",
+    });
+  }
 
   // Show SUBMITTED step if status is SUBMITTED, APPROVED, or REJECTED
   if (
@@ -982,6 +1044,8 @@ const ViewSpecificScreeningLandlord = () => {
                           <p className={cn("text-xs mt-1", theme.textColorLight)}>
                             {screening.status === "PENDING"
                               ? utils.formatShortDate(screening.createdAt)
+                              : screening.status === "TENANT-REJECT"
+                              ? utils.formatShortDate(screening.updatedAt)
                               : screening.status === "SUBMITTED" &&
                                 screening.submitted
                               ? utils.formatShortDate(screening.submitted)
@@ -1103,7 +1167,8 @@ const ViewSpecificScreeningLandlord = () => {
                               </p>
                               {isActive &&
                                 (step.stepType === "APPROVED" ||
-                                  step.stepType === "REJECTED") &&
+                                  step.stepType === "REJECTED" ||
+                                  step.stepType === "TENANT-REJECT") &&
                                 screening.remarks && (
                                   <div
                                     className={cn(
@@ -1118,7 +1183,7 @@ const ViewSpecificScreeningLandlord = () => {
                                         stepTheme.textColorDark
                                       )}
                                     >
-                                      Your Remarks:
+                                      {step.stepType === "TENANT-REJECT" ? "System Note:" : "Your Remarks:"}
                                     </p>
                                     <p
                                       className={stepTheme.textColor}
@@ -1812,11 +1877,14 @@ const ViewSpecificScreeningLandlord = () => {
                     </Button>
                   )}
                   {(screening.status === "PENDING" ||
-                    screening.status === "REJECTED") && (
+                    screening.status === "REJECTED" ||
+                    screening.status === "TENANT-REJECT") && (
                     <div className="text-center py-2">
                       <p className="text-sm text-gray-500">
                         {screening.status === "PENDING"
                           ? "Waiting for tenant to submit application"
+                          : screening.status === "TENANT-REJECT"
+                          ? "Tenant has declined this screening invitation"
                           : "Application has been rejected"}
                       </p>
                     </div>

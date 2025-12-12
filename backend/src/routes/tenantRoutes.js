@@ -2,7 +2,7 @@
 import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 import { getSpecificListing, getVisibleListingsForTenant, getCitiesAndMunicipalities, searchListings, handleAIChatbotMessage, recordUnitView, createUnitReview, updateUnitReview, deleteUnitReview } from "../controllers/tenant/browseUnitController.js";
-import { getSpecificTenantScreening, getTenantScreeningInvitations, tenantSubmitScreeningInfo } from "../controllers/tenant/tenantScreeningController.js";
+import { getSpecificTenantScreening, getTenantScreeningInvitations, tenantSubmitScreeningInfo, tenantRejectScreeningInvitation } from "../controllers/tenant/tenantScreeningController.js";
 import { getLeaseDetails, getTenantLeases, handleTenantLeaseAction } from "../controllers/tenant/leaseController.js";
 import { createMaintenanceRequest, getAllTenantRequests, cancelMaintenanceRequest } from "../controllers/tenant/requestMaintenanceController.js";
 import { createFraudReport } from "../controllers/fraudReportController.js";
@@ -23,6 +23,7 @@ router.post("/fraud-reports", requireAuthentication(["TENANT"]), createFraudRepo
 
 // ----------------------------------------------------- SUBMIT TENANT SCREENING
 router.post("/screening/:screeningId/submit", requireAuthentication(["TENANT"]), tenantSubmitScreeningInfo);              // tenant submits screening info (mock AI analysis)
+router.post("/screening/:screeningId/reject", requireAuthentication(["TENANT"]), tenantRejectScreeningInvitation);        // tenant rejects screening invitation
 router.get("/screening/list", requireAuthentication(["TENANT"]), getTenantScreeningInvitations);                          // get all the screening invatation in this tenant 
 router.get("/screening/:screeningId/details", requireAuthentication(["TENANT"]), getSpecificTenantScreening)
 

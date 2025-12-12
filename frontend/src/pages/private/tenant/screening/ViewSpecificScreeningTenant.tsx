@@ -26,9 +26,10 @@ import {
   RotateCcw,
   Loader2,
 } from "lucide-react";
-import { getSpecificTenantScreeningRequest } from "@/api/tenant/screeningApi";
+import { getSpecificTenantScreeningRequest, tenantRejectScreeningInvitationRequest } from "@/api/tenant/screeningApi";
 import { cn } from "@/lib/utils";
 import { processImageUrl } from "@/api/utils";
+import { toast } from "sonner";
 
 interface Landlord {
   id: string;
@@ -80,7 +81,7 @@ interface Lifestyle {
 
 interface ScreeningDetails {
   id: string;
-  status: "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED";
+  status: "PENDING" | "TENANT-REJECT" | "SUBMITTED" | "APPROVED" | "REJECTED";
   remarks: string | null;
   createdAt: string;
   updatedAt: string;
@@ -232,6 +233,40 @@ const SCREENING_STATUS_THEME = {
     timelineCompleted: "bg-rose-500",
     timelineLine: "bg-rose-300",
   },
+  "TENANT-REJECT": {
+    // Badge & Pill
+    badge: "bg-slate-50 border border-slate-200 text-slate-700",
+    pill: "bg-slate-100 text-slate-800",
+    
+    // Gradients
+    gradient: "from-slate-500 to-gray-500",
+    gradientLight: "from-slate-200/70 via-slate-100/50 to-slate-200/70",
+    gradientButton: "from-slate-600 to-gray-600 hover:from-slate-700 hover:to-gray-700",
+    
+    // Backgrounds
+    background: "bg-slate-50 border-slate-300",
+    backgroundCard: "bg-gradient-to-br from-slate-50 to-gray-50",
+    
+    // Icon & Text
+    iconBackground: "bg-slate-500",
+    textColor: "text-slate-700",
+    textColorDark: "text-slate-900",
+    textColorLight: "text-slate-600",
+    
+    // Blur Effects
+    blurLight: "bg-slate-200/40",
+    blurDark: "bg-slate-300/40",
+    
+    // Borders
+    border: "border-slate-200",
+    borderDark: "border-slate-300",
+    borderCard: "border-2 border-slate-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-slate-500 ring-4 ring-slate-200",
+    timelineCompleted: "bg-slate-500",
+    timelineLine: "bg-slate-300",
+  },
 } as const;
 
 const ViewSpecificScreeningTenant = () => {
@@ -241,6 +276,7 @@ const ViewSpecificScreeningTenant = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const fetchScreeningDetails = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
@@ -277,6 +313,28 @@ const ViewSpecificScreeningTenant = () => {
   const handleAcceptInvitation = () => {
     if (screeningId) {
       navigate(`/tenant/screening/${screeningId}/fill`);
+    }
+  };
+
+  const handleRejectInvitation = async () => {
+    if (!screeningId || isRejecting) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to decline this screening invitation? This action cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    setIsRejecting(true);
+    try {
+      await tenantRejectScreeningInvitationRequest(screeningId);
+      toast.success("Screening invitation declined successfully.");
+      await fetchScreeningDetails();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to decline invitation. Please try again.");
+      console.error("Error rejecting invitation:", err);
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -354,6 +412,20 @@ const ViewSpecificScreeningTenant = () => {
           underline: "from-rose-500/80 via-red-400/80 to-rose-400/80",
           sparklesColor: theme.textColorLight,
         };
+      case "TENANT-REJECT":
+        return {
+          gradient: "from-slate-300/80 via-gray-200/70 to-slate-200/60",
+          iconBg: `bg-gradient-to-br ${theme.gradient}`,
+          iconShadow: "shadow-slate-500/30",
+          text: theme.textColorLight,
+          titleGradient: "from-gray-900 via-slate-900 to-gray-900",
+          bgBlur1: "from-slate-300/50 to-gray-400/40",
+          bgBlur2: "from-gray-300/50 to-slate-300/40",
+          bgBlur3: theme.blurLight,
+          accentLine: "via-slate-400/70",
+          underline: "from-slate-500/80 via-gray-400/80 to-slate-400/80",
+          sparklesColor: theme.textColorLight,
+        };
       default:
         return {
           gradient: "from-slate-300/80 via-slate-200/70 to-slate-200/60",
@@ -381,6 +453,8 @@ const ViewSpecificScreeningTenant = () => {
       case "SUBMITTED":
         return <FileText className="w-5 h-5" />;
       case "REJECTED":
+        return <XCircle className="w-5 h-5" />;
+      case "TENANT-REJECT":
         return <XCircle className="w-5 h-5" />;
       default:
         return <Clock className="w-5 h-5" />;
@@ -474,6 +548,8 @@ const ViewSpecificScreeningTenant = () => {
         return "Application approved";
       case "REJECTED":
         return "Application not approved";
+      case "TENANT-REJECT":
+        return "Invitation declined";
       default:
         return "Screening in progress";
     }
@@ -785,14 +861,34 @@ const ViewSpecificScreeningTenant = () => {
                 </ul>
               </div>
 
-              {/* Accept Button */}
-              <Button
-                onClick={handleAcceptInvitation}
-                className={`w-full bg-gradient-to-r ${SCREENING_STATUS_THEME.APPROVED.gradientButton} text-white text-sm sm:text-base font-semibold h-12 sm:h-14 shadow-md shadow-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/40 transition-all duration-200 rounded-lg gap-2`}
-              >
-                <CheckCircle className="w-5 h-5" />
-                Accept & Start Screening
-              </Button>
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                <Button
+                  onClick={handleAcceptInvitation}
+                  className={`w-full bg-gradient-to-r ${SCREENING_STATUS_THEME.APPROVED.gradientButton} text-white text-sm sm:text-base font-semibold h-12 sm:h-14 shadow-md shadow-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/40 transition-all duration-200 rounded-lg gap-2`}
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Accept & Start Screening
+                </Button>
+                <Button
+                  onClick={handleRejectInvitation}
+                  disabled={isRejecting}
+                  variant="outline"
+                  className="w-full h-12 sm:h-14 border-2 border-slate-300 text-slate-700 text-sm sm:text-base font-semibold hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 rounded-lg gap-2 disabled:opacity-70"
+                >
+                  {isRejecting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Declining...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-5 h-5" />
+                      Decline Invitation
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -997,6 +1093,7 @@ const ViewSpecificScreeningTenant = () => {
                       {screening.status === "SUBMITTED" && `You have submitted this information to landlord ${screening.landlord.name} for tenant screening. Wait for the landlord to review your information.`}
                       {screening.status === "APPROVED" && "The landlord has approved this tenant screening. Congratulations! You can now proceed with the next steps in your rental journey."}
                       {screening.status === "REJECTED" && "We're sorry, but your application was not approved at this time. Don't worry - there are many other rental opportunities available."}
+                      {screening.status === "TENANT-REJECT" && "You have declined this screening invitation. The landlord has been notified."}
                     </p>
                     {screening.status === "APPROVED" && (
                       <Button
@@ -1024,7 +1121,7 @@ const ViewSpecificScreeningTenant = () => {
                         date: string;
                         status: 'active' | 'completed' | 'pending';
                         icon: any;
-                        stepType: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+                        stepType: 'PENDING' | 'TENANT-REJECT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
                         description: string;
                       }> = [];
 
@@ -1038,7 +1135,7 @@ const ViewSpecificScreeningTenant = () => {
                         description: 'The landlord initiated a screening invitation for you.'
                       });
 
-                      // Show SUBMITTED step if status is SUBMITTED, APPROVED, or REJECTED
+                      // Show SUBMITTED step if status is SUBMITTED, APPROVED, or REJECTED (but not TENANT-REJECT)
                       if (screening.status === 'SUBMITTED' || screening.status === 'APPROVED' || screening.status === 'REJECTED') {
                         timelineSteps.push({
                           label: 'Application Submitted',
@@ -1069,10 +1166,19 @@ const ViewSpecificScreeningTenant = () => {
                           stepType: 'REJECTED',
                           description: 'The landlord has reviewed your application and decided not to proceed. You may contact them for more information.'
                         });
+                      } else if (screening.status === 'TENANT-REJECT') {
+                        timelineSteps.push({
+                          label: 'Invitation Declined',
+                          date: screening.updatedAt,
+                          status: 'active',
+                          icon: XCircle,
+                          stepType: 'TENANT-REJECT',
+                          description: 'You have declined this screening invitation. The landlord has been notified.'
+                        });
                       }
 
-                      // Determine timeline line color - only show if not final state (APPROVED/REJECTED)
-                      const shouldShowMainTimeline = screening.status !== 'APPROVED' && screening.status !== 'REJECTED';
+                      // Determine timeline line color - only show if not final state (APPROVED/REJECTED/TENANT-REJECT)
+                      const shouldShowMainTimeline = screening.status !== 'APPROVED' && screening.status !== 'REJECTED' && screening.status !== 'TENANT-REJECT';
                       const getTimelineColor = () => {
                         if (screening.status === 'PENDING') return 'bg-amber-200';
                         if (screening.status === 'SUBMITTED') return 'bg-gradient-to-b from-amber-200 via-indigo-200 to-indigo-200';
@@ -1114,6 +1220,7 @@ const ViewSpecificScreeningTenant = () => {
                                 else if (step.stepType === 'SUBMITTED') contentBgColor = 'bg-indigo-50';
                                 else if (step.stepType === 'APPROVED') contentBgColor = 'bg-emerald-50';
                                 else if (step.stepType === 'REJECTED') contentBgColor = 'bg-rose-50';
+                                else if (step.stepType === 'TENANT-REJECT') contentBgColor = 'bg-slate-50';
                                 contentBorderColor = stepTheme.borderCard;
                                 textColor = stepTheme.textColorDark;
                                 dateColor = stepTheme.textColor;
@@ -1163,8 +1270,8 @@ const ViewSpecificScreeningTenant = () => {
                                     <p className="text-sm text-slate-600 mt-2">
                                       {step.description}
                                     </p>
-                                    {/* Show remarks for APPROVED or REJECTED */}
-                                    {isActive && (step.stepType === 'APPROVED' || step.stepType === 'REJECTED') && screening.remarks && (
+                                    {/* Show remarks for APPROVED, REJECTED, or TENANT-REJECT */}
+                                    {isActive && (step.stepType === 'APPROVED' || step.stepType === 'REJECTED' || step.stepType === 'TENANT-REJECT') && screening.remarks && (
                                       <div className={cn(
                                         "mt-3 rounded-lg border p-3 text-sm",
                                         step.stepType === 'APPROVED' ? `${stepTheme.border} ${stepTheme.backgroundCard.replace('bg-gradient-to-br', 'bg')}` : `${stepTheme.border} ${stepTheme.backgroundCard.replace('bg-gradient-to-br', 'bg')}`

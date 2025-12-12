@@ -73,7 +73,7 @@ interface ScreeningReport {
   id: string;
   tenantId: string;
   landlordId: string;
-  status: "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED";
+  status: "PENDING" | "TENANT-REJECT" | "SUBMITTED" | "APPROVED" | "REJECTED";
   remarks: string | null;
   reviewedAt: string | null;
   aiRiskScore: number | null;
@@ -221,6 +221,40 @@ const SCREENING_STATUS_THEME = {
     timelineCompleted: "bg-rose-500",
     timelineLine: "bg-rose-300",
   },
+  "TENANT-REJECT": {
+    // Badge & Pill
+    badge: "bg-slate-50 border border-slate-200 text-slate-700",
+    pill: "bg-slate-100 text-slate-800",
+    
+    // Gradients
+    gradient: "from-slate-500 to-gray-500",
+    gradientLight: "from-slate-200/70 via-slate-100/50 to-slate-200/70",
+    gradientButton: "from-slate-600 to-gray-600 hover:from-slate-700 hover:to-gray-700",
+    
+    // Backgrounds
+    background: "bg-slate-50 border-slate-300",
+    backgroundCard: "bg-gradient-to-br from-slate-50 to-gray-50",
+    
+    // Icon & Text
+    iconBackground: "bg-slate-500",
+    textColor: "text-slate-700",
+    textColorDark: "text-slate-900",
+    textColorLight: "text-slate-600",
+    
+    // Blur Effects
+    blurLight: "bg-slate-200/40",
+    blurDark: "bg-slate-300/40",
+    
+    // Borders
+    border: "border-slate-200",
+    borderDark: "border-slate-300",
+    borderCard: "border-2 border-slate-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-slate-500 ring-4 ring-slate-200",
+    timelineCompleted: "bg-slate-500",
+    timelineLine: "bg-slate-300",
+  },
 } as const;
 
 
@@ -360,9 +394,9 @@ const TenantScreeningLandlord = () => {
     return new Date(dateString) < oneWeekAgo;
   };
 
-  // Get the relevant date for sorting (createdAt for PENDING, updatedAt for others)
+  // Get the relevant date for sorting (createdAt for PENDING and TENANT-REJECT, updatedAt for others)
   const getRelevantDate = (report: ScreeningReport) => {
-    return report.status === "PENDING" ? report.createdAt : report.updatedAt;
+    return report.status === "PENDING" || report.status === "TENANT-REJECT" ? report.createdAt : report.updatedAt;
   };
 
   // Separate reports into latest and past
@@ -407,6 +441,8 @@ const TenantScreeningLandlord = () => {
       case "SUBMITTED":
         return <FileText className="w-3 h-3" />;
       case "REJECTED":
+        return <XCircle className="w-3 h-3" />;
+      case "TENANT-REJECT":
         return <XCircle className="w-3 h-3" />;
       default:
         return <Clock className="w-3 h-3" />;
@@ -454,6 +490,9 @@ const TenantScreeningLandlord = () => {
   const rejectedCount = screeningReports.filter(
     (r) => r.status === "REJECTED"
   ).length;
+  const tenantRejectCount = screeningReports.filter(
+    (r) => r.status === "TENANT-REJECT"
+  ).length;
 
   const ScreeningTable = ({ reports }: { reports: ScreeningReport[] }) => (
     <div className="border rounded-lg">
@@ -480,6 +519,8 @@ const TenantScreeningLandlord = () => {
               const dateLabel =
                 report.status === "PENDING"
                   ? "Invited"
+                  : report.status === "TENANT-REJECT"
+                  ? "Declined"
                   : report.status === "SUBMITTED"
                   ? "Submitted"
                   : "Updated";
@@ -766,7 +807,7 @@ const TenantScreeningLandlord = () => {
           {isStatsExpanded && (
             <CardContent className="pt-0 space-y-4">
               {/* Stats Overview - Matching Leases.tsx style */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {(() => {
                   const theme = SCREENING_STATUS_THEME.PENDING;
                   return (
@@ -866,6 +907,32 @@ const TenantScreeningLandlord = () => {
                       <div>
                         <p className={`text-xs uppercase tracking-wide ${theme.textColorLight}`}>Rejected</p>
                         <p className={`text-lg font-semibold ${theme.textColorDark}`}>{rejectedCount}</p>
+                      </div>
+                    </button>
+                  );
+                })()}
+
+                {(() => {
+                  const theme = SCREENING_STATUS_THEME["TENANT-REJECT"];
+                  return (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setStatusFilter(statusFilter === "TENANT-REJECT" ? "all" : "TENANT-REJECT")
+                      }
+                      className={cn(
+                        "rounded-xl border-2 p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)] transition-all",
+                        theme.borderCard,
+                        theme.backgroundCard,
+                        statusFilter === "TENANT-REJECT" && "ring-2 ring-slate-400 shadow-md"
+                      )}
+                    >
+                      <div className={`h-10 w-10 rounded-lg grid place-items-center ${theme.iconBackground}`}>
+                        <XCircle className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <p className={`text-xs uppercase tracking-wide ${theme.textColorLight}`}>Declined</p>
+                        <p className={`text-lg font-semibold ${theme.textColorDark}`}>{tenantRejectCount}</p>
                       </div>
                     </button>
                   );

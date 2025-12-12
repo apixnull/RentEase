@@ -30,3 +30,12 @@ export const getSpecificTenantScreeningRequest = (
   privateApi.get(apiRoutes.tenant(`/screening/${screeningId}/details`), {
     signal: options?.signal,
   });
+
+// ✅ Tenant rejects screening invitation
+export const tenantRejectScreeningInvitationRequest = (
+  screeningId: string,
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.post(apiRoutes.tenant(`/screening/${screeningId}/reject`), {}, {
+    signal: options?.signal,
+  });

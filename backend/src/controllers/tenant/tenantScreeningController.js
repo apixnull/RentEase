@@ -571,6 +571,67 @@ export const tenantSubmitScreeningInfo = async (req, res) => {
 };
 
 // ============================================================
+// TENANT REJECT SCREENING INVITATION
+// ============================================================
+export const tenantRejectScreeningInvitation = async (req, res) => {
+  try {
+    const tenantId = req.user.id;
+    const { screeningId } = req.params;
+
+    // ------------------------------------------------------------
+    // 1. Validate
+    // ------------------------------------------------------------
+    if (!screeningId) {
+      return res.status(400).json({ message: "Screening ID is required." });
+    }
+
+    // ------------------------------------------------------------
+    // 2. Find screening record
+    // ------------------------------------------------------------
+    const screening = await prisma.tenantScreening.findUnique({
+      where: { id: screeningId },
+    });
+
+    if (!screening || screening.tenantId !== tenantId) {
+      return res.status(404).json({ message: "Screening not found or unauthorized." });
+    }
+
+    if (screening.status !== "PENDING") {
+      return res.status(400).json({ message: "This screening invitation has already been processed." });
+    }
+
+    // ------------------------------------------------------------
+    // 3. Update screening record to TENANT-REJECT
+    // ------------------------------------------------------------
+    await prisma.tenantScreening.update({
+      where: { id: screeningId },
+      data: {
+        status: "TENANT-REJECT",
+        remarks: "Tenant has declined this screening invitation.",
+      },
+    });
+
+    // ------------------------------------------------------------
+    // 4. Notify landlord that tenant rejected the invitation
+    // ------------------------------------------------------------
+    await createNotification(
+      screening.landlordId,
+      "SCREENING",
+      `A tenant has declined your screening invitation.`,
+      { screeningId: screening.id }
+    );
+
+    // ------------------------------------------------------------
+    // 5. Return success message
+    // ------------------------------------------------------------
+    return res.status(200).json({ message: "Screening invitation rejected successfully." });
+  } catch (error) {
+    console.error("Error rejecting screening invitation:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// ============================================================
 // 📋 GET ALL TENANT SCREENING INVITATIONS (TENANT SIDE)
 // ============================================================
 export const getTenantScreeningInvitations = async (req, res) => {

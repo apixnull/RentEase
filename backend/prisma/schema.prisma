@@ -489,7 +489,7 @@ model TenantScreening {
   // ============================================================
   // REVIEW STATUS — Managed by system and landlord
   // ============================================================
-  status      String   @default("PENDING") // PENDING | SUBMITTED | APPROVED | REJECTED 
+  status      String   @default("PENDING") // PENDING | TENANT-REJECT | SUBMITTED | APPROVED | REJECTED 
   remarks     String?                      // System-generated note (e.g., "You do not qualify at this time")
 
   // ============================================================

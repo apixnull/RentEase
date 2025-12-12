@@ -5,9 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, CheckCircle, XCircle, Clock, User, AlertCircle, Archive, ChevronUp, ChevronDown, RotateCcw, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, Clock, User, AlertCircle, Archive, ChevronUp, ChevronDown, RotateCcw, Loader2, Sparkles, ShieldCheck, Eye } from 'lucide-react';
 import { getTenantScreeningInvitationsRequest } from '@/api/tenant/screeningApi';
 import { Skeleton } from '@/components/ui/skeleton';
 import { processImageUrl } from '@/api/utils';
@@ -24,7 +23,7 @@ interface Landlord {
 interface ScreeningInvitation {
   id: string;
   landlord: Landlord;
-  status: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'; 
+  status: 'PENDING' | 'TENANT-REJECT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'; 
   remarks: string | null;
   createdAt: string;
   updatedAt: string;
@@ -169,6 +168,40 @@ const SCREENING_STATUS_THEME = {
     timelineCompleted: "bg-rose-500",
     timelineLine: "bg-rose-300",
   },
+  "TENANT-REJECT": {
+    // Badge & Pill
+    badge: "bg-slate-50 border border-slate-200 text-slate-700",
+    pill: "bg-slate-100 text-slate-800",
+    
+    // Gradients
+    gradient: "from-slate-500 to-gray-500",
+    gradientLight: "from-slate-200/70 via-slate-100/50 to-slate-200/70",
+    gradientButton: "from-slate-600 to-gray-600 hover:from-slate-700 hover:to-gray-700",
+    
+    // Backgrounds
+    background: "bg-slate-50 border-slate-300",
+    backgroundCard: "bg-gradient-to-br from-slate-50 to-gray-50",
+    
+    // Icon & Text
+    iconBackground: "bg-slate-500",
+    textColor: "text-slate-700",
+    textColorDark: "text-slate-900",
+    textColorLight: "text-slate-600",
+    
+    // Blur Effects
+    blurLight: "bg-slate-200/40",
+    blurDark: "bg-slate-300/40",
+    
+    // Borders
+    border: "border-slate-200",
+    borderDark: "border-slate-300",
+    borderCard: "border-2 border-slate-300",
+    
+    // Timeline (if needed)
+    timelineActive: "bg-slate-500 ring-4 ring-slate-200",
+    timelineCompleted: "bg-slate-500",
+    timelineLine: "bg-slate-300",
+  },
 } as const;
 
 const TenantScreeningTenant = () => {
@@ -177,8 +210,6 @@ const TenantScreeningTenant = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
-  const [invitationToAccept, setInvitationToAccept] = useState<ScreeningInvitation | null>(null);
   const [activeTab, setActiveTab] = useState('current');
   const [statsExpanded, setStatsExpanded] = useState(true);
 
@@ -212,17 +243,6 @@ const TenantScreeningTenant = () => {
     }
   };
 
-  const handleAcceptInvitation = (invitation: ScreeningInvitation) => {
-    setAcceptDialogOpen(false);
-    setInvitationToAccept(null);
-    navigate(`/tenant/screening/${invitation.id}/fill`);
-  };
-
-  const handleOpenAcceptDialog = (invitation: ScreeningInvitation) => {
-    setInvitationToAccept(invitation);
-    setAcceptDialogOpen(true);
-  };
-
   const handleViewDetails = (invitation: ScreeningInvitation) => {
     navigate(`/tenant/screening/${invitation.id}/details`);
   };
@@ -243,6 +263,7 @@ const TenantScreeningTenant = () => {
     submitted: invitations.filter(inv => inv.status === 'SUBMITTED').length,
     approved: invitations.filter(inv => inv.status === 'APPROVED').length,
     rejected: invitations.filter(inv => inv.status === 'REJECTED').length,
+    tenantReject: invitations.filter(inv => inv.status === 'TENANT-REJECT').length,
     total: invitations.length
   };
 
@@ -255,8 +276,8 @@ const TenantScreeningTenant = () => {
             <Skeleton className="h-24 w-full rounded-2xl" />
           </div>
           {/* Stats Skeleton */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[...Array(4)].map((_, i) => (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[...Array(5)].map((_, i) => (
               <Card key={i}>
                 <CardContent className="p-3">
                   <div className="space-y-2">
@@ -442,7 +463,7 @@ const TenantScreeningTenant = () => {
             }`}
           >
             <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {/* PENDING Status Card */}
                 <div className={`rounded-xl ${SCREENING_STATUS_THEME.PENDING.borderCard} ${SCREENING_STATUS_THEME.PENDING.backgroundCard} p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)]`}>
                   <div className={`h-10 w-10 rounded-lg grid place-items-center ${SCREENING_STATUS_THEME.PENDING.iconBackground}`}>
@@ -484,6 +505,17 @@ const TenantScreeningTenant = () => {
                   <div>
                     <p className={`text-xs uppercase tracking-wide ${SCREENING_STATUS_THEME.REJECTED.textColorLight}`}>Rejected</p>
                     <p className={`text-lg font-semibold ${SCREENING_STATUS_THEME.REJECTED.textColorDark}`}>{stats.rejected}</p>
+                  </div>
+                </div>
+                
+                {/* TENANT-REJECT Status Card */}
+                <div className={`rounded-xl ${SCREENING_STATUS_THEME["TENANT-REJECT"].borderCard} ${SCREENING_STATUS_THEME["TENANT-REJECT"].backgroundCard} p-3 flex items-center gap-3 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.25)]`}>
+                  <div className={`h-10 w-10 rounded-lg grid place-items-center ${SCREENING_STATUS_THEME["TENANT-REJECT"].iconBackground}`}>
+                    <XCircle className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className={`text-xs uppercase tracking-wide ${SCREENING_STATUS_THEME["TENANT-REJECT"].textColorLight}`}>Declined</p>
+                    <p className={`text-lg font-semibold ${SCREENING_STATUS_THEME["TENANT-REJECT"].textColorDark}`}>{stats.tenantReject}</p>
                   </div>
                 </div>
               </div>
@@ -565,7 +597,6 @@ const TenantScreeningTenant = () => {
                       <ScreeningCard 
                         key={invitation.id}
                         invitation={invitation}
-                        onAccept={() => handleOpenAcceptDialog(invitation)}
                         onViewDetails={() => handleViewDetails(invitation)}
                       />
                     ))}
@@ -591,7 +622,6 @@ const TenantScreeningTenant = () => {
                       <ScreeningCard 
                         key={invitation.id}
                         invitation={invitation}
-                        onAccept={() => handleOpenAcceptDialog(invitation)}
                         onViewDetails={() => handleViewDetails(invitation)}
                       />
                     ))}
@@ -602,65 +632,6 @@ const TenantScreeningTenant = () => {
           </CardContent>
         </Card>
 
-        {/* Accept Invitation Dialog */}
-        <Dialog open={acceptDialogOpen} onOpenChange={setAcceptDialogOpen}>
-          <DialogContent className="sm:max-w-md max-w-[95vw] mx-2 sm:mx-auto">
-            <DialogHeader>
-              <DialogTitle className="text-base sm:text-lg flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
-                Accept Screening Invitation
-              </DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm">
-                You are about to start the screening process with {invitationToAccept?.landlord.name}.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-3 py-2 sm:py-3">
-              <div className="bg-blue-50 p-2.5 sm:p-3 rounded-lg border border-blue-200">
-                <h4 className="font-semibold text-blue-800 mb-1 text-xs sm:text-sm">About the Screening Process</h4>
-                <p className="text-blue-700 text-xs sm:text-sm">
-                  Complete your background information to meet rental criteria.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-medium text-gray-800 text-xs sm:text-sm">What to expect:</h4>
-                <ul className="text-gray-600 text-xs sm:text-sm space-y-2">
-                  <li className="flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />
-                    <span>Questions about employment, income, and rental history</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />
-                    <span>Takes 10-15 minutes to complete</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />
-                    <span>Information securely processed by landlord</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <DialogFooter className="flex gap-2 sm:justify-end">
-              <Button 
-                variant="outline" 
-                onClick={() => setAcceptDialogOpen(false)}
-                size="sm"
-                className="flex-1 sm:flex-none"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={() => invitationToAccept && handleAcceptInvitation(invitationToAccept)}
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
-              >
-                Continue
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
@@ -669,11 +640,10 @@ const TenantScreeningTenant = () => {
 // Separate component for screening card
 interface ScreeningCardProps {
   invitation: ScreeningInvitation;
-  onAccept: () => void;
   onViewDetails: () => void;
 }
 
-const ScreeningCard = ({ invitation, onAccept, onViewDetails }: ScreeningCardProps) => {
+const ScreeningCard = ({ invitation, onViewDetails }: ScreeningCardProps) => {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
@@ -696,6 +666,8 @@ const ScreeningCard = ({ invitation, onAccept, onViewDetails }: ScreeningCardPro
       case 'SUBMITTED':
         return <FileText className="w-3 h-3" />;
       case 'REJECTED':
+        return <XCircle className="w-3 h-3" />;
+      case 'TENANT-REJECT':
         return <XCircle className="w-3 h-3" />;
       default:
         return <Clock className="w-3 h-3" />;
@@ -758,6 +730,7 @@ const ScreeningCard = ({ invitation, onAccept, onViewDetails }: ScreeningCardPro
       case 'SUBMITTED': return 'hover:border-indigo-300';
       case 'APPROVED': return 'hover:border-emerald-300';
       case 'REJECTED': return 'hover:border-rose-300';
+      case 'TENANT-REJECT': return 'hover:border-slate-300';
       default: return 'hover:border-gray-300';
     }
   };
@@ -819,22 +792,21 @@ const ScreeningCard = ({ invitation, onAccept, onViewDetails }: ScreeningCardPro
             </div>
           </div>
 
-          {invitation.status === 'PENDING' && (
-            <div className="flex-shrink-0">
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAccept();
-                }}
-                size="sm"
-                className={`bg-gradient-to-r ${SCREENING_STATUS_THEME.APPROVED.gradientButton} text-white text-[10px] sm:text-xs font-semibold h-8 sm:h-9 px-3 sm:px-4 shadow-md shadow-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/40 transition-all duration-200 rounded-lg gap-1.5`}
-              >
-                <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Accept</span>
-                <span className="sm:hidden">Accept</span>
-              </Button>
-            </div>
-          )}
+          <div className="flex-shrink-0">
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDetails();
+              }}
+              size="sm"
+              variant="outline"
+              className="text-[10px] sm:text-xs font-semibold h-8 sm:h-9 px-3 sm:px-4 border-slate-300 hover:bg-slate-50 transition-all duration-200 rounded-lg gap-1.5"
+            >
+              <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">View Details</span>
+              <span className="sm:hidden">View</span>
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
