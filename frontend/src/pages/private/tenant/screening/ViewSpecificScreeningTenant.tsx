@@ -1270,8 +1270,8 @@ const ViewSpecificScreeningTenant = () => {
                                     <p className="text-sm text-slate-600 mt-2">
                                       {step.description}
                                     </p>
-                                    {/* Show remarks for APPROVED, REJECTED, or TENANT-REJECT */}
-                                    {isActive && (step.stepType === 'APPROVED' || step.stepType === 'REJECTED' || step.stepType === 'TENANT-REJECT') && screening.remarks && (
+                                    {/* Show remarks for APPROVED or REJECTED (not for TENANT-REJECT) */}
+                                    {isActive && (step.stepType === 'APPROVED' || step.stepType === 'REJECTED') && screening.remarks && (
                                       <div className={cn(
                                         "mt-3 rounded-lg border p-3 text-sm",
                                         step.stepType === 'APPROVED' ? `${stepTheme.border} ${stepTheme.backgroundCard.replace('bg-gradient-to-br', 'bg')}` : `${stepTheme.border} ${stepTheme.backgroundCard.replace('bg-gradient-to-br', 'bg')}`
