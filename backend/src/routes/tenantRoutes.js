@@ -1,7 +1,7 @@
 // file: routes/landlordRoutes.js
 import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
-import { getSpecificListing, getVisibleListingsForTenant, getCitiesAndMunicipalities, searchListings, handleAIChatbotMessage, recordUnitView, createUnitReview, updateUnitReview, deleteUnitReview } from "../controllers/tenant/browseUnitController.js";
+import { getSpecificListing, getVisibleListingsForTenant, getCitiesAndMunicipalities, getNearbyInstitutions, searchListings, handleAIChatbotMessage, recordUnitView, createUnitReview, updateUnitReview, deleteUnitReview } from "../controllers/tenant/browseUnitController.js";
 import { getSpecificTenantScreening, getTenantScreeningInvitations, tenantSubmitScreeningInfo, tenantRejectScreeningInvitation } from "../controllers/tenant/tenantScreeningController.js";
 import { getLeaseDetails, getTenantLeases, handleTenantLeaseAction } from "../controllers/tenant/leaseController.js";
 import { createMaintenanceRequest, getAllTenantRequests, cancelMaintenanceRequest } from "../controllers/tenant/requestMaintenanceController.js";
@@ -11,6 +11,7 @@ const router = Router();
 
 // ----------------------------------------------------- BROWSE UNIT
 router.get("/browse-unit/cities-municipalities", requireAuthentication(["TENANT"]), getCitiesAndMunicipalities);  // get all cities and municipalities
+router.get("/browse-unit/nearby-institutions", requireAuthentication(["TENANT"]), getNearbyInstitutions);        // get all unique nearby institutions
 router.get("/browse-unit", requireAuthentication(["TENANT"]), getVisibleListingsForTenant);                        // get all visible unit that is listed (with search & filters)
 router.get("/browse-unit/search", requireAuthentication(["TENANT"]), searchListings);                             // server-side search with filters
 router.post("/browse-unit/ai-chat", requireAuthentication(["TENANT"]), handleAIChatbotMessage);                    // AI chatbot for rental inquiries

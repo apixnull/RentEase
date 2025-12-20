@@ -136,7 +136,7 @@ const SupportChat = ({ isOpen, onClose }: SupportChatProps) => {
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
+    } catch (_error) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: "Sorry, I'm having trouble connecting right now. Please try again later.",

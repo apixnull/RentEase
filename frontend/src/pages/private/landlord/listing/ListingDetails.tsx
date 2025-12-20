@@ -1039,45 +1039,68 @@ export const ListingDetails = () => {
                   {/* Payment Information */}
                   <div>
                     <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Payment Details</h3>
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
-                          <span className="text-sm text-slate-600">Amount Paid</span>
-                          {listingData.paymentAmount !== null && listingData.paymentAmount !== undefined ? (
-                            <span className="font-semibold text-green-700">₱{listingData.paymentAmount.toLocaleString()}</span>
-                          ) : (
-                            <span className="text-sm italic text-slate-400">Not applicable</span>
-                          )}
+                    {(() => {
+                      // Check if all payment fields are empty (refunded)
+                      // Note: We check providerTxnId (actual field) not simulatedTxnId (which generates a fake ID)
+                      const isRefunded = 
+                        (listingData.paymentAmount === null || listingData.paymentAmount === undefined) &&
+                        (!listingData.providerName || listingData.providerName.trim() === '') &&
+                        (!listingData.providerTxnId || listingData.providerTxnId.trim() === '') &&
+                        !listingData.paymentDate;
+
+                      if (isRefunded) {
+                        return (
+                          <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                            <div className="flex items-center gap-2">
+                              <XCircle className="h-5 w-5 text-orange-600" />
+                              <span className="text-sm font-semibold text-orange-700">Refunded</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
+                            <span className="text-sm text-slate-600">Amount Paid</span>
+                            {listingData.paymentAmount !== null && listingData.paymentAmount !== undefined ? (
+                              <span className="font-semibold text-green-700">₱{listingData.paymentAmount.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-sm italic text-slate-400">Not applicable</span>
+                            )}
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Payment Method</span>
+                            {listingData.providerName ? (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                {listingData.providerName}
+                              </Badge>
+                            ) : (
+                              <span className="text-sm italic text-slate-400">Not applicable</span>
+                            )}
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Transaction ID</span>
+                            {simulatedTxnId ? (
+                              <span className="text-xs font-mono text-slate-700 truncate max-w-[150px]" title={simulatedTxnId}>
+                                {simulatedTxnId}
+                              </span>
+                            ) : (
+                              <span className="text-sm italic text-slate-400">Not applicable</span>
+                            )}
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Payment Date</span>
+                            {listingData.paymentDate ? (
+                              <span className="text-sm font-medium text-slate-900">{formatDateTime(listingData.paymentDate)}</span>
+                            ) : (
+                              <span className="text-sm italic text-slate-400">Not applicable</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                          <span className="text-sm text-slate-600">Payment Method</span>
-                          {listingData.providerName ? (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                              {listingData.providerName}
-                            </Badge>
-                          ) : (
-                            <span className="text-sm italic text-slate-400">Not applicable</span>
-                          )}
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                          <span className="text-sm text-slate-600">Transaction ID</span>
-                          {simulatedTxnId ? (
-                            <span className="text-xs font-mono text-slate-700 truncate max-w-[150px]" title={simulatedTxnId}>
-                              {simulatedTxnId}
-                            </span>
-                          ) : (
-                            <span className="text-sm italic text-slate-400">Not applicable</span>
-                          )}
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                          <span className="text-sm text-slate-600">Payment Date</span>
-                          {listingData.paymentDate ? (
-                            <span className="text-sm font-medium text-slate-900">{formatDateTime(listingData.paymentDate)}</span>
-                          ) : (
-                            <span className="text-sm italic text-slate-400">Not applicable</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
+                  </div>
 
                   {/* Reviewer Information */}
                   <div>

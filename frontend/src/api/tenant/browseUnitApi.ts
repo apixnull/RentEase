@@ -12,6 +12,9 @@ export const getSpecificListingRequest = ( listingId: string, options?: { signal
 export const getCitiesAndMunicipalitiesRequest = (options?: { signal?: AbortSignal }) =>
   privateApi.get(apiRoutes.tenant("/browse-unit/cities-municipalities"), { signal: options?.signal });
 
+export const getNearbyInstitutionsRequest = (options?: { signal?: AbortSignal }) =>
+  privateApi.get(apiRoutes.tenant("/browse-unit/nearby-institutions"), { signal: options?.signal });
+
 export const searchListingsRequest = (
   searchParams: {
     search?: string;
@@ -20,6 +23,7 @@ export const searchListingsRequest = (
     minPrice?: number;
     maxPrice?: number;
     sortBy?: string;
+    nearbyInstitution?: string;
   } = {},
   options?: { signal?: AbortSignal }
 ) => {
@@ -30,6 +34,7 @@ export const searchListingsRequest = (
   if (searchParams.minPrice) params.append("minPrice", searchParams.minPrice.toString());
   if (searchParams.maxPrice) params.append("maxPrice", searchParams.maxPrice.toString());
   if (searchParams.sortBy && searchParams.sortBy !== "ALL") params.append("sortBy", searchParams.sortBy);
+  if (searchParams.nearbyInstitution && searchParams.nearbyInstitution !== "ALL") params.append("nearbyInstitution", searchParams.nearbyInstitution);
 
   const queryString = params.toString();
   const url = queryString

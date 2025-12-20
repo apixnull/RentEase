@@ -71,6 +71,7 @@ interface Unit {
   id: string;
   label: string;
   unitCondition: "GOOD" | "NEED_MAINTENANCE" | "UNDER_MAINTENANCE" | "UNUSABLE";
+  unitLeaseRules?: Array<{ text: string; category: string }> | null;
 }
 
 interface Property {
@@ -124,6 +125,7 @@ const CreateLease = () => {
     leaseTermMonths: "12",
     rentAmount: "",
     securityDeposit: "",
+    advancePayment: "0",
     dueDate: "1",
     dueDateOption: "MATCH_START" as "FIRST" | "MATCH_START",
 
@@ -591,6 +593,7 @@ const CreateLease = () => {
         securityDeposit: formData.securityDeposit
           ? parseFloat(formData.securityDeposit)
           : null,
+        advancePayment: parseInt(formData.advancePayment) || 0,
         dueDate: parseInt(formData.dueDate),
         leaseDocumentUrl: leaseDocumentUrl || null,
         proratedAmount: null, // Prorated rent feature coming soon
@@ -1132,6 +1135,76 @@ const CreateLease = () => {
                       </div>
                     )}
 
+                    {/* Unit Lease Rules Display */}
+                    {formData.unitId && getSelectedUnit()?.unitLeaseRules && Array.isArray(getSelectedUnit()?.unitLeaseRules) && getSelectedUnit()!.unitLeaseRules!.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <ScrollText className="w-4 h-4 text-blue-600" />
+                          <h4 className="text-sm font-semibold text-blue-900">Unit Lease Rules</h4>
+                          <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700">
+                            {getSelectedUnit()!.unitLeaseRules!.length} {getSelectedUnit()!.unitLeaseRules!.length === 1 ? 'rule' : 'rules'}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          {(() => {
+                            const rules = getSelectedUnit()!.unitLeaseRules!;
+                            const categories = ["general", "visitor", "payment", "maintenance", "safety", "noise", "pet", "cleaning", "parking", "other"];
+                            const categoryLabels: Record<string, string> = {
+                              general: "General Policies",
+                              visitor: "Visitor Policies",
+                              payment: "Payment Policies",
+                              maintenance: "Maintenance Policies",
+                              safety: "Safety Policies",
+                              noise: "Noise Policies",
+                              pet: "Pet Policies",
+                              cleaning: "Cleaning Policies",
+                              parking: "Parking Policies",
+                              other: "Other Policies",
+                            };
+                            
+                            const groupedRules = rules.reduce((acc, rule) => {
+                              const cat = rule.category || "other";
+                              if (!acc[cat]) acc[cat] = [];
+                              acc[cat].push(rule);
+                              return acc;
+                            }, {} as Record<string, typeof rules>);
+
+                            return categories.map((category) => {
+                              if (!groupedRules[category] || groupedRules[category].length === 0) return null;
+                              
+                              return (
+                                <div key={category} className="bg-white rounded-lg border border-blue-100 p-2.5">
+                                  <div className="flex items-center gap-1.5 mb-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    <span className="text-xs font-semibold text-blue-800">
+                                      {categoryLabels[category] || category}
+                                    </span>
+                                    <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-blue-200 text-blue-600">
+                                      {groupedRules[category].length}
+                                    </Badge>
+                                  </div>
+                                  <ul className="space-y-1 ml-4">
+                                    {groupedRules[category].map((rule, idx) => (
+                                      <li key={idx} className="text-xs text-gray-700 flex items-start gap-1.5">
+                                        <span className="text-blue-400 mt-0.5">•</span>
+                                        <span>{rule.text}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-blue-200">
+                          <p className="text-[10px] text-blue-700 flex items-center gap-1">
+                            <Info className="w-3 h-3" />
+                            These rules will be part of the lease agreement
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Tenant Search Section */}
                     <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-purple-50 via-slate-50 to-white p-4 space-y-3 shadow-sm">
                       <div className="flex items-center justify-between">
@@ -1515,7 +1588,7 @@ const CreateLease = () => {
                     )}
 
                     {/* Financial Section */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="rentAmount" className="text-xs font-medium flex items-center gap-1">
                           <span className="text-green-600 font-semibold">₱</span>
@@ -1572,6 +1645,39 @@ const CreateLease = () => {
                         <div className="flex items-center gap-1 text-xs text-gray-500">
                           <Info className="w-3 h-3" />
                           Refundable deposit
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="advancePayment" className="text-xs font-medium flex items-center gap-1">
+                          <DollarSign className="w-3 h-3 text-green-600" />
+                          Advance Payment <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={formData.advancePayment}
+                          onValueChange={(value) => handleInputChange("advancePayment", value)}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Select advance payment" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">No Advance Payment</SelectItem>
+                            <SelectItem value="1">1 Month Advance</SelectItem>
+                            <SelectItem value="2">2 Months Advance</SelectItem>
+                            <SelectItem value="3">3 Months Advance</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Info className="w-3 h-3" />
+                          {formData.advancePayment !== "0" && formData.rentAmount && parseFloat(formData.rentAmount) > 0 ? (
+                            <span>
+                              {formData.advancePayment} month{formData.advancePayment !== "1" ? "s" : ""} (₱{(
+                                parseFloat(formData.advancePayment) * parseFloat(formData.rentAmount)
+                              ).toLocaleString()}) will be marked as paid when tenant accepts
+                            </span>
+                          ) : (
+                            "Marked as paid when tenant accepts the lease"
+                          )}
                         </div>
                       </div>
 
@@ -1863,6 +1969,20 @@ const CreateLease = () => {
                   </div>
                 )}
 
+                {formData.advancePayment && formData.advancePayment !== "0" && formData.rentAmount && parseFloat(formData.rentAmount) > 0 && (
+                  <div className="flex items-start gap-1.5 p-1.5 bg-teal-50 rounded">
+                    <DollarSign className="w-3 h-3 text-teal-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-teal-800">Advance Payment</p>
+                      <p className="text-teal-700 font-semibold">
+                        {formData.advancePayment} month{formData.advancePayment !== "1" ? "s" : ""} (₱{(
+                          parseFloat(formData.advancePayment) * parseFloat(formData.rentAmount)
+                        ).toLocaleString()})
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {leaseDurationDays !== null && !leaseDurationError && (
                   <div className="p-1.5 bg-orange-50 rounded">
                     <p className="font-medium text-orange-800">Duration</p>
@@ -1936,6 +2056,17 @@ const CreateLease = () => {
                       <span className="text-gray-600">Security Deposit:</span>
                       <span className="text-gray-900 font-medium">
                         ₱{parseFloat(formData.securityDeposit).toLocaleString()}
+                      </span>
+                    </>
+                  )}
+                  
+                  {formData.advancePayment && formData.advancePayment !== "0" && formData.rentAmount && parseFloat(formData.rentAmount) > 0 && (
+                    <>
+                      <span className="text-gray-600">Advance Payment:</span>
+                      <span className="text-gray-900 font-medium">
+                        {formData.advancePayment} month{formData.advancePayment !== "1" ? "s" : ""} (₱{(
+                          parseFloat(formData.advancePayment) * parseFloat(formData.rentAmount)
+                        ).toLocaleString()})
                       </span>
                     </>
                   )}

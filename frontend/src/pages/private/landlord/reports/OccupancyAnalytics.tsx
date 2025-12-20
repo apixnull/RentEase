@@ -400,7 +400,7 @@ const OccupancyAnalytics = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-slate-900 truncate">
-                      Occupancy Analytics
+                      Annual Occupancy Analytics
                     </h1>
                     <motion.div
                       animate={{ rotate: [0, 8, -8, 0] }}
@@ -411,7 +411,7 @@ const OccupancyAnalytics = () => {
                   </div>
                   <p className="text-sm text-slate-600 leading-6 flex items-center gap-1.5">
                     <TrendingUp className="h-4 w-4 text-violet-500" />
-                    Track occupancy rates by property and unit with detailed timeline visualization
+                    Track annual occupancy rates by property and unit
                   </p>
                 </div>
               </div>
@@ -472,7 +472,18 @@ const OccupancyAnalytics = () => {
 
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="shadow-sm border border-slate-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Annual Occupancy Rate</CardTitle>
+            <Percent className="h-5 w-5 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-purple-600">{summary.overallOccupancyRate}%</div>
+            <p className="text-xs text-muted-foreground mt-1">Average across all units</p>
+          </CardContent>
+        </Card>
+
         <Card className="shadow-sm border border-slate-200">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Properties</CardTitle>
@@ -544,7 +555,7 @@ const OccupancyAnalytics = () => {
                   <div>
                     <CardTitle className="text-lg">{property.propertyTitle}</CardTitle>
                     <CardDescription className="mt-1">
-                      {property.occupiedUnits} occupied / {property.totalUnits} units
+                      {property.occupiedUnits} occupied / {property.totalUnits} units • {property.occupancyRate}% annual occupancy
                     </CardDescription>
                   </div>
                 </div>
@@ -557,7 +568,7 @@ const OccupancyAnalytics = () => {
                       <div key={unit.unitId} className="border rounded-lg p-4 space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 mb-2">
                               <h4 className="font-semibold text-slate-900">{unit.unitLabel}</h4>
                               {unit.leases.some(l => l.status === 'ACTIVE') && (
                                 <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-200">
@@ -565,36 +576,44 @@ const OccupancyAnalytics = () => {
                                 </Badge>
                               )}
                             </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
-                              <span>
-                                {unit.totalLeases} lease{unit.totalLeases !== 1 ? 's' : ''}
-                              </span>
-                              <span>•</span>
-                              <span className="font-medium">
-                                {unit.totalDaysOccupied} days occupied
-                              </span>
-                              {selectedYear === new Date().getFullYear() && (
-                                <>
-                                  <span>•</span>
-                                  <span className="text-amber-600">
-                                    {365 - unit.totalDaysOccupied} days remaining
+                            <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-slate-600">Annual Occupancy Rate:</span>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-base font-bold px-3 py-1 ${
+                                    unit.occupancyRate >= 80
+                                      ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
+                                      : unit.occupancyRate >= 50
+                                      ? 'border-amber-200 text-amber-700 bg-amber-50'
+                                      : 'border-red-200 text-red-700 bg-red-50'
+                                  }`}
+                                >
+                                  {unit.occupancyRate.toFixed(1)}%
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-slate-600 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span>Days occupied:</span>
+                                  <span className="font-semibold text-slate-900">{unit.totalDaysOccupied} days</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span>Total days in year:</span>
+                                  <span className="font-semibold text-slate-900">{summary.daysInYear} days</span>
+                                </div>
+                                <div className="pt-1 border-t border-slate-200">
+                                  <span className="text-slate-500">
+                                    Calculation: {unit.totalDaysOccupied} ÷ {summary.daysInYear} = {unit.occupancyRate.toFixed(1)}%
                                   </span>
-                                </>
-                              )}
+                                </div>
+                              </div>
                             </div>
+                            {unit.totalLeases > 0 && (
+                              <p className="text-xs text-slate-500 mt-2">
+                                {unit.totalLeases} lease{unit.totalLeases !== 1 ? 's' : ''} this year
+                              </p>
+                            )}
                           </div>
-                          <Badge
-                            variant="outline"
-                            className={`text-sm font-semibold ${
-                              unit.occupancyRate >= 80
-                                ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
-                                : unit.occupancyRate >= 50
-                                ? 'border-amber-200 text-amber-700 bg-amber-50'
-                                : 'border-red-200 text-red-700 bg-red-50'
-                            }`}
-                          >
-                            {unit.occupancyRate.toFixed(1)}%
-                          </Badge>
                         </div>
 
                         {/* Timeline Visualization */}

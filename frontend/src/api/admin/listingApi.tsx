@@ -35,3 +35,13 @@ export const updateListingStatusRequest = (
   privateApi.patch(apiRoutes.admin(`/listings/${listingId}/status`), payload, {
     signal: options?.signal,
   });
+
+// 💰 Process refund for listing
+export const processRefundRequest = (
+  listingId: string,
+  payload: { transactionId: string },
+  options?: { signal?: AbortSignal }
+) =>
+  privateApi.post(apiRoutes.admin(`/listings/${listingId}/refund`), payload, {
+    signal: options?.signal,
+  });

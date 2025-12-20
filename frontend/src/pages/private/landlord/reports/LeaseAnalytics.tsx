@@ -525,7 +525,7 @@ const LeaseAnalytics = () => {
     const yearEnd = endOfYear(now);
     
     // Get paid payments from filteredPayments
-    let paidPayments = filteredPayments;
+    const paidPayments = filteredPayments;
     
     // Get unpaid payments if viewing THIS_MONTH, THIS_YEAR, or ALL_TIME
     let unpaidCount = 0;
@@ -610,7 +610,7 @@ const LeaseAnalytics = () => {
             const current = dailyMap.get(dateKey) || 0;
             dailyMap.set(dateKey, current + 1);
           }
-        } catch (error) {
+        } catch (_error) {
           console.error('Error parsing date:', payment.paidAt);
         }
       });
@@ -643,7 +643,7 @@ const LeaseAnalytics = () => {
             const current = monthlyMap.get(monthKey) || 0;
             monthlyMap.set(monthKey, current + 1);
           }
-        } catch (error) {
+        } catch (_error) {
           console.error('Error parsing date:', payment.paidAt);
         }
       });
@@ -676,7 +676,7 @@ const LeaseAnalytics = () => {
             const current = yearlyMap.get(yearKey) || 0;
             yearlyMap.set(yearKey, current + 1);
           }
-        } catch (error) {
+        } catch (_error) {
           console.error('Error parsing date:', payment.paidAt);
         }
       });
@@ -1105,7 +1105,7 @@ const LeaseAnalytics = () => {
       // Report Info
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      let reportInfo = `View: ${filterLabel}`;
+      const reportInfo = `View: ${filterLabel}`;
 
       // Add date range info
       let dateRangeText = '';
@@ -1154,7 +1154,7 @@ const LeaseAnalytics = () => {
         
         if (pdfDateRangePreset === 'ALL_TIME') {
           // Get paid payments from analytics
-          let paidPayments = pdfPayments;
+          const paidPayments = pdfPayments;
           pdfCollected = paidPayments.reduce((sum, p) => sum + (p?.amount || 0), 0);
           
           // Get unpaid payments from allTimePayments

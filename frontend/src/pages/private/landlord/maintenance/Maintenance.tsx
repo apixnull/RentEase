@@ -327,7 +327,6 @@ const Maintenance = () => {
   const stats = {
     total: maintenanceRequests.length,
     open: maintenanceRequests.filter(r => r.status === 'OPEN').length,
-    inProgress: maintenanceRequests.filter(r => r.status === 'IN_PROGRESS').length,
     resolved: maintenanceRequests.filter(r => r.status === 'RESOLVED').length,
     cancelled: maintenanceRequests.filter(r => r.status === 'CANCELLED').length,
     invalid: maintenanceRequests.filter(r => r.status === 'INVALID').length,
@@ -880,7 +879,7 @@ const Maintenance = () => {
               </div>
             </div>
             {statsExpanded && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 <button
                   type="button"
                   className={`rounded-xl border bg-gradient-to-br from-blue-50 to-indigo-50 px-3 py-3 text-left text-sm transition hover:shadow-sm ${
@@ -900,16 +899,6 @@ const Maintenance = () => {
                 >
                   <p className="text-[11px] font-medium uppercase tracking-wide text-amber-600">Open</p>
                   <p className="text-xl font-bold text-amber-700">{stats.open}</p>
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-xl border bg-gradient-to-br from-blue-50 to-indigo-50 px-3 py-3 text-left text-sm transition hover:shadow-sm ${
-                    statusFilter === 'IN_PROGRESS' ? 'ring-2 ring-blue-300' : ''
-                  }`}
-                  onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? null : 'IN_PROGRESS')}
-                >
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-blue-600">In Progress</p>
-                  <p className="text-xl font-bold text-blue-700">{stats.inProgress}</p>
                 </button>
                 <button
                   type="button"
@@ -1021,15 +1010,13 @@ const Maintenance = () => {
                       </TableHeader>
                       <TableBody>
                         {latestPagination.slice.map(request => {
-                          const isHighlighted = request.status === 'OPEN' || request.status === 'IN_PROGRESS';
+                          const isHighlighted = request.status === 'OPEN';
                           return (
                             <TableRow
                               key={request.id}
                               className={`cursor-pointer transition-colors ${
                                 isHighlighted
-                                  ? request.status === 'OPEN'
-                                    ? 'bg-amber-50/50 hover:bg-amber-50 border-l-4 border-l-amber-400'
-                                    : 'bg-blue-50/50 hover:bg-blue-50 border-l-4 border-l-blue-400'
+                                  ? 'bg-amber-50/50 hover:bg-amber-50 border-l-4 border-l-amber-400'
                                   : 'hover:bg-gray-50'
                               }`}
                               onClick={() => handleRequestClick(request)}
@@ -1458,14 +1445,10 @@ const Maintenance = () => {
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {['OPEN', 'IN_PROGRESS', 'RESOLVED', 'INVALID'].map((status) => {
+                      {['OPEN', 'RESOLVED', 'INVALID'].map((status) => {
                         // Status transition rules
                         const canTransitionTo = (targetStatus: string) => {
                           const current = selectedRequest.status;
-                          // IN_PROGRESS can only go to RESOLVED (not INVALID or back to OPEN)
-                          if (current === 'IN_PROGRESS') {
-                            return targetStatus === 'RESOLVED';
-                          }
                           // RESOLVED cannot go back to any previous status
                           if (current === 'RESOLVED') return false;
                           // INVALID cannot go back to any previous status
@@ -1491,8 +1474,6 @@ const Maintenance = () => {
                               selectedStatus === status
                                 ? status === 'OPEN'
                                   ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                                  : status === 'IN_PROGRESS'
-                                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
                                   : status === 'RESOLVED'
                                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                                   : 'bg-rose-600 hover:bg-rose-700 text-white'
@@ -1509,7 +1490,6 @@ const Maintenance = () => {
                             }
                           >
                             {status === 'OPEN' && <Clock className="w-3 h-3 mr-1" />}
-                            {status === 'IN_PROGRESS' && <Wrench className="w-3 h-3 mr-1" />}
                             {status === 'RESOLVED' && <CheckCircle className="w-3 h-3 mr-1" />}
                             {status === 'INVALID' && <AlertTriangle className="w-3 h-3 mr-1" />}
                             {status.replace('_', ' ')}

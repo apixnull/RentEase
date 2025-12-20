@@ -30,6 +30,7 @@ import {
   Lightbulb,
   Info,
   Users,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAmenitiesRequest } from "@/api/landlord/propertyApi";
@@ -94,6 +95,27 @@ const CreateUnit = () => {
     newLeaseRule: "",
     newLeaseRuleCategory: "general",
     requiresScreening: false,
+    // Unit Specs
+    floorArea: "",
+    bedrooms: "",
+    bathrooms: "",
+    // Unit Attributes
+    unitAttributes: [] as Array<{ 
+      name: string; 
+      image: File | null;
+      imagePreview: string;
+      imageUrl: string;
+      description: string;
+    }>,
+    // Amenity Details (free-form, not tied to amenities table)
+    amenityDetails: [] as Array<{ 
+      id: string; // local ID for tracking
+      name: string; 
+      image: File | null;
+      imagePreview: string;
+      imageUrl: string;
+      description: string;
+    }>,
   });
 
   const [imageInputMode, setImageInputMode] = useState<"file" | "url">("file");
@@ -122,20 +144,27 @@ const CreateUnit = () => {
     },
     {
       id: 3,
+      title: "Unit Specs & Attributes",
+      description: "Detailed specifications",
+      icon: Info,
+      guideline: "Add unit specifications and special attributes like views",
+    },
+    {
+      id: 4,
       title: "Photos",
       description: "Showcase your unit",
       icon: Camera,
       guideline: "High-quality photos increase booking chances by 40%",
     },
     {
-      id: 4,
+      id: 5,
       title: "Pricing",
       description: "Set your rates",
       icon: DollarSign,
       guideline: "Competitive pricing helps you attract tenants faster",
     },
     {
-      id: 5,
+      id: 6,
       title: "House Rules",
       description: "Set expectations",
       icon: Shield,
@@ -205,6 +234,140 @@ const CreateUnit = () => {
         ? prev.amenities.filter((id) => id !== amenityId)
         : [...prev.amenities, amenityId];
       return { ...prev, amenities };
+    });
+  };
+
+  // Unit Attributes handlers
+  const addUnitAttribute = () => {
+    setFormData((prev) => ({
+      ...prev,
+      unitAttributes: [
+        ...prev.unitAttributes,
+        { name: "", image: null, imagePreview: "", imageUrl: "", description: "" },
+      ],
+    }));
+  };
+
+  const handleUnitAttributeImageChange = (index: number, file: File | null) => {
+    setFormData((prev) => {
+      const updated = [...prev.unitAttributes];
+      if (file) {
+        updated[index] = {
+          ...updated[index],
+          image: file,
+          imagePreview: URL.createObjectURL(file),
+          imageUrl: "",
+        };
+      } else {
+        if (updated[index].imagePreview) {
+          URL.revokeObjectURL(updated[index].imagePreview);
+        }
+        updated[index] = {
+          ...updated[index],
+          image: null,
+          imagePreview: "",
+          imageUrl: "",
+        };
+      }
+      return { ...prev, unitAttributes: updated };
+    });
+  };
+
+  const updateUnitAttribute = (
+    index: number,
+    field: "name" | "description",
+    value: string
+  ) => {
+    setFormData((prev) => {
+      const updated = [...prev.unitAttributes];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, unitAttributes: updated };
+    });
+  };
+
+  const removeUnitAttribute = (index: number) => {
+    setFormData((prev) => {
+      const attr = prev.unitAttributes[index];
+      if (attr.imagePreview) {
+        URL.revokeObjectURL(attr.imagePreview);
+      }
+      return {
+        ...prev,
+        unitAttributes: prev.unitAttributes.filter((_, i) => i !== index),
+      };
+    });
+  };
+
+  // Amenity Details handlers (free-form, not tied to amenities table)
+  const addAmenityDetail = () => {
+    setFormData((prev) => ({
+      ...prev,
+      amenityDetails: [
+        ...prev.amenityDetails,
+        { id: Date.now().toString(), name: "", image: null, imagePreview: "", imageUrl: "", description: "" },
+      ],
+    }));
+  };
+
+  const handleAmenityDetailImageChange = (id: string, file: File | null) => {
+    setFormData((prev) => ({
+      ...prev,
+      amenityDetails: prev.amenityDetails.map((detail) => {
+        if (detail.id === id) {
+          if (file) {
+            if (detail.imagePreview) {
+              URL.revokeObjectURL(detail.imagePreview);
+            }
+            return {
+              ...detail,
+              image: file,
+              imagePreview: URL.createObjectURL(file),
+              imageUrl: "",
+            };
+          } else {
+            if (detail.imagePreview) {
+              URL.revokeObjectURL(detail.imagePreview);
+            }
+            return {
+              ...detail,
+              image: null,
+              imagePreview: "",
+              imageUrl: "",
+            };
+          }
+        }
+        return detail;
+      }),
+    }));
+  };
+
+  const updateAmenityDetail = (
+    id: string,
+    field: "name" | "description",
+    value: string
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      amenityDetails: prev.amenityDetails.map((detail) =>
+        detail.id === id
+          ? { ...detail, [field]: value }
+          : detail
+      ),
+    }));
+  };
+
+  const removeAmenityDetail = (id: string) => {
+    setFormData((prev) => {
+      const detail = prev.amenityDetails.find((d) => d.id === id);
+      if (detail?.imagePreview) {
+        URL.revokeObjectURL(detail.imagePreview);
+      }
+      return {
+        ...prev,
+        amenityDetails: prev.amenityDetails.filter(
+          (detail) => detail.id !== id
+        ),
+      };
     });
   };
 
@@ -403,7 +566,7 @@ const CreateUnit = () => {
           return false;
         }
         return true;
-      case 3:
+      case 4:
         if (imageInputMode === "file") {
           if (!formData.mainImage) {
             toast.error("Please upload a main image for the unit");
@@ -424,14 +587,15 @@ const CreateUnit = () => {
           }
         }
         return true;
-      case 4:
+      case 5: {
         const price = parseFloat(formData.targetPrice);
         if (!formData.targetPrice || price <= 0 || price > 100000) {
           toast.error("Monthly rent must be between ₱1 and ₱100,000");
           return false;
         }
         return true;
-      case 5:
+      }
+      case 6:
         if (
           formData.leaseRules.some((rule) => rule.text.split(/\s+/).length > 7)
         ) {
@@ -562,7 +726,7 @@ const CreateUnit = () => {
   };
 
   const handleFinalSubmit = async () => {
-    if (!validateStep(5)) return;
+    if (!validateStep(6)) return;
     if (!propertyId) {
       toast.error("Invalid property ID");
       return;
@@ -609,6 +773,46 @@ const CreateUnit = () => {
         uploadedImages = false; // No files to rollback
       }
 
+      // Upload unit attribute images
+      const uploadedUnitAttributes: Array<{ name: string; imageUrl: string; description: string | null }> = await Promise.all(
+        formData.unitAttributes.map(async (attr) => {
+          let imageUrl = attr.imageUrl;
+          if (attr.image) {
+            const attrImageId = generateUUID();
+            imageUrl = await uploadImageToSupabase(
+              attr.image,
+              unitId,
+              `attr_${attrImageId}`
+            );
+          }
+          return {
+            name: attr.name,
+            imageUrl: imageUrl || "",
+            description: attr.description || null,
+          };
+        })
+      );
+
+      // Upload amenity detail images (free-form, not tied to amenities table)
+      const uploadedAmenityDetails: Array<{ name: string; imageUrl: string; description: string | null }> = await Promise.all(
+        formData.amenityDetails.map(async (detail) => {
+          let imageUrl = detail.imageUrl;
+          if (detail.image) {
+            const detailImageId = generateUUID();
+            imageUrl = await uploadImageToSupabase(
+              detail.image,
+              unitId,
+              `amenity_${detailImageId}`
+            );
+          }
+          return {
+            name: detail.name,
+            imageUrl: imageUrl || "",
+            description: detail.description || null,
+          };
+        })
+      );
+
       // Prepare the complete unit data with image URLs and the unitId
       const completeUnitData = {
         id: unitId, // Send the actual UUID to backend
@@ -631,6 +835,22 @@ const CreateUnit = () => {
             : null,
         targetPrice: parseFloat(formData.targetPrice),
         requiresScreening: formData.requiresScreening,
+        // Unit Specs
+        floorArea: formData.floorArea ? parseFloat(formData.floorArea) : null,
+        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
+        bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : null,
+        // Unit Attributes
+        unitAttributes:
+          uploadedUnitAttributes.length > 0
+            ? uploadedUnitAttributes.filter(
+                (attr) => attr.name.trim() && attr.imageUrl.trim()
+              )
+            : null,
+        // Amenity Details
+        amenityDetails:
+          uploadedAmenityDetails.length > 0
+            ? uploadedAmenityDetails
+            : null,
       };
 
       // Create unit with all data including image URLs and the actual unitId
@@ -931,8 +1151,354 @@ const CreateUnit = () => {
                 </div>
               )}
 
-              {/* Step 3: Photos */}
+              {/* Step 3: Unit Specs & Attributes */}
               {currentStep === 3 && (
+                <div className="space-y-6">
+                  {/* Unit Specs */}
+                  <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Info className="h-6 w-6 text-green-600" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">
+                          Unit Specifications
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          Provide detailed specifications about your unit
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-3">
+                        <label className="text-sm font-semibold text-gray-700">
+                          Floor Area (sqm)
+                        </label>
+                        <Input
+                          name="floorArea"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formData.floorArea}
+                          onChange={handleInputChange}
+                          placeholder="e.g., 25.5"
+                          className="h-10"
+                        />
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-sm font-semibold text-gray-700">
+                          Bedrooms
+                        </label>
+                        <Input
+                          name="bedrooms"
+                          type="number"
+                          min="0"
+                          value={formData.bedrooms}
+                          onChange={handleInputChange}
+                          placeholder="e.g., 2"
+                          className="h-10"
+                        />
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-sm font-semibold text-gray-700">
+                          Bathrooms
+                        </label>
+                        <Input
+                          name="bathrooms"
+                          type="number"
+                          min="0"
+                          value={formData.bathrooms}
+                          onChange={handleInputChange}
+                          placeholder="e.g., 1"
+                          className="h-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Unit Attributes */}
+                  <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-6 border border-blue-200">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <Sparkles className="h-6 w-6 text-blue-600" />
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-lg">
+                            Unit Attributes
+                          </h3>
+                          <p className="text-gray-600 text-sm">
+                            Add special attributes like beachfront, seaview, etc.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={addUnitAttribute}
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Attribute
+                      </Button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {formData.unitAttributes.map((attr, index) => (
+                        <div
+                          key={index}
+                          className="bg-white rounded-xl p-4 border-2 border-gray-200"
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-medium text-gray-900">
+                              Attribute {index + 1}
+                            </h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeUnitAttribute(index)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="space-y-3">
+                            <Input
+                              placeholder="e.g., beachfront, seaview, skyline view"
+                              value={attr.name}
+                              onChange={(e) =>
+                                updateUnitAttribute(index, "name", e.target.value)
+                              }
+                              className="h-10"
+                            />
+                            <div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    if (file.type.startsWith("image/")) {
+                                      handleUnitAttributeImageChange(index, file);
+                                    } else {
+                                      toast.error("Please select a valid image file");
+                                    }
+                                  }
+                                }}
+                                className="hidden"
+                                id={`unit-attr-image-${index}`}
+                              />
+                              {attr.imagePreview ? (
+                                <div className="space-y-2">
+                                  <img
+                                    src={attr.imagePreview}
+                                    alt="Attribute preview"
+                                    className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        document.getElementById(`unit-attr-image-${index}`)?.click();
+                                      }}
+                                      className="flex-1"
+                                    >
+                                      <Camera className="h-4 w-4 mr-2" />
+                                      Change Image
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleUnitAttributeImageChange(index, null)}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <label
+                                  htmlFor={`unit-attr-image-${index}`}
+                                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                                >
+                                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <Upload className="h-6 w-6 text-gray-400 mb-2" />
+                                    <p className="text-xs text-gray-500">Click to upload image</p>
+                                  </div>
+                                </label>
+                              )}
+                            </div>
+                            <Textarea
+                              placeholder="Description of this attribute"
+                              value={attr.description}
+                              onChange={(e) =>
+                                updateUnitAttribute(
+                                  index,
+                                  "description",
+                                  e.target.value
+                                )
+                              }
+                              rows={2}
+                              className="resize-none"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      {formData.unitAttributes.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <Sparkles className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                          <p>No attributes added yet</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Amenity Details (Free-form, not tied to amenities table) */}
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-200">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <Star className="h-6 w-6 text-purple-600" />
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-lg">
+                            Amenity Details
+                          </h3>
+                          <p className="text-gray-600 text-sm">
+                            Add photos and descriptions for amenities (e.g., pool, gym)
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={addAmenityDetail}
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Amenity Detail
+                      </Button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {formData.amenityDetails.map((detail, index) => (
+                        <div
+                          key={detail.id}
+                          className="bg-white rounded-xl p-4 border-2 border-gray-200"
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-medium text-gray-900">
+                              Amenity Detail {index + 1}
+                            </h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeAmenityDetail(detail.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="space-y-3">
+                            <Input
+                              placeholder="e.g., pool, gym, parking"
+                              value={detail.name}
+                              onChange={(e) =>
+                                updateAmenityDetail(detail.id, "name", e.target.value)
+                              }
+                              className="h-10"
+                            />
+                            <div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    if (file.type.startsWith("image/")) {
+                                      handleAmenityDetailImageChange(detail.id, file);
+                                    } else {
+                                      toast.error("Please select a valid image file");
+                                    }
+                                  }
+                                }}
+                                className="hidden"
+                                id={`amenity-detail-image-${detail.id}`}
+                              />
+                              {detail.imagePreview ? (
+                                <div className="space-y-2">
+                                  <img
+                                    src={detail.imagePreview}
+                                    alt="Amenity preview"
+                                    className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        document.getElementById(`amenity-detail-image-${detail.id}`)?.click();
+                                      }}
+                                      className="flex-1"
+                                    >
+                                      <Camera className="h-4 w-4 mr-2" />
+                                      Change Image
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleAmenityDetailImageChange(detail.id, null)}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <label
+                                  htmlFor={`amenity-detail-image-${detail.id}`}
+                                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                                >
+                                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <Upload className="h-6 w-6 text-gray-400 mb-2" />
+                                    <p className="text-xs text-gray-500">Click to upload image</p>
+                                  </div>
+                                </label>
+                              )}
+                            </div>
+                            <Textarea
+                              placeholder="Description of this amenity"
+                              value={detail.description}
+                              onChange={(e) =>
+                                updateAmenityDetail(
+                                  detail.id,
+                                  "description",
+                                  e.target.value
+                                )
+                              }
+                              rows={2}
+                              className="resize-none"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      {formData.amenityDetails.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <Star className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                          <p>No amenity details added yet</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Photos */}
+              {currentStep === 4 && (
                 <div className="space-y-6">
                   {/* Image Input Mode Toggle */}
                   <div className="flex items-center gap-3 mb-4">
@@ -1186,8 +1752,8 @@ const CreateUnit = () => {
                 </div>
               )}
 
-              {/* Step 4: Pricing */}
-              {currentStep === 4 && (
+              {/* Step 5: Pricing */}
+              {currentStep === 5 && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Pricing Section */}
@@ -1295,8 +1861,8 @@ const CreateUnit = () => {
                 </div>
               )}
 
-              {/* Step 5: Lease Rules */}
-              {currentStep === 5 && (
+              {/* Step 6: Lease Rules */}
+              {currentStep === 6 && (
                 <div className="space-y-6">
                   {/* Add Rules Section */}
                   <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">

@@ -1,6 +1,6 @@
 // file: routes/adminRoutes.js
 import { Router } from "express";
-import { getAllListingsForAdmin, getListingUnitAndProperty, getSpecificListingAdmin, updateListingStatus } from "../controllers/admin/listingController.js";
+import { getAllListingsForAdmin, getListingUnitAndProperty, getSpecificListingAdmin, updateListingStatus, processRefund } from "../controllers/admin/listingController.js";
 import { getAllUsers, getUserDetails, updateUserStatus, deleteLandlordOffense } from "../controllers/admin/userController.js";
 import { getFraudReports, getFraudReportsAnalytics } from "../controllers/fraudReportController.js";
 import { getUserAnalytics, getListingAnalytics } from "../controllers/admin/reportAnalyticsController.js";
@@ -42,7 +42,8 @@ router.delete("/users/offenses/:offenseId", requireAuthentication(["ADMIN"]), de
 router.get("/listings", requireAuthentication(["ADMIN"]), getAllListingsForAdmin);                                                          // 🧾 Get all listings with property, unit, landlord, and review info
 router.get("/listings/:listingId/details", requireAuthentication(["ADMIN"]), getSpecificListingAdmin);                                      // 🧾 Get all specific listings 
 router.get("/listings/:listingId/unit-property", requireAuthentication(["ADMIN"]), getListingUnitAndProperty);                              // 🧾 Get unit and property info using listing id 
-router.patch("/listings/:listingId/status",requireAuthentication(["ADMIN"]), updateListingStatus);  
+router.patch("/listings/:listingId/status",requireAuthentication(["ADMIN"]), updateListingStatus);
+router.post("/listings/:listingId/refund", requireAuthentication(["ADMIN"]), processRefund); // 💰 Process refund for listing  
 
 // ----------------------------------------------------- FRAUD REPORTS
 router.get("/fraud-reports", requireAuthentication(["ADMIN"]), getFraudReports);                                                           // 🚨 Tenant fraud reports

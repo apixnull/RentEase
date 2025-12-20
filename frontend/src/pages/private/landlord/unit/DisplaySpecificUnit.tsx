@@ -48,11 +48,15 @@ import {
   ArrowRight,
   MapPin,
   RotateCcw,
-  Loader2
+  Loader2,
+  Bed,
+  Bath,
+  Info
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { getUnitDetailsRequest, deleteUnitRequest, updateUnitConditionRequest } from "@/api/landlord/unitApi";
+import { processImageUrl } from "@/api/utils";
 
 // Types based on your backend response
 interface City {
@@ -146,6 +150,14 @@ interface Unit {
   reviews: Review[];
   reviewStats: ReviewStats;
   latestListing: LatestListing | null;
+  // Unit Specs
+  floorArea: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  // Unit Attributes (JSON)
+  unitAttributes: Array<{ name: string; imageUrl: string; description: string }> | null;
+  // Amenity Details (JSON) - free-form, not tied to amenities table
+  amenityDetails: Array<{ name: string; imageUrl: string; description: string }> | null;
 }
 
 // Image Gallery Component
@@ -353,6 +365,24 @@ const UnitHeader = ({
                     <Home className="h-3.5 w-3.5 text-emerald-500" />
                     <span>Floor {unit.floorNumber}</span>
                   </div>
+                  {unit.floorArea && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                      <Home className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>{unit.floorArea} sqm</span>
+                    </div>
+                  )}
+                  {unit.bedrooms !== null && unit.bedrooms !== undefined && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                      <Bed className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>{unit.bedrooms} {unit.bedrooms === 1 ? 'bedroom' : 'bedrooms'}</span>
+                    </div>
+                  )}
+                  {unit.bathrooms !== null && unit.bathrooms !== undefined && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
+                      <Bath className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>{unit.bathrooms} {unit.bathrooms === 1 ? 'bathroom' : 'bathrooms'}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 backdrop-blur-sm border border-slate-200">
                     <Users className="h-3.5 w-3.5 text-emerald-500" />
                     <span>Max {unit.maxOccupancy}</span>
@@ -1396,8 +1426,155 @@ const DisplaySpecificUnit = () => {
                 )}
               </p>
             </Card>
+            {/* Unit Specs */}
+            {(unit.floorArea || unit.bedrooms !== null || unit.bathrooms !== null) && (
+              <Card className="p-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-emerald-50 rounded-lg">
+                    <Info className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-900">Unit Specifications</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {unit.floorArea && (
+                    <div className="p-4 rounded-lg border border-gray-200 bg-gradient-to-br from-emerald-50 to-blue-50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Home className="h-4 w-4 text-emerald-600" />
+                        <span className="text-sm font-medium text-gray-600">Floor Area</span>
+                      </div>
+                      <p className="text-lg font-semibold text-gray-900">{unit.floorArea} sqm</p>
+                    </div>
+                  )}
+                  {unit.bedrooms !== null && unit.bedrooms !== undefined && (
+                    <div className="p-4 rounded-lg border border-gray-200 bg-gradient-to-br from-emerald-50 to-blue-50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Bed className="h-4 w-4 text-emerald-600" />
+                        <span className="text-sm font-medium text-gray-600">Bedrooms</span>
+                      </div>
+                      <p className="text-lg font-semibold text-gray-900">{unit.bedrooms} {unit.bedrooms === 1 ? 'bedroom' : 'bedrooms'}</p>
+                    </div>
+                  )}
+                  {unit.bathrooms !== null && unit.bathrooms !== undefined && (
+                    <div className="p-4 rounded-lg border border-gray-200 bg-gradient-to-br from-emerald-50 to-blue-50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Bath className="h-4 w-4 text-emerald-600" />
+                        <span className="text-sm font-medium text-gray-600">Bathrooms</span>
+                      </div>
+                      <p className="text-lg font-semibold text-gray-900">{unit.bathrooms} {unit.bathrooms === 1 ? 'bathroom' : 'bathrooms'}</p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Amenities */}
             <AmenitiesSection amenities={unit.amenities} />
+
+            {/* Featured Features Section - Combines Unit Attributes and Amenity Details */}
+            {((unit.unitAttributes && unit.unitAttributes.length > 0) || (unit.amenityDetails && unit.amenityDetails.length > 0)) && (
+              <Card className="p-4">
+                <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                  <div className="p-2.5 bg-gradient-to-br from-emerald-50 to-sky-50 rounded-lg">
+                    <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Featured Features</h3>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Special attributes and amenities with detailed information</p>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Unit Attributes Subsection */}
+                  {unit.unitAttributes && unit.unitAttributes.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-200">
+                          <Home className="h-4 w-4 text-emerald-600" />
+                          <h4 className="text-sm font-semibold text-emerald-900">Unit Attributes</h4>
+                        </div>
+                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                        {unit.unitAttributes.map((attr, index) => (
+                          <div 
+                            key={index} 
+                            className="group border-2 border-gray-200 rounded-xl p-4 bg-white hover:border-emerald-300 hover:shadow-lg transition-all duration-300 overflow-hidden"
+                          >
+                            {attr.imageUrl && (
+                              <div className="relative overflow-hidden rounded-lg mb-3">
+                                <img
+                                  src={processImageUrl(attr.imageUrl)}
+                                  alt={attr.name}
+                                  className="w-full h-56 object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              </div>
+                            )}
+                            <h4 className="font-semibold text-gray-900 mb-2 text-base group-hover:text-emerald-700 transition-colors">
+                              {attr.name}
+                            </h4>
+                            {attr.description && (
+                              <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
+                                {attr.description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Amenity Details Subsection */}
+                  {unit.amenityDetails && unit.amenityDetails.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50 rounded-full border border-sky-200">
+                          <Star className="h-4 w-4 text-sky-600 fill-sky-600" />
+                          <h4 className="text-sm font-semibold text-sky-900">Amenity Details</h4>
+                        </div>
+                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                        {unit.amenityDetails.map((detail, index) => (
+                          <div 
+                            key={index} 
+                            className="group border-2 border-gray-200 rounded-xl p-4 bg-white hover:border-sky-300 hover:shadow-lg transition-all duration-300 overflow-hidden"
+                          >
+                            {detail.imageUrl && (
+                              <div className="relative overflow-hidden rounded-lg mb-3">
+                                <img
+                                  src={processImageUrl(detail.imageUrl)}
+                                  alt={detail.name}
+                                  className="w-full h-56 object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              </div>
+                            )}
+                            <h4 className="font-semibold text-gray-900 mb-2 text-base group-hover:text-sky-700 transition-colors">
+                              {detail.name}
+                            </h4>
+                            {detail.description && (
+                              <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
+                                {detail.description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Lease Rules */}
             <LeaseRulesSection rules={unit.unitLeaseRules} />
             {/* Reviews */}

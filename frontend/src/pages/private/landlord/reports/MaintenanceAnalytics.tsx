@@ -197,7 +197,7 @@ const MaintenanceAnalytics = () => {
             const current = dailyMap.get(dateKey) || 0;
             dailyMap.set(dateKey, current + 1);
           }
-        } catch (error) {
+        } catch (_error) {
           console.error('Error parsing date:', request.createdAt);
         }
       });
@@ -230,7 +230,7 @@ const MaintenanceAnalytics = () => {
             const current = monthlyMap.get(monthKey) || 0;
             monthlyMap.set(monthKey, current + 1);
           }
-        } catch (error) {
+        } catch (_error) {
           console.error('Error parsing date:', request.createdAt);
         }
       });
@@ -263,7 +263,7 @@ const MaintenanceAnalytics = () => {
             const current = yearlyMap.get(yearKey) || 0;
             yearlyMap.set(yearKey, current + 1);
           }
-        } catch (error) {
+        } catch (_error) {
           console.error('Error parsing date:', request.createdAt);
         }
       });

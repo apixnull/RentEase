@@ -195,6 +195,21 @@ model Unit {
   mainImageUrl   String? // main image of the unit
   otherImages    Json? // other images of the unit at 6 images
 
+  // --- Unit Specs ---
+  floorArea  Float? // Floor area in square meters
+  bedrooms   Int?   // Number of bedrooms
+  bathrooms  Int?   // Number of bathrooms
+
+  // --- Unit Attributes ---
+  // JSON array format: [{ "name": "beachfront", "imageUrl": "...", "description": "..." }]
+  // Examples: beachfront, seaview, skyline view, city view, etc.
+  unitAttributes Json? // Unit attributes with picture and description
+
+  // --- Amenity Details ---
+  // JSON array format: [{ "amenityId": "...", "name": "pool", "imageUrl": "...", "description": "..." }]
+  // Stores unit-specific amenity details with picture and description
+  amenityDetails Json? // Amenity details with picture and description for this unit
+
   // [ "general", "visitor", "payment", "maintenance", "safety", "noise", "pet", "cleaning", "parking", "other"]
   // format:   { "text": "No Black", "category": "general" }
   unitLeaseRules Json? // upto 10 rules and 7 words per rules limit
@@ -419,6 +434,7 @@ model Lease {
   interval        String    @default("MONTHLY") // DAILY, WEEKLY, MONTHLY
   dueDate         Int       // 1–28 (adjust if > daysInMonth)
   status          String    @default("PENDING") // PENDING, ACTIVE, COMPLETED, TERMINATED, CANCELLED
+  advancePayment  Int       @default(0) // 0-3 months advance payment (0 = none, 1-3 = months)   
 
   // --- Digital Documents ---
   leaseDocumentUrl     String?

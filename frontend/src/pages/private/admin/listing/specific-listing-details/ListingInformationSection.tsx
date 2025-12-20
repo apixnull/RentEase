@@ -1,10 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { toast } from "sonner";
+import { processRefundRequest } from "@/api/admin/listingApi";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 import {
   Calendar,
@@ -23,17 +27,29 @@ import {
   Flag,
   User,
   Image as ImageIcon,
+  CreditCard,
 } from "lucide-react";
 
 interface ListingInformationProps {
   listing: any;
   loading?: boolean;
+  onRefundSuccess?: () => void;
 }
 
-const ListingInformation = ({ listing, loading = false }: ListingInformationProps) => {
+const ListingInformation = ({ listing, loading = false, onRefundSuccess }: ListingInformationProps) => {
   const [reviewerModalOpen, setReviewerModalOpen] = useState(false);
   const [resubmissionHistoryExpanded, setResubmissionHistoryExpanded] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [refundTransactionId, setRefundTransactionId] = useState("");
+  const [refundProcessing, setRefundProcessing] = useState(false);
+
+  // Pre-populate transaction ID when dialog opens
+  useEffect(() => {
+    if (refundDialogOpen && listing?.providerTxnId) {
+      setRefundTransactionId(listing.providerTxnId);
+    }
+  }, [refundDialogOpen, listing?.providerTxnId]);
   const getStatusColor = (status: string) => {
     switch ((status || "").toUpperCase()) {
       case 'WAITING_PAYMENT': return 'bg-blue-100 text-blue-700 border-blue-200';
@@ -833,39 +849,109 @@ const ListingInformation = ({ listing, loading = false }: ListingInformationProp
             </div>
 
             {/* Payment Information */}
-            {listing.lifecycleStatus !== 'WAITING_PAYMENT' && listing.paymentDate && (
+            {listing.lifecycleStatus !== 'WAITING_PAYMENT' && (
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Payment Details</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                    <span className="text-sm text-slate-600">Listing ID</span>
-                    <span className="text-xs font-mono text-slate-800 break-all max-w-[240px]" title={listing.id}>
-                      {listing.id || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
-                    <span className="text-sm text-slate-600">Amount Paid</span>
-                    <span className="font-semibold text-green-700">
-                      {listing.paymentAmount != null ? `₱${listing.paymentAmount.toLocaleString()}` : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                    <span className="text-sm text-slate-600">Payment Method</span>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      {listing.providerName || 'N/A'}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                    <span className="text-sm text-slate-600">Transaction ID</span>
-                    <span className="text-xs font-mono text-slate-700 truncate max-w-[200px]" title={listing.providerTxnId}>
-                      {listing.providerTxnId || `TXN-${Math.random().toString(36).substring(2, 15).toUpperCase()}-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                    <span className="text-sm text-slate-600">Payment Date</span>
-                    <span className="text-sm font-medium text-slate-900">{formatDateTime(listing.paymentDate)}</span>
-                  </div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Payment Details</h3>
+                  {(() => {
+                    // Check if all payment fields are empty (refunded)
+                    const isRefunded = 
+                      (listing.paymentAmount === null || listing.paymentAmount === undefined) &&
+                      (!listing.providerName || listing.providerName.trim() === '') &&
+                      (!listing.providerTxnId || listing.providerTxnId.trim() === '') &&
+                      !listing.paymentDate;
+                    
+                    // Show refund button only if there's payment data (not refunded)
+                    if (!isRefunded && listing.providerTxnId) {
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setRefundTransactionId(listing.providerTxnId || '');
+                            setRefundDialogOpen(true);
+                          }}
+                          className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 hover:border-orange-400 bg-orange-50/50"
+                        >
+                          <CreditCard className="h-4 w-4" />
+                          <span>Refund</span>
+                        </Button>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
+                {(() => {
+                  // Check if all payment fields are empty (refunded)
+                  const isRefunded = 
+                    (listing.paymentAmount === null || listing.paymentAmount === undefined) &&
+                    (!listing.providerName || listing.providerName.trim() === '') &&
+                    (!listing.providerTxnId || listing.providerTxnId.trim() === '') &&
+                    !listing.paymentDate;
+
+                  if (isRefunded) {
+                    return (
+                      <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="h-5 w-5 text-orange-600" />
+                          <span className="text-sm font-semibold text-orange-700">Refunded</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <span className="text-sm text-slate-600">Listing ID</span>
+                        <span className="text-xs font-mono text-slate-800 break-all max-w-[240px]" title={listing.id}>
+                          {listing.id || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
+                        <span className="text-sm text-slate-600">Amount Paid</span>
+                        <span className="font-semibold text-green-700">
+                          {listing.paymentAmount != null ? `₱${listing.paymentAmount.toLocaleString()}` : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <span className="text-sm text-slate-600">Payment Method</span>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {listing.providerName || 'N/A'}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <span className="text-sm text-slate-600">Transaction ID</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-slate-700 truncate max-w-[200px]" title={listing.providerTxnId || ''}>
+                            {listing.providerTxnId || 'N/A'}
+                          </span>
+                          {listing.providerTxnId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(listing.providerTxnId).then(() => {
+                                  // You could add a toast notification here if needed
+                                }).catch(() => {});
+                              }}
+                              className="h-6 w-6 p-0"
+                              title="Copy Transaction ID"
+                            >
+                              <ImageIcon className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <span className="text-sm text-slate-600">Payment Date</span>
+                        <span className="text-sm font-medium text-slate-900">
+                          {listing.paymentDate ? formatDateTime(listing.paymentDate) : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </CardContent>
@@ -1056,6 +1142,113 @@ const ListingInformation = ({ listing, loading = false }: ListingInformationProp
               />
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Refund Dialog */}
+      <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-orange-600" />
+              Process Refund
+            </DialogTitle>
+            <DialogDescription>
+              Process a refund for this listing. This will clear the payment fields. The listing status will remain unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="transactionId">Transaction ID</Label>
+              <Input
+                id="transactionId"
+                placeholder="Enter transaction ID (e.g., pay_test_xxx)"
+                value={refundTransactionId}
+                onChange={(e) => setRefundTransactionId(e.target.value)}
+                disabled={refundProcessing}
+              />
+              {listing.providerTxnId && (
+                <p className="text-xs text-slate-500">
+                  Current transaction ID: <span className="font-mono">{listing.providerTxnId}</span>
+                </p>
+              )}
+            </div>
+            {listing.paymentAmount != null && (
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600">Refund Amount</span>
+                  <span className="font-semibold text-slate-900">
+                    ₱{listing.paymentAmount.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRefundDialogOpen(false);
+                setRefundTransactionId("");
+              }}
+              disabled={refundProcessing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!refundTransactionId.trim()) {
+                  toast.error("Please enter a transaction ID");
+                  return;
+                }
+
+                if (!listing?.id) {
+                  toast.error("Listing ID is missing");
+                  return;
+                }
+
+                setRefundProcessing(true);
+                
+                try {
+                  // Call the refund API
+                  const response = await processRefundRequest(listing.id, {
+                    transactionId: refundTransactionId.trim(),
+                  });
+
+                  toast.success(
+                    response.data?.message || "Refund processed successfully!",
+                    { duration: 5000 }
+                  );
+                  
+                  // Close dialog and reset form
+                  setRefundDialogOpen(false);
+                  setRefundTransactionId("");
+                  
+                  // Refresh listing data
+                  if (onRefundSuccess) {
+                    onRefundSuccess();
+                  }
+                } catch (error: any) {
+                  const errorMessage = error?.response?.data?.error || "Refund failed. Please try again.";
+                  toast.error(errorMessage);
+                  console.error("Refund error:", error);
+                } finally {
+                  setRefundProcessing(false);
+                }
+              }}
+              disabled={refundProcessing || !refundTransactionId.trim()}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {refundProcessing ? (
+                <>
+                  <RotateCw className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Process Refund"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

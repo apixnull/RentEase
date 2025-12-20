@@ -766,7 +766,7 @@ export default function CreateProperty() {
       
       // Set preview
       setImagePreview(url);
-    } catch (error) {
+    } catch (_error) {
       setImageError("Please enter a valid URL");
       setImagePreview("");
     }
@@ -900,7 +900,7 @@ export default function CreateProperty() {
         try {
           new URL(imageUrl.trim());
           mainImageUrl = imageUrl.trim();
-        } catch (error) {
+        } catch (_error) {
           toast.error("Please enter a valid image URL.");
           setIsSubmitting(false);
           return;

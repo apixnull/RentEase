@@ -255,7 +255,7 @@ const LoginForm = () => {
           }
           
           return;
-        } catch (infoErr) {
+        } catch (_infoErr) {
           setError("Failed to load user info. Please try again.");
         }
       }

@@ -475,10 +475,11 @@ const RentPayments = () => {
         return `${CURRENT_YEAR}`;
       case 'ALL_TIME':
         return 'All Time';
-      default:
+      default: {
         const monthIndex = selectedMonth - 1;
         const safeIndex = Math.min(Math.max(monthIndex, 0), 11);
         return `${MONTHS[safeIndex]} ${selectedYear}`;
+      }
     }
   };
 

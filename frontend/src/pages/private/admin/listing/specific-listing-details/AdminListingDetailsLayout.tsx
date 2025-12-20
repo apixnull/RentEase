@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getSpecificListingAdminRequest, getListingUnitAndPropertyRequest, updateListingStatusRequest } from "@/api/admin/listingApi";
+import { getSpecificListingAdminRequest, getListingUnitAndPropertyRequest, updateListingStatusRequest, processRefundRequest } from "@/api/admin/listingApi";
+import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CreditCard, RotateCw, CheckCircle, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +45,10 @@ const AdminListingDetails = () => {
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [refundProcessing, setRefundProcessing] = useState(false);
+  const [refundTransactionId, setRefundTransactionId] = useState("");
+  const [refundStep, setRefundStep] = useState<'input' | 'processing' | 'success'>('input');
   const [activeTab, setActiveTab] = useState<string>(() => {
     const saved = sessionStorage.getItem(`adminListingTab_${listingId}`);
     return saved || "listing";
@@ -104,6 +112,23 @@ const AdminListingDetails = () => {
       sessionStorage.setItem(`adminListingTab_${listingId}`, activeTab);
     }
   }, [activeTab, listingId]);
+
+  // Pre-populate transaction ID when refund dialog opens
+  useEffect(() => {
+    if (refundDialogOpen) {
+      // Always populate with existing transaction ID or generate a mock one (same as display)
+      let existingTxnId = data?.providerTxnId || '';
+      if (!existingTxnId && data?.paymentDate) {
+        // Generate mock transaction ID same way as in Transaction ID display
+        if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+          existingTxnId = crypto.randomUUID();
+        } else {
+          existingTxnId = `txn_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36)}`;
+        }
+      }
+      setRefundTransactionId(existingTxnId);
+    }
+  }, [refundDialogOpen, data?.providerTxnId, data?.paymentDate]);
 
 
   const getStatusColor = (status: string) => {
@@ -197,6 +222,38 @@ const AdminListingDetails = () => {
       alert("Please provide a reason for blocking");
       return;
     }
+
+    // Check if listing has payment data - if yes, show refund process first
+    const hasPayment = data?.paymentAmount != null || 
+                       data?.providerTxnId || 
+                       data?.paymentDate || 
+                       data?.providerName;
+
+    if (hasPayment) {
+      // Show refund dialog first - pre-populate with existing transaction ID
+      // Use providerTxnId if available, otherwise generate a mock transaction ID (same as display)
+      let existingTxnId = data?.providerTxnId || '';
+      if (!existingTxnId && data?.paymentDate) {
+        // Generate mock transaction ID same way as in Transaction ID display
+        if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+          existingTxnId = crypto.randomUUID();
+        } else {
+          existingTxnId = `txn_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36)}`;
+        }
+      }
+      setRefundTransactionId(existingTxnId);
+      setRefundDialogOpen(true);
+      return;
+    }
+
+    // If no payment, proceed directly to block
+    await proceedWithBlock();
+  };
+
+  const proceedWithBlock = async () => {
+    if (!listingId || !blockReason.trim()) {
+      return;
+    }
     try {
       setActionLoading(true);
       await updateListingStatusRequest(listingId as string, {
@@ -209,12 +266,59 @@ const AdminListingDetails = () => {
         fetchListingDetails({ silent: true }),
         fetchUnitPropertyDetails({ silent: true })
       ]);
+      toast.success("Listing blocked successfully");
     } catch (err: any) {
       console.error("Failed to block listing", err);
       const errorMessage = err?.response?.data?.error || "Failed to block listing. Please try again.";
-      alert(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleRefundProcess = async () => {
+    if (!refundTransactionId.trim()) {
+      toast.error("Please enter a transaction ID");
+      return;
+    }
+
+    if (!listingId) {
+      toast.error("Listing ID is missing");
+      return;
+    }
+
+    setRefundProcessing(true);
+    setRefundStep('processing');
+
+    try {
+      // Simulate PayMongo refund API call with delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Call the actual refund API
+      await processRefundRequest(listingId, {
+        transactionId: refundTransactionId.trim(),
+      });
+
+      setRefundStep('success');
+      toast.success("Refund processed successfully!");
+
+      // Wait a bit to show success, then proceed with blocking
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Close refund dialog and proceed with blocking
+      setRefundDialogOpen(false);
+      setRefundTransactionId("");
+      setRefundStep('input');
+      
+      // Proceed with blocking
+      await proceedWithBlock();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || "Refund failed. Please try again.";
+      toast.error(errorMessage);
+      setRefundStep('input');
+      console.error("Refund error:", error);
+    } finally {
+      setRefundProcessing(false);
     }
   };
 
@@ -503,7 +607,11 @@ const AdminListingDetails = () => {
               {/* Listing Information Tab */}
               <TabsContent value="listing" className="space-y-6 p-4 sm:p-6">
                 <ModerationActions />
-                <ListingInformation listing={listing} loading={loading} />
+                <ListingInformation 
+                  listing={listing} 
+                  loading={loading} 
+                  onRefundSuccess={() => fetchListingDetails({ silent: true })}
+                />
               </TabsContent>
 
               {/* Property & Unit Tab */}
@@ -645,6 +753,131 @@ const AdminListingDetails = () => {
                 {actionLoading ? 'Blocking...' : 'Block Listing'}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Refund Process Dialog (shown before blocking if payment exists) */}
+        <Dialog open={refundDialogOpen} onOpenChange={(open) => {
+          if (!open && !refundProcessing) {
+            setRefundDialogOpen(false);
+            setRefundTransactionId("");
+            setRefundStep('input');
+          }
+        }}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-orange-600" />
+                Process Refund via PayMongo
+              </DialogTitle>
+              <DialogDescription>
+                This listing has payment information. Please process the refund before blocking.
+              </DialogDescription>
+            </DialogHeader>
+
+            {refundStep === 'input' && (
+              <>
+                <div className="space-y-4 py-4">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-start gap-3">
+                      <CreditCard className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-blue-900 mb-1">PayMongo Refund Process</p>
+                        <p className="text-xs text-blue-700">
+                          Enter the transaction ID to process the refund. This will clear the payment and allow you to block the listing.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="refundTransactionId">Transaction ID</Label>
+                    <Input
+                      id="refundTransactionId"
+                      placeholder="Enter transaction ID (e.g., pay_test_xxx)"
+                      value={refundTransactionId}
+                      onChange={(e) => setRefundTransactionId(e.target.value)}
+                      disabled={refundProcessing}
+                      className="font-mono"
+                    />
+                    {data?.providerTxnId && (
+                      <p className="text-xs text-slate-500">
+                        Current transaction ID: <span className="font-mono">{data.providerTxnId}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {data?.paymentAmount != null && (
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-slate-600">Refund Amount</span>
+                        <span className="font-semibold text-slate-900">
+                          ₱{data.paymentAmount.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setRefundDialogOpen(false);
+                      setRefundTransactionId("");
+                    }}
+                    disabled={refundProcessing}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleRefundProcess}
+                    disabled={refundProcessing || !refundTransactionId.trim()}
+                    className="bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                    Process Refund & Continue
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+
+            {refundStep === 'processing' && (
+              <div className="space-y-4 py-8">
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className="relative">
+                    <RotateCw className="h-12 w-12 text-orange-600 animate-spin" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="text-lg font-semibold text-slate-900">Processing Refund...</p>
+                    <p className="text-sm text-slate-600">
+                      Connecting to PayMongo API and processing your refund request.
+                    </p>
+                  </div>
+                  <div className="w-full max-w-xs space-y-2 pt-4">
+                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-orange-600 rounded-full animate-pulse" style={{ width: '60%' }} />
+                    </div>
+                    <p className="text-xs text-center text-slate-500">Processing transaction...</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {refundStep === 'success' && (
+              <div className="space-y-4 py-8">
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircle className="h-8 w-8 text-green-600" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="text-lg font-semibold text-green-900">Refund Processed Successfully!</p>
+                    <p className="text-sm text-slate-600">
+                      The payment has been refunded. Proceeding to block the listing...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

@@ -30,10 +30,8 @@ export const getOccupancyAnalytics = async (req, res) => {
       ? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
       : yearEnd;
     
-    // Calculate actual days in the period (current year up to today, or full year for past years)
-    const daysInYear = targetYear === now.getFullYear()
-      ? Math.ceil((effectiveYearEnd.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      : (targetYear % 4 === 0 && (targetYear % 100 !== 0 || targetYear % 400 === 0) ? 366 : 365);
+    // Calculate actual days in the year (always use full year: 365 or 366 for leap years)
+    const daysInYear = targetYear % 4 === 0 && (targetYear % 100 !== 0 || targetYear % 400 === 0) ? 366 : 365;
 
     // Get all properties and units owned by landlord
     const properties = await prisma.property.findMany({
@@ -235,6 +233,7 @@ export const getOccupancyAnalytics = async (req, res) => {
         });
 
         // Calculate occupancy rate for this unit
+        // Simple: Days this unit was occupied / Total days in year
         const occupancyRate = daysInYear > 0 ? ((totalDaysOccupied / daysInYear) * 100) : 0;
         const isOccupied = totalDaysOccupied > 0;
 
@@ -252,10 +251,10 @@ export const getOccupancyAnalytics = async (req, res) => {
       // Calculate property-level stats
       const totalPropertyUnits = propertyUnits.length;
       const occupiedPropertyUnits = propertyUnits.filter((u) => u.isOccupied).length;
-      const totalPropertyDaysOccupied = propertyUnits.reduce((sum, u) => sum + u.totalDaysOccupied, 0);
+      // Property occupancy rate = Average of all unit occupancy rates
       const propertyOccupancyRate =
         totalPropertyUnits > 0
-          ? (totalPropertyDaysOccupied / (totalPropertyUnits * daysInYear)) * 100
+          ? propertyUnits.reduce((sum, u) => sum + u.occupancyRate, 0) / totalPropertyUnits
           : 0;
 
       return {
@@ -273,9 +272,9 @@ export const getOccupancyAnalytics = async (req, res) => {
     const allUnits = propertiesData.flatMap((p) => p.units);
     const totalUnits = allUnits.length;
     const occupiedUnits = allUnits.filter((u) => u.isOccupied).length;
-    const totalDaysOccupied = allUnits.reduce((sum, u) => sum + u.totalDaysOccupied, 0);
+    // Overall occupancy rate = Average of all individual unit occupancy rates
     const overallOccupancyRate =
-      totalUnits > 0 ? (totalDaysOccupied / (totalUnits * daysInYear)) * 100 : 0;
+      totalUnits > 0 ? allUnits.reduce((sum, u) => sum + u.occupancyRate, 0) / totalUnits : 0;
 
     return res.status(200).json({
       year: targetYear,

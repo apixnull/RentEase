@@ -108,6 +108,7 @@ export const createLease = async (req, res) => {
       dueDate,
       securityDeposit,    // Optional field
       leaseDocumentUrl,   // Optional file upload
+      advancePayment,     // Optional: 1-3 months advance payment
     } = req.body;
 
     const landlordId = req.user?.id; // from auth middleware
@@ -129,6 +130,11 @@ export const createLease = async (req, res) => {
     if (securityDeposit && (isNaN(parsedSecurityDeposit) || parsedSecurityDeposit < 0))
       return res.status(400).json({ error: "Invalid security deposit amount." });
 
+    // --- Validate advancePayment (0-3 months, 0 = none) ---
+    const parsedAdvancePayment = advancePayment !== undefined && advancePayment !== null ? parseInt(advancePayment) : 0;
+    if (isNaN(parsedAdvancePayment) || parsedAdvancePayment < 0 || parsedAdvancePayment > 3)
+      return res.status(400).json({ error: "Advance payment must be between 0 and 3 months." });
+
     // --- Create Lease record ---
     const newLease = await prisma.lease.create({
       data: {
@@ -146,6 +152,7 @@ export const createLease = async (req, res) => {
         dueDate,
         status: "PENDING",
         leaseDocumentUrl: leaseDocumentUrl || null,
+        advancePayment: parsedAdvancePayment,
       },
       select: {
         id: true,
@@ -453,6 +460,7 @@ export const getAllPropertiesWithUnitsAndSuggestedTenants = async (req, res) => 
             id: true,
             label: true,
             unitCondition: true,
+            unitLeaseRules: true,
           },
           orderBy: { label: "asc" },
         },

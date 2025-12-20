@@ -1,0 +1,492 @@
+RentEase Platform Guidelines
+Complete Knowledge Base for Flowise AI Chatbot
+
+================================================================================
+SECTION 1: PROPERTY MANAGEMENT
+================================================================================
+
+PROPERTY AND UNIT CONCEPTS
+
+• In RentEase, a Property is the main building or location like an apartment building, condominium, or boarding house. (1) Units are the individual rentable spaces within that property like rooms, apartments, or floors. (2) For example, "Sunshine Apartments" is a Property that contains Unit 1A, Unit 1B, and Unit 2A as Units. (3)
+
+PROPERTY INFORMATION - SHARED BY ALL UNITS
+
+• Property Basic Details: The Title is the property name used for listings. (4) The Type can be Apartment, Condominium, Boarding House, or Single House. (5) The Main Image is the featured photo of the property. (6)
+
+• Property Address and Location: The address includes Street, Barangay, and Zip Code. (7) The City or Municipality must be specified. (8) Map Coordinates are used for Google Maps location. (9)
+
+• Property Additional Information: Nearby Institutions include schools, hospitals, malls, transport, banks, churches, and other facilities. (10) Other Information allows custom notes about the property. (11)
+
+• Property Main Image Sharing: The property's main image is shared by all units within that property. (12) When a tenant views any unit listing, they will see the property's main image. (13) This is typically the building exterior or a representative photo of the property. (14) It appears on all unit listings belonging to this property. (15) Choose a clear, well-lit photo of your building's facade that helps tenants identify the property when they visit. (16)
+
+• Property Address Sharing: The full address including street, barangay, city or municipality, and zip code is set at the property level. (17) All units under this property automatically use this address. (18) Ensure your address is accurate and complete because this helps tenants find your property and appears in search results. (19)
+
+UNIT INFORMATION - UNIQUE TO EACH UNIT
+
+• Unit Basic Details: The Label is the unit identifier such as "Unit 3A" or "Room 5". (20) The Description provides detailed information about the unit. (21) The Floor Number indicates which floor the unit is on. (22) Max Occupancy specifies how many people can stay in the unit. (23)
+
+• Unit Pricing and Settings: The Target Price is the monthly rental rate. (24) Requires Screening is an option to enable tenant screening for the unit. (25) Unit Condition can be set to Good, Under Maintenance, or Unusable. (26)
+
+• Unit Media: The Main Image is the primary unit photo. (27) Other Images allow up to 6 additional photos of the unit. (28)
+
+• Unit Features: Amenities include WiFi, AC, parking, and other facilities. (29) Lease Rules cover visitor policies, pet policies, noise policies, parking policies, and other regulations. (30)
+
+HOW PROPERTY AND UNITS WORK TOGETHER
+
+• Each unit inherits the property's address, main image, and nearby institutions. (31) Each unit has its own price, photos, amenities, condition, and lease rules. (32) The property's main image and address are shared by all units within that property. (33) When a tenant views any unit listing, they will see the property's main image and address along with the unit-specific information. (34)
+
+PROPERTY MANAGEMENT BEST PRACTICES
+
+• Use descriptive names for your properties and units clearly such as "Green Valley Residences - Studio Unit A" so tenants can easily identify them. (35) While the main property image is shared, each unit should have its own photos showing the interior, layout, and unique features. (36) Regularly update property and unit information to reflect current conditions, prices, and availability. (37) Fill in all fields for both property and units because complete listings attract more tenants and get approved faster. (38)
+
+================================================================================
+SECTION 2: LISTING BEST PRACTICES
+================================================================================
+
+WHAT IS A LISTING
+
+• A Listing is an advertisement for your unit that makes it visible to prospective tenants browsing on RentEase. (39) When you create a listing, your unit's information along with its parent property details becomes searchable and viewable by tenants looking for their next home. (40) A listing is created for a specific unit within a property. (41) The listing displays both property info such as address and main image and unit info such as price and amenities. (42) Listings require payment and admin review before becoming visible. (43) Each listing has a lifecycle status that tracks its current state. (44) You can optionally make your listing Featured for more visibility. (45)
+
+LISTING LIFECYCLE STATUSES
+
+• WAITING_REVIEW Status: Payment is complete and the listing is waiting for admin review. (46) Your listing is in the queue and will be reviewed by our team to ensure it meets our guidelines. (47)
+
+• VISIBLE Status - Goal Status: This status means your listing is publicly visible and active. (48) Your listing has passed review and is now live on the platform, visible to all tenants browsing for properties. (49)
+
+• HIDDEN Status: This status means the listing is temporarily hidden by you. (50) You can hide your listing at any time such as when the unit is temporarily unavailable. (51) You can make it visible again when ready. (52)
+
+• EXPIRED Status: This status means the listing duration has ended. (53) Your listing's advertising period has expired. (54) You can renew or extend the listing to make it visible again. (55)
+
+• FLAGGED Status - Warning: This status means the listing was found suspicious and will be hidden. (56) Our AI moderation or admin review has detected potential issues. (57) The listing is temporarily hidden pending further review. (58) You will be notified of the specific concerns. (59)
+
+• BLOCKED Status - Serious: This status means the listing is fully removed or deactivated due to violations. (60) Your listing has been permanently blocked due to serious policy violations. (61) Blocked listings cannot be restored and may result in account penalties. (62)
+
+FEATURED LISTINGS
+
+• Featured listings get priority placement in search results and browse pages, making them more visible to prospective tenants. (63) Featured listings appear at the top of search results. (64) Featured listings display a special "Featured" badge. (65) Featured listings have higher visibility to tenants. (66) Featured listings receive faster tenant inquiries. (67) To get featured, select the "Featured" option when creating your listing. (68) Pay the featured listing fee. (69) Pass admin review. (70) Your listing will then get priority placement. (71)
+
+AI CONTENT MODERATION
+
+• Our platform uses AI-powered content moderation to automatically detect and flag prohibited content before admin review. (72) This helps maintain a safe and trustworthy platform. (73) AI checks for scam patterns such as requests for upfront online payments. (74) AI checks for fake info such as misleading or false information. (75) AI checks for discriminatory content that discriminates based on protected characteristics. (76) AI checks for illegal content including prohibited activities. (77) AI checks for inappropriate content such as explicit or offensive material. (78) AI checks for other violations including policy breaches. (79) If AI detects issues, your listing will be flagged and the problematic content will be logged for admin review. (80) You will be notified and given a chance to correct the issue before resubmitting. (81)
+
+HOW TO GET YOUR LISTING APPROVED
+
+• Quality Photos Guidelines: Upload clear, well-lit photos of the actual unit. (82) Include interior shots showing rooms, layout, and amenities. (83) Use recent photos that reflect current condition. (84) Avoid stock photos or images from other sources. (85) Take photos during daytime for best lighting. (86)
+
+• Accurate Information Guidelines: Provide honest, detailed descriptions that match the property. (87) Set realistic rental prices with no hidden fees. (88) Ensure all fields are complete and accurate. (89) List actual amenities available in the unit. (90) Keep lease rules clear and reasonable. (91)
+
+• Complete All Details Guidelines: Fill in property address completely. (92) Add max occupancy and floor number. (93) Select applicable amenities. (94) Set unit condition accurately. (95) Enable screening requirement if needed. (96)
+
+HOW TO AVOID GETTING FLAGGED OR BLOCKED
+
+• Scamming Patterns to Avoid: NEVER request upfront online payments before property viewing. (97) Our AI automatically detects and blocks such requests. (98) Always meet tenants in person first. (99)
+
+• Discriminatory Information to Avoid: Do not include any language that discriminates based on race, religion, gender, age, disability, or other protected characteristics. (100)
+
+• False or Misleading Information to Avoid: Do not misrepresent the property including location, size, amenities, condition, or availability. (101) All information must be accurate and truthful. (102)
+
+• Inappropriate Content to Avoid: Do not use inappropriate, explicit, or offensive images as property pictures. (103) Use only property-related photos. (104)
+
+• Duplicate or Fake Listings to Avoid: Do not create multiple listings for the same unit. (105) Do not create listings for properties that don't exist or aren't available for rent. (106)
+
+• Important Warning: Repeated flagging may lead to BLOCKED status. (107) Blocked listings cannot be restored. (108) Serious violations may result in account suspension or termination. (109)
+
+LISTING QUICK TIPS FOR SUCCESS
+
+• Review your listing before submission. (110) Use high-quality, well-lit photos. (111) Write clear, professional descriptions. (112) Set competitive, honest pricing. (113) Respond promptly to admin requests. (114) Keep your account in good standing. (115) Update listings regularly. (116) Consider Featured option for faster results. (117)
+
+================================================================================
+SECTION 3: TENANT SCREENING
+================================================================================
+
+WHAT IS TENANT SCREENING
+
+• Tenant Screening is a verification process that allows landlords to gather and review important information about prospective tenants before signing a lease agreement. (118) This helps landlords make informed decisions and find reliable tenants. (119) To use tenant screening, enable the "Requires Screening" option when creating or editing your unit. (120) This allows you to invite prospective tenants for screening before signing a lease. (121)
+
+HOW THE TENANT SCREENING PROCESS WORKS
+
+• Step 1 - Landlord Invites Tenant: The landlord sends a screening invitation to a prospective tenant's email. (122)
+
+• Step 2 - Tenant Fills Out Form: The tenant completes the screening form with personal, employment, and rental history info. (123)
+
+• Step 3 - AI Analyzes Submission: Our AI system generates a risk assessment and summary based on the provided information. (124)
+
+• Step 4 - Landlord Reviews and Decides: The landlord reviews the screening report and approves or rejects the application. (125)
+
+TENANT SCREENING STATUS FLOW
+
+• PENDING Status: The invitation has been sent to the tenant. (126) The system is waiting for the tenant to complete and submit the screening form. (127)
+
+• SUBMITTED Status: The tenant has submitted their screening form. (128) The landlord can now review the information and AI assessment to make a decision. (129)
+
+• APPROVED Status: The landlord has approved the tenant's application. (130) The tenant is cleared to proceed with the lease signing process. (131)
+
+• REJECTED Status: The landlord has declined the tenant's application. (132) A reason or remark may be provided to the tenant. (133)
+
+• Status Flow: PENDING leads to SUBMITTED, which then leads to either APPROVED or REJECTED. (134)
+
+INFORMATION COLLECTED FROM TENANTS
+
+• Basic Information Collected: Full Name is collected. (135) Birthdate is collected. (136) Employment Status is collected and can be Student, Employed, Self-Employed, or Unemployed. (137) Income Source is collected and can be Salary, Business, or Allowance. (138) Monthly Income is collected. (139)
+
+• Document and Identity Verification: The tenant confirms availability of these documents, and the landlord may verify in person. (140) Has Valid Government ID is confirmed. (141) Has NBI Clearance is confirmed. (142) Has Proof of Income is confirmed. (143)
+
+• Employment History Collected: Current Employer is collected. (144) Job Position or Role is collected. (145) Years Employed is collected. (146) Employment Remarks are collected. (147)
+
+• Rental History Collected: Previous Landlord Name is collected. (148) Previous Landlord Contact is collected. (149) Previous Rental Address is collected. (150) Reason for Leaving is collected. (151) Eviction History Yes or No is collected. (152) Late Payment History Yes or No is collected. (153)
+
+• Lifestyle Indicators Collected: These are used to assess compatibility with property rules. (154) Smokes Yes or No is collected. (155) Drinks Alcohol Yes or No is collected. (156)
+
+AI RISK ASSESSMENT
+
+• After a tenant submits their screening form, our AI system analyzes the information and generates a risk assessment to help landlords make informed decisions. (157) AI generates a Risk Score from 0.0 to 1.0 where lower is better. (158) AI generates a Risk Level which can be LOW, MEDIUM, or HIGH. (159) AI generates a Summary which is a readable assessment result. (160) AI generates Detailed Findings by category. (161) AI evaluates financial stability. (162) AI evaluates employment history. (163) AI evaluates identity verification. (164) AI evaluates document availability. (165) AI evaluates rental history. (166) AI evaluates eviction risk. (167) AI evaluates payment behavior. (168) AI evaluates lifestyle compatibility. (169) AI evaluates overall assessment. (170) LOW risk level indicates a good candidate. (171) MEDIUM risk level indicates some concerns. (172) HIGH risk level indicates the landlord should review carefully. (173) The AI assessment is meant to assist landlords, not replace their judgment. (174) Always review the full application and consider meeting the tenant in person before making your final decision. (175)
+
+TENANT SCREENING BEST PRACTICES FOR LANDLORDS
+
+• Verify Documents in Person: The screening form confirms document availability. (176) Always verify actual documents such as ID, NBI clearance, and proof of income when meeting the tenant in person. (177)
+
+• Contact Previous Landlords: If the tenant provided previous landlord contact info, reach out to verify rental history and get a reference. (178)
+
+• Consider the Full Picture: Don't rely solely on the AI risk score. (179) Consider the tenant's overall situation, communication, and your personal interaction during property viewings. (180)
+
+• Provide Clear Feedback: If rejecting an application, provide a brief, respectful remark explaining the decision. (181) This maintains professionalism and helps tenants understand. (182)
+
+================================================================================
+SECTION 4: COMMUNICATION
+================================================================================
+
+IN-APP MESSAGING SYSTEM
+
+• RentEase provides a built-in messaging system that allows landlords and tenants to communicate directly within the platform. (183) Each conversation between a landlord and tenant is organized into a Chat Channel. (184) When a tenant is interested in a listing, they can send an inquiry message to the landlord. (185) A unique conversation channel is created between the tenant and landlord. (186) Both parties can exchange messages, discuss details, and coordinate viewings. (187)
+
+CHAT CHANNEL COMPONENTS
+
+• Chat Channel Contains: Tenant and Landlord participants are included. (188) Channel status such as Inquiry, Active, or Ended is tracked. (189) Last message preview is shown. (190) Read status tracking is available. (191)
+
+• Each Message Contains: Message content is included. (192) Sender information is included. (193) Timestamp showing when sent is included. (194) Read timestamp showing when viewed is included. (195)
+
+CHANNEL STATUS TYPES
+
+• INQUIRY Status - Default: This is the initial status when a tenant first reaches out about a listing. (196) The conversation is in the inquiry phase, typically discussing property details, availability, and scheduling viewings. (197)
+
+• ACTIVE Status: The conversation is ongoing and both parties are actively communicating. (198) This typically happens after initial interest is confirmed and discussions are progressing toward a potential lease. (199)
+
+• ENDED Status: The conversation has concluded. (200) This could mean the tenant found another place, the landlord filled the unit, or both parties decided not to proceed. (201)
+
+• Typical Channel Flow: INQUIRY leads to ACTIVE, which then leads to ENDED. (202)
+
+BENEFITS OF IN-APP MESSAGING
+
+• Conversation History: All messages are saved and organized. (203) You can easily refer back to previous discussions about terms, agreements, or property details. (204)
+
+• Read Receipts: You can know when your messages have been read. (205) This helps you understand if the other party has seen your message. (206)
+
+• Organized Conversations: Each tenant-landlord pair has a dedicated channel. (207) This prevents mixing up conversations or losing track of who said what. (208)
+
+• Documentation: Messages serve as a record of discussions. (209) This is useful if there are any disputes about what was discussed or agreed upon. (210)
+
+• Privacy Protection: You can communicate without sharing personal phone numbers or email addresses until you're ready. (211)
+
+• Notifications: You get notified when you receive new messages so you can respond promptly. (212)
+
+RESPONSE TIME EXPECTATIONS
+
+• General Inquiries: Respond within 24-48 hours. (213) Quick responses show professionalism and increase chances of securing good tenants. (214)
+
+• Viewing Requests: Respond within 24 hours. (215) Tenants often have multiple options and may move on quickly. (216)
+
+• Urgent Matters: Respond as soon as possible. (217) Issues like maintenance emergencies or lease concerns need immediate attention. (218)
+
+• Ongoing Discussions: Keep the conversation flowing. (219) Don't leave messages unanswered for extended periods. (220)
+
+COMMUNICATION BEST PRACTICES
+
+• Be Professional and Courteous: Maintain a respectful tone in all communications. (221) First impressions matter, and professionalism builds trust. (222)
+
+• Be Clear and Specific: Provide clear information about property details, availability, pricing, and requirements. (223) Avoid vague responses that lead to follow-up questions. (224)
+
+• Respond Promptly: Quick responses show you're engaged and reliable. (225) Set aside time daily to check and respond to messages. (226)
+
+• Keep Records of Important Agreements: If you discuss terms, pricing, or special arrangements, summarize them in a message so both parties have a record. (227)
+
+• Set Communication Boundaries: Let the other party know your preferred communication hours. (228) It's okay to set expectations about response times. (229)
+
+THINGS TO AVOID IN COMMUNICATION
+
+• Sharing Sensitive Information Too Early: Don't share bank account details, personal IDs, or other sensitive information through chat until you've verified the other party and are ready to proceed. (230)
+
+• Requesting Payments Through Chat: Never request or send payments through the messaging system. (231) Always handle payments in person with proper documentation. (232)
+
+• Ignoring Messages: Even if you're not interested, respond to let the other party know. (233) Ghosting damages your reputation and wastes everyone's time. (234)
+
+• Unprofessional Language: Avoid rude, aggressive, or inappropriate language. (235) This can result in account warnings or suspension. (236)
+
+================================================================================
+SECTION 5: LEASE MANAGEMENT
+================================================================================
+
+WHAT IS A LEASE
+
+• A Lease is a formal rental agreement between a landlord and tenant that establishes the terms and conditions for renting a unit. (237) In RentEase, leases help you track rental periods, payments, and tenant relationships. (238)
+
+KEY COMPONENTS OF A LEASE
+
+• Property and Unit: This specifies which property and unit is being rented. (239)
+
+• Tenant and Landlord: This identifies the parties involved in the agreement. (240)
+
+• Rent Amount: This is the monthly rental fee. (241)
+
+• Lease Period: This includes the start and end dates. (242)
+
+• Payment Schedule: This specifies when rent is due. (243)
+
+• Security Deposit: This is the one-time deposit amount. (244)
+
+LEASE TYPES
+
+• STANDARD Lease Type - Default: This is a standard rental agreement for typical residential leases. (245) This is the most common type for apartments, condominiums, and houses. (246)
+
+• SHORT_TERM Lease Type: This is for rentals with shorter durations, typically less than 6 months. (247) This is common for temporary stays, vacation rentals, or transitional housing. (248)
+
+• LONG_TERM Lease Type: This is for extended rental periods, typically 1 year or longer. (249) This is suitable for tenants seeking stability and landlords wanting consistent occupancy. (250)
+
+• FIXED-TERM Lease Type: This is a lease with a specific, non-renewable end date. (251) Both parties agree to the exact duration with no automatic renewal. (252)
+
+LEASE STATUS FLOW
+
+• PENDING Status - Editable: The lease has been created but not yet activated. (253) The system is waiting for both parties to confirm or sign the agreement. (254) You can still modify lease details, terms, and information while in PENDING status. (255)
+
+• ACTIVE Status - Locked: The lease is active and ongoing. (256) The tenant is currently renting the unit, and rent payments are being tracked. (257) Once a lease becomes ACTIVE, the lease details cannot be modified. (258) Only payments and notes can be added. (259)
+
+• COMPLETED Status - Fully Locked: The lease has ended successfully after passing the end date. (260) The rental period is complete, and all obligations have been fulfilled. (261) All lease information, payments, and data are locked and cannot be edited. (262) This is a permanent status. (263) When a lease passes its end date, you can manually set it to COMPLETED or TERMINATED status. (264)
+
+• TERMINATED Status - Fully Locked: The lease was ended early before the scheduled end date, or after passing the end date. (265) This could be due to mutual agreement, breach of contract, or other circumstances. (266) All lease information, payments, and data are locked and cannot be edited. (267) This is a permanent status. (268) When a lease passes its end date, you can manually set it to TERMINATED if it didn't complete successfully, or COMPLETED if it ended normally. (269)
+
+• CANCELLED Status: The lease was cancelled before it became active while still in PENDING status. (270) This typically happens if the agreement falls through before the start date. (271) Cancelled leases never became active, so they remain in a cancelled state with limited functionality. (272)
+
+• Lease Status Flow and Editability: PENDING which is Editable leads to ACTIVE which is Locked. (273) When a lease passes its end date, it can be set to COMPLETED which is Fully Locked or TERMINATED which is Fully Locked. (274) Once a lease becomes ACTIVE, it cannot be edited. (275) If a lease passes its end date, you can set it to COMPLETED or TERMINATED. (276) Once in COMPLETED or TERMINATED status, all information including payments is permanently locked. (277)
+
+PAYMENT INTERVALS AND DUE DATES
+
+• Payment Intervals: MONTHLY is the default and only option. (278) Rent is due monthly. (279) The system is designed for monthly rental payments only. (280) Weekly and daily payment intervals are not available. (281)
+
+• Due Date - Day of Month: Set which day of the month rent is due from 1 to 28. (282) The system automatically adjusts if the due date falls on a day that doesn't exist in shorter months. (283) For example, if you set due date to 5, rent will be due on the 5th of each month. (284) If you set it to 31, it will adjust to the last day of months with fewer days. (285)
+
+• Security Deposit: This is a one-time amount held by the landlord until the lease ends. (286) This is separate from monthly rent and is typically returned minus any deductions when the tenant moves out. (287) Security deposits are for your record-keeping only. (288) RentEase does NOT process or hold deposits. (289) Handle all deposit transactions directly with tenants and provide proper documentation. (290)
+
+LEASE DOCUMENTS
+
+• You can upload a digital copy of your signed lease agreement document. (291) This serves as a record and reference for both parties. (292) Upload a signed copy of the lease agreement. (293) Ensure the document is clear and readable. (294) Keep physical copies as well for your records. (295) Update the document if lease terms change. (296)
+
+LANDLORD NOTES - PRIVATE
+
+• Landlord Notes are private observations that only you the landlord can see. (297) Tenants cannot view these notes. (298) Use them to track tenant behavior, issues, or important observations throughout the lease period. (299) Note Categories include CLEANLINESS, NOISE, BEHAVIOR, COMMUNICATION, PROPERTY_DAMAGE, and OTHER. (300) These notes are for your personal record-keeping and documentation. (301) They help you track patterns, document issues, and maintain a history of the tenancy. (302) Use them responsibly and objectively. (303)
+
+PAYMENT TRACKING
+
+• Payment tracking allows landlords to record and monitor all payments related to a lease. (304) This includes rent payments, penalties, adjustments, and other charges that occur during the contract period. (305)
+
+• PENDING Payment Status - Editable: Payment has been created but not yet marked as paid. (306) This is the default status for new payment records. (307) PENDING payments can be modified or removed before they are marked as paid. (308)
+
+• PAID Payment Status - Locked: Payment has been marked as paid. (309) The payment record is now permanent and cannot be modified. (310) Once a payment is marked as PAID, it is permanently locked and cannot be changed or removed. (311)
+
+• Payment Types: RENT is for regular monthly rent payment. (312) ADVANCE PAYMENT is for payment made before the due date. (313) PREPAYMENT is for payment for future rent periods. (314) PENALTY is for late payment fees or other penalties. (315) ADJUSTMENT is for corrections or adjustments to amounts. (316)
+
+• Timing Status: ONTIME means paid on or before due date. (317) LATE means paid after due date. (318) ADVANCE means paid before due date. (319)
+
+• Creating Payment Records: Landlords can create new payment records for various purposes during the lease contract. (320) Create monthly rent payment records for regular rent. (321) Record late payment fees or other penalties incurred during the contract. (322) Add corrections or adjustments to payment amounts. (323) Record any additional payments that occur during the lease period. (324)
+
+• Important Payment Tracking Reminders: Payment tracking is for record-keeping only. (325) RentEase does NOT process payments between landlords and tenants. (326) Handle all payments directly with tenants outside the platform. (327) Mark payments as PAID only after you have actually received the payment. (328) PENDING payments can be edited or deleted before marking them as paid. (329) PAID payments are permanent and cannot be modified or deleted. (330) Use payment notes to add context or details about specific payments. (331)
+
+LEASE MANAGEMENT BEST PRACTICES
+
+• Start Renewal Discussions Early: Begin discussing lease renewal at least 30 days before the end date. (332) This gives both parties time to decide and prevents last-minute vacancies. (333)
+
+• Keep Accurate Records: Document all lease terms, payments, and important communications. (334) This helps resolve disputes and provides a clear history. (335)
+
+• Monitor Lease Status: Regularly check your leases to see which are expiring soon, which are active, and which need attention. (336)
+
+• Use Lease Nicknames: Give your leases descriptive nicknames such as "John - Unit 3A" to easily identify them in your lease list. (337)
+
+• Track Payments Separately: Use the payment tracking feature to record rent payments. (338) Remember that RentEase does not process payments, so handle all transactions directly with tenants. (339)
+
+================================================================================
+SECTION 6: FINANCIAL TRACKING
+================================================================================
+
+WHAT IS FINANCIAL TRACKING
+
+• Financial Tracking is a tool designed to help landlords understand their current financial position across their rental properties. (340) It allows you to record, monitor, and analyze income and expenses to get a clear picture of your property's profitability. (341) Financial tracking is NOT a payment processor. (342) It's a tool for your personal record-keeping to help you understand where you are financially. (343) All payments are handled directly between you and tenants outside the platform. (344) Record all money received from rentals, fees, deposits, and other income sources. (345) Record all money spent on maintenance, repairs, utilities, taxes, and other property-related costs. (346)
+
+TRANSACTION TYPES
+
+• Income Categories: RENT is for regular rental income from tenants. (347) LATE_FEE is for late payment fees charged to tenants. (348) DEPOSIT is for security deposits received. (349) OTHER_INCOME is for any other income sources. (350)
+
+• Expense Categories: MAINTENANCE is for regular property maintenance costs. (351) REPAIRS is for property repair expenses. (352) UTILITIES is for water, electricity, internet, and other utilities. (353) INSURANCE is for property insurance premiums. (354) TAXES is for property taxes and related fees. (355) PROPERTY_MANAGEMENT is for property management service fees. (356) LISTING_ADVERTISING is for listing fees and advertising costs. (357) OTHER_EXPENSE is for any other property-related expenses. (358)
+
+PROPERTY-LEVEL VS UNIT-LEVEL TRANSACTIONS
+
+• Property-Level Transactions: These are expenses or income that apply to the entire property, not a specific unit. (359) Examples include property-wide maintenance, building insurance, property taxes, and common area utilities. (360)
+
+• Unit-Level Transactions: These are expenses or income specific to a particular unit within a property. (361) Examples include rent from specific unit, unit-specific repairs, unit utilities, and unit maintenance. (362)
+
+RECURRING TRANSACTIONS
+
+• For transactions that happen regularly, you can set them as recurring. (363) The system will automatically calculate the total amount based on how many times the transaction occurs within your selected date range. (364) Recurring Intervals include DAILY for every day, WEEKLY for every week, MONTHLY for every month, and YEARLY for every year. (365) When you set a transaction as recurring, the system calculates how many times it occurs within your selected date filter such as This Month, This Year, or All Time. (366) For example, a monthly rent of ₱10,000 set as MONTHLY will show as ₱10,000 × 12 = ₱120,000 when viewing "This Year". (367)
+
+FINANCIAL METRICS AND INSIGHTS
+
+• The Financial Overview provides key metrics to help you understand your property's financial health. (368) Total Income is the sum of all income transactions such as rent, fees, and deposits within your selected period. (369) Total Expense is the sum of all expense transactions such as maintenance, repairs, and utilities within your selected period. (370) Net Profit is income minus expenses. (371) This shows whether your property is profitable with positive value or losing money with negative value. (372) Profit Margin is the percentage of income that remains as profit, calculated as Net Profit divided by Income times 100 percent. (373) The timeline chart shows income and expenses over time, helping you visualize trends and patterns. (374) You can view data by day for This Month, by month for This Year, or by year for All Time. (375)
+
+FILTERING AND DATE RANGES
+
+• Date Filters: This Month shows current month's transactions. (376) This Year shows current year's transactions. (377) All Time shows all historical transactions. (378)
+
+• Scope Filters: All Properties shows transactions across all properties. (379) Specific Property shows transactions for one property including property-level and all units. (380) Specific Unit shows transactions for one specific unit. (381)
+
+• Type Filters: Income Only shows only income transactions. (382) Expense Only shows only expense transactions. (383)
+
+MANAGING TRANSACTIONS
+
+• Creating Transactions: To record a new transaction, click "Record Transaction" and fill in the required information. (384) Type can be Income or Expense. (385) Property is required and specifies which property. (386) Unit is optional - leave as "Property-level" or select a specific unit. (387) Amount is the transaction amount in PHP. (388) Date is when the transaction occurred. (389) Category is the appropriate category selection. (390) Description is a brief description with max 15 words. (391) Recurring is optional - set if transaction repeats. (392) Transaction descriptions are limited to 15 words maximum. (393) Keep descriptions concise and clear such as "Monthly rent payment from Unit 3A". (394)
+
+• Editing and Deleting Transactions: Click on any transaction in the table to edit it. (395) You can modify all fields including type, amount, date, category, and description. (396) You can delete any transaction record using the delete button. (397) This action cannot be undone, so make sure you want to remove the record permanently. (398)
+
+PDF FINANCIAL REPORTS
+
+• Generate professional PDF reports of your financial data for record-keeping, tax preparation, or sharing with accountants. (399) Report Options include All Properties to generate a report for all your properties combined. (400) Specific Property generates a report for one property including all units. (401) Date Range can be This Month, This Year, or All Time. (402) What's Included in the PDF: Summary statistics including Total Income, Total Expense, Net Profit, and Profit Margin. (403) Detailed transaction table with all information. (404) Recurring transaction calculations. (405) Property and unit information. (406) Date range and generation timestamp. (407) Professional RentEase branding. (408)
+
+FINANCIAL TRACKING BEST PRACTICES
+
+• Record Transactions Regularly: Enter transactions as they occur to maintain accurate, up-to-date financial records. (409) Don't let them pile up. (410)
+
+• Use Appropriate Categories: Categorize transactions correctly to get meaningful insights. (411) This helps you understand where your money is coming from and going to. (412)
+
+• Set Recurring for Regular Items: Use recurring transactions for monthly rent, regular maintenance, or other predictable income or expenses. (413) This saves time and ensures accuracy. (414)
+
+• Review Financial Metrics Regularly: Check your net profit and profit margin regularly to understand your property's financial health and make informed decisions. (415)
+
+• Generate Reports for Tax Season: Use the PDF report feature to generate comprehensive financial reports for tax preparation or accounting purposes. (416)
+
+• Remember: Financial tracking helps you understand your financial position, but all actual payments are handled directly between you and tenants. (417) Keep receipts and documentation for all transactions. (418)
+
+================================================================================
+SECTION 7: MAINTENANCE REQUESTS
+================================================================================
+
+WHAT ARE MAINTENANCE REQUESTS
+
+• Maintenance Requests allow tenants to report issues with their rental units directly to landlords through the platform. (419) This system streamlines communication, ensures issues are tracked, and helps landlords prioritize and manage repairs efficiently. (420) For Tenants: Submit maintenance requests with photos and descriptions. (421) Track the status of your requests and receive notifications when landlords update them. (422) For Landlords: Receive notifications for new requests. (423) Update status as you work on issues. (424) Maintain a complete history of all maintenance activities. (425)
+
+MAINTENANCE REQUEST STATUS FLOW
+
+• Maintenance requests progress through different statuses as landlords work on resolving them. (426)
+
+• OPEN Status: This is the initial status when a tenant submits a maintenance request. (427) The landlord has been notified and can review the issue. (428) Landlord can update to IN_PROGRESS, RESOLVED, or INVALID. (429) Tenant can cancel only if status is OPEN. (430)
+
+• IN_PROGRESS Status: The landlord has started working on the maintenance issue. (431) The unit's condition is automatically set to UNDER_MAINTENANCE. (432) Landlord can update to RESOLVED or INVALID. (433) Cannot revert to OPEN. (434)
+
+• RESOLVED Status: The maintenance issue has been fixed. (435) The unit's condition is automatically set back to GOOD if no other active maintenance requests exist. (436) This is a final status and cannot be changed once set to RESOLVED. (437)
+
+• CANCELLED Status: The tenant has cancelled the maintenance request. (438) Only tenants can cancel requests, and only if the status is OPEN. (439) This is a final status and cannot be changed once set to CANCELLED. (440)
+
+• INVALID Status: The landlord has marked the request as invalid such as duplicate request, not a real issue, or outside scope of maintenance. (441) This is a final status and cannot be changed once set to INVALID. (442)
+
+• Important Status Rules: Final statuses such as RESOLVED, INVALID, and CANCELLED cannot be changed once set. (443) Only tenants can cancel requests, and only if status is OPEN. (444) Landlords cannot set status to CANCELLED because only tenants can. (445) When status changes to IN_PROGRESS, unit condition becomes UNDER_MAINTENANCE. (446) When status changes to RESOLVED, unit condition becomes GOOD if no other active requests exist. (447)
+
+FOR TENANTS - CREATING MAINTENANCE REQUESTS
+
+• As a tenant, you can submit maintenance requests for issues in your rental unit. (448) Requirements: You must have an active lease for the unit you're requesting maintenance for. (449) Select the property and specific unit where the issue is located. (450) Provide a clear, detailed description of the maintenance issue. (451) Upload a photo showing the issue, which is highly recommended for clarity. (452) What Happens When You Submit: The landlord receives a notification about your maintenance request. (453) The request status is set to OPEN automatically. (454) You can track the status of your request and receive updates when the landlord changes it. (455) Cancelling Requests: You can cancel a maintenance request, but only if its status is OPEN. (456) Once a landlord starts working on it with IN_PROGRESS status or marks it as RESOLVED or INVALID, you cannot cancel it. (457)
+
+FOR LANDLORDS - MANAGING MAINTENANCE REQUESTS
+
+• As a landlord, you receive notifications when tenants submit maintenance requests. (458) Available Actions: Update to IN_PROGRESS when you start working on the issue. (459) This automatically sets the unit condition to UNDER_MAINTENANCE. (460) Mark as RESOLVED once the issue is fixed. (461) The unit condition automatically returns to GOOD if no other active requests exist. (462) Mark as INVALID if the request is invalid such as duplicate, not a real issue, or outside scope. (463) This is a final status. (464) Cannot Cancel: Landlords cannot cancel requests. (465) Only tenants can cancel, and only if the status is OPEN. (466) Status Update Rules: You can update OPEN requests to IN_PROGRESS, RESOLVED, or INVALID. (467) You can update IN_PROGRESS requests to RESOLVED or INVALID. (468) You cannot change final statuses such as RESOLVED, INVALID, or CANCELLED. (469) You cannot revert IN_PROGRESS back to OPEN. (470) Tenants are automatically notified when you update the status. (471) Unit Condition Updates: The system automatically updates unit conditions based on maintenance request status. (472) When status is IN_PROGRESS, unit condition becomes UNDER_MAINTENANCE. (473) When status is RESOLVED, unit condition becomes GOOD only if no other active maintenance requests exist for that unit. (474)
+
+MAINTENANCE REQUEST INFORMATION
+
+• Each maintenance request contains the following information: Property and Unit which is the property and specific unit where the maintenance issue is located. (475) Reporter which is the tenant who submitted the request, including their contact information. (476) Description which is the detailed description of the maintenance issue provided by the tenant. (477) Photo which is the photo of the issue uploaded by the tenant if provided. (478) Status which is the current status of the request such as OPEN, IN_PROGRESS, RESOLVED, CANCELLED, or INVALID. (479) Timestamps which include created date and last updated date for tracking the request timeline. (480)
+
+NOTIFICATIONS
+
+• The system automatically sends notifications to keep both parties informed. (481) For Landlords: You receive a notification when a new maintenance request is submitted. (482) For Tenants: You receive a notification when status changes to IN_PROGRESS. (483) You receive a notification when status changes to RESOLVED. (484) You receive a notification when status changes to INVALID. (485)
+
+MAINTENANCE REQUEST BEST PRACTICES
+
+• For Tenants Best Practices: Provide Clear Descriptions by describing the issue in detail, including location, severity, and when it started. (486) This helps landlords understand and prioritize the request. (487) Include Photos because photos help landlords see the issue clearly and assess the urgency. (488) Take clear, well-lit photos from multiple angles if possible. (489) Report Issues Promptly and don't wait for small issues to become big problems. (490) Report maintenance issues as soon as you notice them. (491) Be Patient because landlords may need time to assess and schedule repairs. (492) Check the status of your request, but allow reasonable time for resolution. (493)
+
+• For Landlords Best Practices: Respond Promptly by acknowledging maintenance requests quickly, even if you can't fix them immediately. (494) Update status to IN_PROGRESS when you start working on it. (495) Prioritize Urgent Issues by addressing safety issues, water leaks, and heating or cooling problems immediately. (496) Less urgent issues can be scheduled appropriately. (497) Update Status Regularly to keep tenants informed by updating the status as you progress. (498) This builds trust and reduces follow-up inquiries. (499) Mark as Resolved When Complete by marking it as RESOLVED once the issue is fixed. (500) This automatically updates the unit condition and notifies the tenant. (501) Use INVALID Appropriately by only marking requests as INVALID if they are truly invalid such as duplicates, not real issues, or outside maintenance scope. (502) Communicate with tenants if needed. (503)
+
+================================================================================
+SECTION 8: SAFETY TIPS AND FRAUD PREVENTION
+================================================================================
+
+IMPORTANT SAFETY WARNING
+
+• As a landlord, it's crucial to remain vigilant against fraudulent tenants and scams. (504) Always verify tenant information, use secure payment methods, conduct proper screening, and report suspicious behavior immediately. (505) If you encounter suspicious activity, do not proceed with any lease or transaction. (506) Report the tenant or application immediately. (507) Contact RentEase support. (508) If you've been scammed, contact local authorities. (509)
+
+COMMON FRAUDULENT ACTIVITIES TO WATCH FOR
+
+• Fake Tenant Applications: Scammers may submit applications with fake identities, forged documents, or stolen personal information to gain access to properties. (510)
+
+• Overpayment Scams: A "tenant" sends a check or payment for more than the required amount and asks you to refund the difference. (511) The original payment is fake and will bounce, leaving you out of money. (512)
+
+• Identity Theft Attempts: Scammers may try to obtain your personal information, property details, or financial information through fake inquiries or applications. (513)
+
+• Property Damage or Theft: Fraudulent tenants may cause intentional damage, steal appliances or fixtures, or use the property for illegal activities. (514)
+
+• Fake References or Documents: Scammers may provide fake employment letters, bank statements, or references from accomplices posing as previous landlords or employers. (515)
+
+• Squatting or Illegal Occupancy: Fraudulent tenants may move in without proper lease documentation or refuse to leave after lease expiration, making eviction difficult. (516)
+
+HOW TO PROTECT YOURSELF
+
+• Use Tenant Screening: Always use the platform's tenant screening feature. (517) Verify identity, employment, income, and rental history. (518) Don't skip background checks, even if a tenant seems trustworthy. (519)
+
+• Verify All Documents: Check employment letters, bank statements, and references independently. (520) Call employers and previous landlords directly using publicly listed numbers, not numbers provided by the applicant. (521)
+
+• Meet Tenants in Person: Always meet prospective tenants in person before signing a lease. (522) Verify their identity matches their application. (523) Be cautious of tenants who refuse to meet or only communicate online. (524)
+
+• Require Proper Lease Documentation: Never allow tenants to move in without a signed lease. (525) Ensure all terms are clearly documented, including rent amount, deposit, lease duration, and responsibilities. (526) Keep copies of all documents. (527)
+
+• Be Wary of Overpayments: If a tenant sends more than required and asks for a refund, this is almost always a scam. (528) Wait for payments to fully clear before refunding any amount. (529) Better yet, only accept exact amounts. (530)
+
+• Check Payment Methods: Use secure, traceable payment methods. (531) Be cautious of checks, money orders, or wire transfers from unknown sources. (532) Wait for payments to clear before providing keys or access. (533)
+
+• Protect Your Personal Information: Don't share sensitive information like bank account details, social security numbers, or passwords. (534) Use the platform's secure messaging system for communication. (535)
+
+• Conduct Regular Property Inspections: Schedule regular inspections with proper notice to ensure the property is being maintained and not used for illegal activities. (536) Document the property condition regularly. (537)
+
+• Trust Your Instincts: If something feels off about an applicant or situation, trust your instincts. (538) Don't let pressure or urgency rush you into a decision. (539) There are always other tenants. (540)
+
+RED FLAGS TO WATCH FOR
+
+• Tenant refuses to provide identification or screening information. (541) Overpayment with request for refund. (542) Rush to move in without proper documentation. (543) Unwillingness to meet in person. (544) Fake or suspicious documents. (545) References that can't be verified. (546) Unusual payment methods or requests. (547) Poor communication or evasive answers. (548) Inconsistent information in application. (549)
+
+GENERAL SAFETY TIPS FOR LANDLORDS
+
+• Protect Your Account: Use a strong, unique password. (550) Enable two-factor authentication if available. (551) Never share your login credentials. (552) Log out from shared devices. (553)
+
+• Verify Tenant Information: Verify tenant identity through multiple sources. (554) Check employment and income independently. (555) Verify contact information and references. (556) Research tenant background before approving. (557)
+
+• Document Everything: Keep copies of all tenant communications. (558) Save payment receipts and transaction records. (559) Document property condition before and after. (560) Keep signed lease and contract copies. (561)
+
+• Report Suspicious Activity: Report fraudulent tenants immediately. (562) Flag suspicious applications or behavior. (563) Contact RentEase support. (564) File police reports if scammed. (565)
+
+WHAT TO DO IF YOU'VE BEEN SCAMMED
+
+• Immediate Actions: Stop all communication with the fraudulent tenant immediately. (566) Document everything by saving all messages, emails, screenshots, application documents, and transaction records. (567) Report to RentEase by contacting support immediately with all evidence. (568) Report to authorities by filing a report with local police and relevant fraud agencies. (569) Contact your bank if you've received fraudulent payments or sent refunds, contact your bank immediately. (570) Secure your property by taking appropriate legal steps to secure your property if a fraudulent tenant has access. (571) Monitor your accounts by watching for unauthorized transactions or identity theft. (572)
+
+• Information to Provide: Tenant username or profile information. (573) Screenshots of conversations and applications. (574) Transaction records and payment details. (575) Property address and unit information. (576) Tenant screening reports and documents. (577) Timeline of events. (578) Any other relevant evidence. (579)
+
+• Remember: While RentEase works to prevent fraud, you are ultimately responsible for verifying tenant information and conducting proper screening. (580) Always exercise caution, verify all documents independently, and use the platform's screening tools before approving any tenant or signing a lease. (581)
+
+================================================================================
+CONCLUSION
+================================================================================
+
+• This comprehensive guide covers all aspects of using the RentEase platform effectively. (582) Whether you're managing properties, creating listings, screening tenants, communicating with parties, managing leases, tracking finances, handling maintenance requests, or protecting yourself from fraud, these guidelines provide the knowledge you need to succeed. (583) For additional support or questions, please contact RentEase support through the platform. (584)
+
+Last Updated: 2024
+Document Version: 1.0
+

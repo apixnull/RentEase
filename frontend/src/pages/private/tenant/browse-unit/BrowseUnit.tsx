@@ -8,7 +8,7 @@ import {
   Search, MapPin, 
   Star, Home, Bot, X, Send, ArrowLeft, Building
 } from "lucide-react";
-import { getCitiesAndMunicipalitiesRequest, searchListingsRequest, sendAIChatbotMessage } from "@/api/tenant/browseUnitApi";
+import { getCitiesAndMunicipalitiesRequest, getNearbyInstitutionsRequest, searchListingsRequest, sendAIChatbotMessage } from "@/api/tenant/browseUnitApi";
 import { processImageUrl } from "@/api/utils";
 
 // ============================================================================
@@ -65,6 +65,7 @@ type FilterSnapshot = {
   municipality: string;
   priceRange: string;
   sortBy: string;
+  nearbyInstitution: string;
 };
 
 // ============================================================================
@@ -332,6 +333,7 @@ const BrowseUnit = () => {
   const [appliedMunicipality, setAppliedMunicipality] = useState<string>("ALL");
   const [appliedPriceRange, setAppliedPriceRange] = useState<string>("ALL");
   const [appliedSortBy, setAppliedSortBy] = useState<string>("ALL");
+  const [appliedNearbyInstitution, setAppliedNearbyInstitution] = useState<string>("ALL");
 
   // State for API data
   const [apiData, setApiData] = useState<ApiResponse | null>(null);
@@ -341,6 +343,12 @@ const BrowseUnit = () => {
   // State for cities and municipalities from API
   const [cities, setCities] = useState<City[]>([]);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  const [nearbyInstitutions, setNearbyInstitutions] = useState<string[]>([]);
+  
+  // Nearby institution filter state
+  const [selectedNearbyInstitution, setSelectedNearbyInstitution] = useState<string>("ALL");
+  const [nearbyInstitutionQuery, setNearbyInstitutionQuery] = useState<string>("");
+  const [isNearbyInstitutionDropdownOpen, setIsNearbyInstitutionDropdownOpen] = useState(false);
 
   // ============================================================================
   // EFFECTS & HANDLERS
@@ -354,9 +362,10 @@ const BrowseUnit = () => {
         setIsLoading(true);
         setError(null);
 
-        const [listingsResponse, locationsResponse] = await Promise.all([
+        const [listingsResponse, locationsResponse, institutionsResponse] = await Promise.all([
           searchListingsRequest({}, { signal: controller.signal }),
           getCitiesAndMunicipalitiesRequest({ signal: controller.signal }),
+          getNearbyInstitutionsRequest({ signal: controller.signal }),
         ]);
 
         if (!listingsResponse.data?.success) {
@@ -368,6 +377,10 @@ const BrowseUnit = () => {
         if (locationsResponse.data.success && locationsResponse.data.data) {
           setCities(locationsResponse.data.data.cities || []);
           setMunicipalities(locationsResponse.data.data.municipalities || []);
+        }
+
+        if (institutionsResponse.data?.success && institutionsResponse.data.data) {
+          setNearbyInstitutions(institutionsResponse.data.data || []);
         }
       } catch (err) {
         if (err instanceof Error && err.name === "CanceledError") {
@@ -395,6 +408,7 @@ const BrowseUnit = () => {
         municipality: overrides.municipality ?? selectedMunicipality,
         priceRange: overrides.priceRange ?? priceRange,
         sortBy: overrides.sortBy ?? sortBy,
+        nearbyInstitution: overrides.nearbyInstitution ?? selectedNearbyInstitution,
       };
 
       const trimmedQuery = filters.query.trim();
@@ -437,6 +451,7 @@ const BrowseUnit = () => {
       setAppliedMunicipality(filters.municipality);
       setAppliedPriceRange(filters.priceRange);
       setAppliedSortBy(filters.sortBy);
+      setAppliedNearbyInstitution(filters.nearbyInstitution);
 
       try {
         setIsLoading(true);
@@ -449,6 +464,7 @@ const BrowseUnit = () => {
           minPrice,
           maxPrice,
           sortBy: filters.sortBy !== "ALL" ? filters.sortBy : undefined,
+          nearbyInstitution: filters.nearbyInstitution !== "ALL" ? filters.nearbyInstitution : undefined,
         });
 
         if (!response.data?.success) {
@@ -466,7 +482,7 @@ const BrowseUnit = () => {
         setIsLoading(false);
       }
     },
-    [query, selectedCity, selectedMunicipality, priceRange, sortBy]
+    [query, selectedCity, selectedMunicipality, priceRange, sortBy, selectedNearbyInstitution]
   );
 
   // Check if any filter is applied (not just search query)
@@ -475,8 +491,38 @@ const BrowseUnit = () => {
            appliedMunicipality !== "ALL" || 
            appliedPriceRange !== "ALL" || 
            appliedSortBy !== "ALL" ||
+           appliedNearbyInstitution !== "ALL" ||
            appliedQuery.trim() !== "";
-  }, [appliedCity, appliedMunicipality, appliedPriceRange, appliedSortBy, appliedQuery]);
+  }, [appliedCity, appliedMunicipality, appliedPriceRange, appliedSortBy, appliedNearbyInstitution, appliedQuery]);
+  
+  // Filter nearby institutions based on query
+  const filteredNearbyInstitutions = useMemo(() => {
+    if (!nearbyInstitutionQuery.trim()) {
+      return nearbyInstitutions;
+    }
+    const query = nearbyInstitutionQuery.toLowerCase();
+    return nearbyInstitutions.filter(inst => 
+      inst.toLowerCase().includes(query)
+    );
+  }, [nearbyInstitutions, nearbyInstitutionQuery]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isNearbyInstitutionDropdownOpen && 
+          !target.closest('.nearby-institution-filter-container')) {
+        setIsNearbyInstitutionDropdownOpen(false);
+      }
+    };
+
+    if (isNearbyInstitutionDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isNearbyInstitutionDropdownOpen]);
 
   const priceRanges = [
     { value: "ALL", label: "Any Price" },
@@ -707,11 +753,14 @@ const BrowseUnit = () => {
                         setSelectedMunicipality("ALL");
                         setPriceRange("ALL");
                         setSortBy("ALL");
+                        setSelectedNearbyInstitution("ALL");
+                        setNearbyInstitutionQuery("");
                         executeSearch({
                           city: newCity,
                           municipality: "ALL",
                           priceRange: "ALL",
                           sortBy: "ALL",
+                          nearbyInstitution: "ALL",
                           query: "",
                         });
                       } else {
@@ -737,11 +786,14 @@ const BrowseUnit = () => {
                         setSelectedCity("ALL");
                         setPriceRange("ALL");
                         setSortBy("ALL");
+                        setSelectedNearbyInstitution("ALL");
+                        setNearbyInstitutionQuery("");
                         executeSearch({
                           municipality: newMunicipality,
                           city: "ALL",
                           priceRange: "ALL",
                           sortBy: "ALL",
+                          nearbyInstitution: "ALL",
                           query: "",
                         });
                       } else {
@@ -767,11 +819,14 @@ const BrowseUnit = () => {
                         setSelectedCity("ALL");
                         setSelectedMunicipality("ALL");
                         setSortBy("ALL");
+                        setSelectedNearbyInstitution("ALL");
+                        setNearbyInstitutionQuery("");
                         executeSearch({
                           priceRange: newPriceRange,
                           city: "ALL",
                           municipality: "ALL",
                           sortBy: "ALL",
+                          nearbyInstitution: "ALL",
                           query: "",
                         });
                       } else {
@@ -796,11 +851,13 @@ const BrowseUnit = () => {
                         setSelectedCity("ALL");
                         setSelectedMunicipality("ALL");
                         setPriceRange("ALL");
+                        setSelectedNearbyInstitution("ALL");
                         executeSearch({
                           sortBy: newSortBy,
                           city: "ALL",
                           municipality: "ALL",
                           priceRange: "ALL",
+                          nearbyInstitution: "ALL",
                           query: "",
                         });
                       } else {
@@ -814,8 +871,90 @@ const BrowseUnit = () => {
                     ))}
                   </select>
 
+                  {/* Nearby Institution Filter - Searchable Combobox */}
+                  <div className="relative min-w-[140px] flex-1 sm:flex-none sm:min-w-[140px] nearby-institution-filter-container">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={selectedNearbyInstitution !== "ALL" ? selectedNearbyInstitution : nearbyInstitutionQuery}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setNearbyInstitutionQuery(value);
+                          if (!isNearbyInstitutionDropdownOpen) {
+                            setIsNearbyInstitutionDropdownOpen(true);
+                          }
+                        }}
+                        onFocus={() => setIsNearbyInstitutionDropdownOpen(true)}
+                        onBlur={() => {
+                          // Delay closing to allow click on dropdown items
+                          setTimeout(() => setIsNearbyInstitutionDropdownOpen(false), 200);
+                        }}
+                        placeholder="Nearby Institution..."
+                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white"
+                      />
+                      {selectedNearbyInstitution !== "ALL" && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedNearbyInstitution("ALL");
+                            setNearbyInstitutionQuery("");
+                            setIsNearbyInstitutionDropdownOpen(false);
+                            executeSearch({
+                              nearbyInstitution: "ALL",
+                            });
+                          }}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                    {isNearbyInstitutionDropdownOpen && (
+                      <div 
+                        className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto"
+                        onMouseDown={(e) => e.preventDefault()}
+                      >
+                        {filteredNearbyInstitutions.length > 0 ? (
+                          filteredNearbyInstitutions.map((institution) => (
+                            <button
+                              key={institution}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setSelectedNearbyInstitution(institution);
+                                setNearbyInstitutionQuery("");
+                                setIsNearbyInstitutionDropdownOpen(false);
+                                setQuery("");
+                                setSelectedCity("ALL");
+                                setSelectedMunicipality("ALL");
+                                setPriceRange("ALL");
+                                setSortBy("ALL");
+                                executeSearch({
+                                  nearbyInstitution: institution,
+                                  city: "ALL",
+                                  municipality: "ALL",
+                                  priceRange: "ALL",
+                                  sortBy: "ALL",
+                                  query: "",
+                                });
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors border-b border-gray-50 last:border-b-0"
+                            >
+                              {institution}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-xs text-gray-500 text-center">
+                            No institutions found
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Clear Button - Only show when filters are active */}
-                  {(query.trim() !== "" || selectedCity !== "ALL" || selectedMunicipality !== "ALL" || priceRange !== "ALL" || sortBy !== "ALL") && (
+                  {(query.trim() !== "" || selectedCity !== "ALL" || selectedMunicipality !== "ALL" || priceRange !== "ALL" || sortBy !== "ALL" || selectedNearbyInstitution !== "ALL") && (
                     <Button 
                       variant="outline" 
                       onClick={() => { 
@@ -824,12 +963,16 @@ const BrowseUnit = () => {
                         setSelectedMunicipality("ALL");
                         setPriceRange("ALL");
                         setSortBy("ALL");
+                        setSelectedNearbyInstitution("ALL");
+                        setNearbyInstitutionQuery("");
+                        setIsNearbyInstitutionDropdownOpen(false);
                         executeSearch({
                           query: "",
                           city: "ALL",
                           municipality: "ALL",
                           priceRange: "ALL",
                           sortBy: "ALL",
+                          nearbyInstitution: "ALL",
                         });
                       }}
                       className="px-2 py-1.5 h-auto text-xs border border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 shrink-0"
@@ -874,11 +1017,15 @@ const BrowseUnit = () => {
           setSelectedMunicipality("ALL");
           setPriceRange("ALL");
           setSortBy("ALL");
+          setSelectedNearbyInstitution("ALL");
+          setNearbyInstitutionQuery("");
+          setIsNearbyInstitutionDropdownOpen(false);
           setAppliedQuery("AI Search Results");
           setAppliedCity("ALL");
           setAppliedMunicipality("ALL");
           setAppliedPriceRange("ALL");
           setAppliedSortBy("ALL");
+          setAppliedNearbyInstitution("ALL");
           // Scroll to top to show results
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
@@ -932,6 +1079,7 @@ const BrowseUnit = () => {
                         {appliedMunicipality !== "ALL" && <span>: <span className="font-semibold text-gray-900">{appliedMunicipality}</span></span>}
                         {appliedPriceRange !== "ALL" && <span> - <span className="font-semibold text-gray-900">{priceRanges.find(r => r.value === appliedPriceRange)?.label}</span></span>}
                         {appliedSortBy !== "ALL" && <span> - <span className="font-semibold text-gray-900">{sortOptions.find(o => o.value === appliedSortBy)?.label}</span></span>}
+                        {appliedNearbyInstitution !== "ALL" && <span> - <span className="font-semibold text-gray-900">Near {appliedNearbyInstitution}</span></span>}
                       </>
                     )}
                   </>
@@ -946,12 +1094,16 @@ const BrowseUnit = () => {
                 setSelectedMunicipality("ALL");
                 setPriceRange("ALL");
                 setSortBy("ALL");
+                setSelectedNearbyInstitution("ALL");
+                setNearbyInstitutionQuery("");
+                setIsNearbyInstitutionDropdownOpen(false);
                 executeSearch({
                   query: "",
                   city: "ALL",
                   municipality: "ALL",
                   priceRange: "ALL",
                   sortBy: "ALL",
+                  nearbyInstitution: "ALL",
                 });
               }}
               className="border-emerald-100 text-gray-600 hover:bg-emerald-50 w-full sm:w-auto shrink-0 text-sm sm:text-base h-9 sm:h-10 px-3 sm:px-4"
@@ -1144,12 +1296,16 @@ const BrowseUnit = () => {
                 setSelectedMunicipality("ALL");
                 setPriceRange("ALL");
                 setSortBy("ALL");
+                setSelectedNearbyInstitution("ALL");
+                setNearbyInstitutionQuery("");
+                setIsNearbyInstitutionDropdownOpen(false);
                 executeSearch({
                   query: "",
                   city: "ALL",
                   municipality: "ALL",
                   priceRange: "ALL",
                   sortBy: "ALL",
+                  nearbyInstitution: "ALL",
                 });
               }}
               className="mt-4 bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700"

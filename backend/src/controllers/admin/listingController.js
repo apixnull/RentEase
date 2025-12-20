@@ -426,3 +426,91 @@ export const updateListingStatus = async (req, res) => {
   }
 };
 
+// ============================================================================
+// ADMIN — PROCESS REFUND
+// ----------------------------------------------------------------------------
+// Processes a refund for a listing by clearing payment fields.
+// Keeps the lifecycleStatus unchanged.
+// ============================================================================
+export const processRefund = async (req, res) => {
+  const { listingId } = req.params;
+  const { transactionId } = req.body;
+
+  try {
+    // Ensure authenticated admin
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return res.status(403).json({ error: "Unauthorized: Admin ID missing." });
+    }
+
+    // Validate transaction ID
+    if (!transactionId || !transactionId.trim()) {
+      return res.status(400).json({
+        error: "Transaction ID is required.",
+      });
+    }
+
+    // Fetch current listing
+    const currentListing = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: {
+        id: true,
+        landlordId: true,
+        providerTxnId: true,
+        paymentAmount: true,
+        lifecycleStatus: true,
+      },
+    });
+
+    if (!currentListing) {
+      return res.status(404).json({ error: "Listing not found." });
+    }
+
+    // Verify transaction ID matches (if provided)
+    if (currentListing.providerTxnId && currentListing.providerTxnId !== transactionId.trim()) {
+      return res.status(400).json({
+        error: "Transaction ID does not match the listing's payment transaction ID.",
+      });
+    }
+
+    // Update listing: clear payment fields only, keep lifecycleStatus unchanged
+    const updatedListing = await prisma.listing.update({
+      where: { id: listingId },
+      data: {
+        providerName: null,
+        providerTxnId: null,
+        paymentAmount: null,
+        paymentDate: null,
+        // lifecycleStatus remains unchanged
+      },
+      select: {
+        id: true,
+        lifecycleStatus: true,
+        providerTxnId: true,
+        paymentAmount: true,
+        paymentDate: true,
+      },
+    });
+
+    // Create notification for landlord
+    await createNotification(
+      currentListing.landlordId,
+      "LISTING",
+      `Your listing payment has been refunded. Transaction ID: ${transactionId}.`,
+      { listingId: listingId, status: currentListing.lifecycleStatus, action: "refund" }
+    );
+
+    console.log(`✅ Refund processed for listing ${listingId} by admin ${adminId}`);
+
+    return res.status(200).json({
+      message: "Refund processed successfully. Listing payment has been cleared.",
+      listing: updatedListing,
+    });
+  } catch (error) {
+    console.error("❌ Error in processRefund:", error);
+    return res.status(500).json({
+      error: "Failed to process refund.",
+    });
+  }
+};
+

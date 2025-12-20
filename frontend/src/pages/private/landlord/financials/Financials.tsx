@@ -131,6 +131,7 @@ const Financials = () => {
   const [pdfFilterType, setPdfFilterType] = useState<ReportFilterType>('ALL_PROPERTIES');
   const [pdfPropertyId, setPdfPropertyId] = useState<string>('');
   const [pdfDateFilter, setPdfDateFilter] = useState<DateFilterType>('ALL_TIME');
+  const [pdfTaxRate, setPdfTaxRate] = useState<string>('10');
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   useEffect(() => {
@@ -619,6 +620,118 @@ const Financials = () => {
       const netProfit = totalIncome - totalExpense;
       const profitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
 
+      // Calculate tax (PH-based) - Tax is calculated monthly
+      // For monthly filter: Apply tax once on the month's net profit
+      // For yearly filter: Calculate tax for each month separately, then sum
+      let taxAmount = 0;
+      let taxRate = 0;
+      let afterTaxProfit = netProfit;
+      let monthlyTaxBreakdown: Array<{ month: string; netProfit: number; tax: number; afterTax: number }> = [];
+      
+      if (pdfDateFilter !== 'ALL_TIME' && netProfit > 0 && pdfTaxRate) {
+        // Parse tax rate from user input
+        const parsedTaxRate = parseFloat(pdfTaxRate);
+        if (!isNaN(parsedTaxRate) && parsedTaxRate >= 0 && parsedTaxRate <= 100) {
+          taxRate = parsedTaxRate;
+          
+          if (pdfDateFilter === 'THIS_MONTH') {
+            // Monthly: Simple calculation - apply tax once on total net profit
+            taxAmount = netProfit * (taxRate / 100);
+            afterTaxProfit = netProfit - taxAmount;
+          } else if (pdfDateFilter === 'THIS_YEAR') {
+            // Yearly: Calculate tax per month, then sum
+            // Group transactions by month
+            const monthlyData = new Map<string, { income: number; expense: number }>();
+            
+            // Get date range for the year
+            const now = new Date();
+            const yearStart = startOfYear(now);
+            const yearEnd = endOfYear(now);
+            const normalizedStart = normalizeDate(yearStart);
+            const normalizedEnd = normalizeDate(yearEnd);
+            const today = normalizeDate(now);
+            const effectiveEnd = normalizedEnd > today ? today : normalizedEnd;
+            
+            // Process each transaction and assign to months
+            pdfTransactions.forEach(transaction => {
+              const transactionDate = normalizeDate(new Date(transaction.date));
+              
+              // Handle recurring transactions - need to calculate occurrences per month
+              if (transaction.recurringInterval) {
+                // For recurring transactions, calculate which months they occur in
+                const cursor = new Date(Math.max(transactionDate.getTime(), normalizedStart.getTime()));
+                const endDate = effectiveEnd;
+                
+                while (cursor <= endDate) {
+                  const normalizedCursor = normalizeDate(cursor);
+                  
+                  // Check if this transaction occurs on this date
+                  if (transactionOccursOnDate(transaction, normalizedCursor)) {
+                    const monthKey = format(normalizedCursor, 'yyyy-MM');
+                    
+                    if (!monthlyData.has(monthKey)) {
+                      monthlyData.set(monthKey, { income: 0, expense: 0 });
+                    }
+                    
+                    const monthData = monthlyData.get(monthKey)!;
+                    if (transaction.type === 'INCOME') {
+                      monthData.income += transaction.amount;
+                    } else {
+                      monthData.expense += transaction.amount;
+                    }
+                  }
+                  
+                  // Move to next day
+                  cursor.setDate(cursor.getDate() + 1);
+                }
+              } else {
+                // Non-recurring: just add to the month it occurs in
+                if (transactionDate >= normalizedStart && transactionDate <= effectiveEnd) {
+                  const monthKey = format(transactionDate, 'yyyy-MM');
+                  
+                  if (!monthlyData.has(monthKey)) {
+                    monthlyData.set(monthKey, { income: 0, expense: 0 });
+                  }
+                  
+                  const monthData = monthlyData.get(monthKey)!;
+                  if (transaction.type === 'INCOME') {
+                    monthData.income += transaction.amount;
+                  } else {
+                    monthData.expense += transaction.amount;
+                  }
+                }
+              }
+            });
+            
+            // Calculate tax for each month
+            let totalTax = 0;
+            let totalAfterTax = 0;
+            
+            // Sort months chronologically
+            const sortedMonths = Array.from(monthlyData.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+            
+            sortedMonths.forEach(([monthKey, monthData]) => {
+              const monthNetProfit = monthData.income - monthData.expense;
+              const monthTax = monthNetProfit > 0 ? monthNetProfit * (taxRate / 100) : 0;
+              const monthAfterTax = monthNetProfit - monthTax;
+              
+              totalTax += monthTax;
+              totalAfterTax += monthAfterTax;
+              
+              monthlyTaxBreakdown.push({
+                month: format(new Date(monthKey + '-01'), 'MMMM yyyy'),
+                netProfit: monthNetProfit,
+                tax: monthTax,
+                afterTax: monthAfterTax,
+              });
+            });
+            
+            taxAmount = totalTax;
+            afterTaxProfit = totalAfterTax;
+          }
+        }
+      }
+
       // Create PDF in landscape orientation with proper encoding for Microsoft compatibility
       const doc = new jsPDF({
         orientation: 'landscape',
@@ -700,10 +813,80 @@ const Financials = () => {
       // Set text color based on profit (green for positive, red for negative)
       const profitColor = netProfit >= 0 ? [0, 150, 0] : [200, 0, 0];
       doc.setTextColor(profitColor[0], profitColor[1], profitColor[2]);
-      doc.text(`Net Profit: ${formatCurrencyForPDF(netProfit)}`, 14, yPosition);
+      doc.text(`Net Profit (Before Tax): ${formatCurrencyForPDF(netProfit)}`, 14, yPosition);
       doc.setTextColor(0, 0, 0);
       yPosition += 6;
+      
+      // Tax section (only for monthly and yearly periods when tax rate is provided)
+      if (pdfDateFilter !== 'ALL_TIME' && netProfit > 0 && taxRate > 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        
+        if (pdfDateFilter === 'THIS_YEAR' && monthlyTaxBreakdown.length > 0) {
+          // Yearly: Show that tax is calculated monthly
+          doc.text(`Total Tax (${taxRate.toFixed(2)}% monthly on net profit): ${formatCurrencyForPDF(taxAmount)}`, 14, yPosition);
+          doc.setTextColor(0, 0, 0);
+          yPosition += 6;
+          
+          // Show monthly breakdown (only if there are months with positive net profit)
+          const monthsWithProfit = monthlyTaxBreakdown.filter(m => m.netProfit > 0);
+          if (monthsWithProfit.length > 0) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(80, 80, 80);
+            doc.text('Monthly Tax Breakdown:', 14, yPosition);
+            yPosition += 5;
+            
+            monthsWithProfit.forEach((monthData) => {
+              doc.setFontSize(8);
+              const lineText = `${monthData.month}: Net ${formatCurrencyForPDF(monthData.netProfit)} → Tax ${formatCurrencyForPDF(monthData.tax)} → After Tax ${formatCurrencyForPDF(monthData.afterTax)}`;
+              // Check if line would exceed page width, if so split it
+              const lineWidth = doc.getTextWidth(lineText);
+              if (lineWidth > pageWidth - 28) {
+                // Split into two lines
+                doc.text(`${monthData.month}: Net ${formatCurrencyForPDF(monthData.netProfit)}`, 14, yPosition);
+                yPosition += 4;
+                doc.text(`  Tax ${formatCurrencyForPDF(monthData.tax)} → After Tax ${formatCurrencyForPDF(monthData.afterTax)}`, 14, yPosition);
+              } else {
+                doc.text(lineText, 14, yPosition);
+              }
+              yPosition += 4;
+            });
+            
+            doc.setFontSize(10);
+            yPosition += 2;
+          }
+        } else {
+          // Monthly: Simple display
+          doc.text(`Tax (${taxRate.toFixed(2)}% on Net Profit): ${formatCurrencyForPDF(taxAmount)}`, 14, yPosition);
+          doc.setTextColor(0, 0, 0);
+          yPosition += 6;
+        }
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        const afterTaxColor = afterTaxProfit >= 0 ? [0, 150, 0] : [200, 0, 0];
+        doc.setTextColor(afterTaxColor[0], afterTaxColor[1], afterTaxColor[2]);
+        doc.text(`Net Profit (After Tax): ${formatCurrencyForPDF(afterTaxProfit)}`, 14, yPosition);
+        doc.setTextColor(0, 0, 0);
+        yPosition += 6;
+        
+        // Tax note
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        if (pdfDateFilter === 'THIS_YEAR') {
+          doc.text('Note: Tax is calculated monthly on each month\'s net profit, then summed. Tax rate is user-provided.', 14, yPosition);
+        } else {
+          doc.text('Note: Tax rate is user-provided. Actual tax obligations may vary based on location, business structure, and applicable regulations.', 14, yPosition);
+        }
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(10);
+        yPosition += 6;
+      }
+      
       // Add margin
+      doc.setFont('helvetica', 'normal');
       const marginColor = profitMargin >= 0 ? [0, 150, 0] : [200, 0, 0];
       doc.setTextColor(marginColor[0], marginColor[1], marginColor[2]);
       doc.text(`Profit Margin: ${profitMargin.toFixed(2)}%`, 14, yPosition);
@@ -855,6 +1038,7 @@ const Financials = () => {
       setPdfFilterType('ALL_PROPERTIES');
       setPdfPropertyId('');
       setPdfDateFilter('ALL_TIME');
+      setPdfTaxRate('10');
     } catch (error: any) {
       console.error('Error generating PDF:', error);
       toast.error('Failed to generate PDF');
@@ -1924,6 +2108,15 @@ const Financials = () => {
                 value={pdfDateFilter}
                 onValueChange={(value: DateFilterType) => {
                   setPdfDateFilter(value);
+                  // Reset tax rate to default when switching to ALL_TIME
+                  if (value === 'ALL_TIME') {
+                    setPdfTaxRate('10');
+                  } else {
+                    // Set default when switching to monthly/yearly if empty
+                    if (!pdfTaxRate) {
+                      setPdfTaxRate('10');
+                    }
+                  }
                 }}
               >
                 <SelectTrigger>
@@ -1936,6 +2129,35 @@ const Financials = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Tax Rate Input - Only for monthly and yearly periods */}
+            {pdfDateFilter !== 'ALL_TIME' && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="tax-rate" className="text-xs text-slate-600 font-normal">Tax Rate (%)</Label>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="tax-rate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={pdfTaxRate}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow empty, or valid number between 0-100
+                      if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0 && parseFloat(value) <= 100)) {
+                        setPdfTaxRate(value);
+                      }
+                    }}
+                    placeholder="10"
+                    className="pr-8 h-9 text-sm"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">%</span>
+                </div>
+              </div>
+            )}
 
             <div className="bg-slate-50 p-3 rounded-lg space-y-1">
               <p className="text-sm font-semibold text-slate-700">Report will include:</p>
@@ -1953,6 +2175,9 @@ const Financials = () => {
                   <li>Selected property only (all units)</li>
                 )}
                 <li>Summary statistics (Income, Expense, Net Profit, Margin)</li>
+                {pdfDateFilter !== 'ALL_TIME' && pdfTaxRate && parseFloat(pdfTaxRate) > 0 && (
+                  <li>Tax calculation ({pdfTaxRate}% on net profit)</li>
+                )}
                 <li>Detailed transaction table</li>
                 <li>All amounts in Philippine Peso (₱)</li>
               </ul>
@@ -1966,6 +2191,7 @@ const Financials = () => {
                 setPdfFilterType('ALL_PROPERTIES');
                 setPdfPropertyId('');
                 setPdfDateFilter('ALL_TIME');
+                setPdfTaxRate('10');
               }}
               disabled={generatingPdf}
             >

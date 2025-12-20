@@ -87,7 +87,10 @@ export const handleTenantLeaseAction = async (req, res) => {
     // 🔍 Find lease and related unit
     const lease = await prisma.lease.findUnique({
       where: { id: leaseId },
-      include: { unit: true },
+      include: { 
+        unit: true,
+        property: { select: { id: true } },
+      },
     });
 
     if (!lease) return res.status(404).json({ message: "Lease not found." });
@@ -342,6 +345,78 @@ export const handleTenantLeaseAction = async (req, res) => {
 
       await prisma.$transaction(transactionPromises);
 
+      // 💰 Mark advance payments as paid (if advancePayment > 0)
+      // Advance payments apply to RENT payments only, not PREPAYMENT
+      if (lease.advancePayment > 0) {
+        // Get all RENT payments for this lease, ordered by due date (ascending)
+        const rentPayments = await prisma.payment.findMany({
+          where: {
+            leaseId: leaseId,
+            type: "RENT", // Only mark RENT payments, not PREPAYMENT
+          },
+          orderBy: {
+            dueDate: "asc", // Order by due date to get first N payments
+          },
+        });
+
+        // Mark the first N payments as paid (where N = advancePayment)
+        const paymentsToMarkAsPaid = rentPayments.slice(0, lease.advancePayment);
+        
+        if (paymentsToMarkAsPaid.length > 0) {
+          // Get lease property and unit info for transactions
+          const leaseWithDetails = await prisma.lease.findUnique({
+            where: { id: leaseId },
+            include: {
+              property: { select: { id: true } },
+              unit: { select: { id: true } },
+              tenant: { select: { firstName: true, lastName: true } },
+            },
+          });
+
+          // Create transactions for each advance payment
+          const transactionPromises = paymentsToMarkAsPaid.map((payment) => {
+            const tenantName = leaseWithDetails?.tenant
+              ? `${leaseWithDetails.tenant.firstName} ${leaseWithDetails.tenant.lastName}`
+              : "Tenant";
+            const transactionDescription = `${tenantName} advance payment`;
+
+            if (!leaseWithDetails || !leaseWithDetails.property || !leaseWithDetails.unit) {
+              throw new Error("Lease details not found for transaction creation");
+            }
+
+            return prisma.transaction.create({
+              data: {
+                propertyId: leaseWithDetails.property.id,
+                unitId: leaseWithDetails.unit.id,
+                amount: payment.amount,
+                description: transactionDescription,
+                type: "INCOME",
+                category: "RENT", // Advance payments are categorized as RENT
+                date: now,
+                recurringInterval: null,
+              },
+            });
+          });
+
+          // Update payments and create transactions in a single transaction
+          await prisma.$transaction([
+            prisma.payment.updateMany({
+              where: {
+                id: { in: paymentsToMarkAsPaid.map(p => p.id) },
+              },
+              data: {
+                status: "PAID",
+                paidAt: now,
+                timingStatus: "ADVANCE", // Mark as advance payment
+              },
+            }),
+            ...transactionPromises,
+          ]);
+          
+          console.log(`✅ Marked ${paymentsToMarkAsPaid.length} advance payment(s) as PAID and created transactions for lease ${leaseId}`);
+        }
+      }
+
       // Notify landlord that tenant accepted the lease
       await createNotification(
         lease.landlordId,
@@ -350,9 +425,11 @@ export const handleTenantLeaseAction = async (req, res) => {
         { leaseId: lease.id, status: "ACTIVE" }
       );
 
+      const advancePaymentsMarked = lease.advancePayment > 0 ? lease.advancePayment : 0;
       return res.status(200).json({
-        message: `Lease accepted and activated. ${paymentsToCreate.length} payments created.`,
+        message: `Lease accepted and activated. ${paymentsToCreate.length} payments created.${advancePaymentsMarked > 0 ? ` ${advancePaymentsMarked} advance payment(s) marked as paid.` : ''}`,
         paymentsCreated: paymentsToCreate.length,
+        advancePaymentsMarked: advancePaymentsMarked,
       });
     }
 

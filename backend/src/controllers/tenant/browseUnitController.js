@@ -167,6 +167,71 @@ export const getCitiesAndMunicipalities = async (req, res) => {
 };
 
 // ============================================================================
+// GET ALL UNIQUE NEARBY INSTITUTIONS
+// ============================================================================
+export const getNearbyInstitutions = async (req, res) => {
+  try {
+    // Fetch all properties with nearInstitutions
+    const properties = await prisma.property.findMany({
+      select: {
+        nearInstitutions: true,
+      },
+      where: {
+        nearInstitutions: {
+          not: null,
+        },
+      },
+    });
+
+    // Extract unique institution names
+    const institutionSet = new Set();
+    
+    properties.forEach((property) => {
+      if (property.nearInstitutions) {
+        let institutions = property.nearInstitutions;
+        
+        // Handle both string (JSON) and object formats
+        if (typeof institutions === 'string') {
+          try {
+            institutions = JSON.parse(institutions);
+          } catch (e) {
+            console.warn("Failed to parse nearInstitutions JSON:", e);
+            return;
+          }
+        }
+        
+        // Handle array of institutions
+        if (Array.isArray(institutions)) {
+          institutions.forEach((inst) => {
+            if (inst && typeof inst === 'object' && inst.name) {
+              institutionSet.add(inst.name.trim());
+            } else if (typeof inst === 'string' && inst.trim()) {
+              institutionSet.add(inst.trim());
+            }
+          });
+        }
+      }
+    });
+
+    // Convert to sorted array
+    const institutions = Array.from(institutionSet)
+      .filter(name => name && name.length > 0)
+      .sort((a, b) => a.localeCompare(b));
+
+    return res.status(200).json({
+      success: true,
+      data: institutions,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching nearby institutions:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch nearby institutions.",
+    });
+  }
+};
+
+// ============================================================================
 // SEARCH LISTINGS (Server-side search with filters)
 // ============================================================================
 export const searchListings = async (req, res) => {
@@ -178,6 +243,7 @@ export const searchListings = async (req, res) => {
       minPrice, // minimum price
       maxPrice, // maximum price
       sortBy, // sort option: TOP_RATED, FEATURED, MOST_VIEWED, NEW
+      nearbyInstitution, // nearby institution name
     } = req.query;
 
     // Build where clause
@@ -280,6 +346,71 @@ export const searchListings = async (req, res) => {
         });
 
         unitFilters.OR = searchConditions;
+      }
+    }
+
+    // Nearby institution filter
+    if (nearbyInstitution && nearbyInstitution.trim() !== "" && nearbyInstitution !== "ALL") {
+      const institutionName = nearbyInstitution.trim();
+      
+      // Find properties that have this institution in their nearInstitutions JSON
+      // We need to query properties first, then filter listings by those property IDs
+      const propertiesWithInstitution = await prisma.property.findMany({
+        where: {
+          nearInstitutions: {
+            not: null,
+          },
+        },
+        select: {
+          id: true,
+          nearInstitutions: true,
+        },
+      });
+
+      // Filter properties that contain the institution name
+      const matchingPropertyIds = propertiesWithInstitution
+        .filter((prop) => {
+          if (!prop.nearInstitutions) return false;
+          
+          let institutions = prop.nearInstitutions;
+          
+          // Handle both string (JSON) and object formats
+          if (typeof institutions === 'string') {
+            try {
+              institutions = JSON.parse(institutions);
+            } catch (e) {
+              return false;
+            }
+          }
+          
+          // Check if any institution matches
+          if (Array.isArray(institutions)) {
+            return institutions.some((inst) => {
+              const instName = typeof inst === 'object' && inst.name 
+                ? inst.name.trim() 
+                : typeof inst === 'string' 
+                ? inst.trim() 
+                : '';
+              return instName.toLowerCase() === institutionName.toLowerCase();
+            });
+          }
+          
+          return false;
+        })
+        .map((prop) => prop.id);
+
+      // If we have matching properties, filter listings by those property IDs
+      if (matchingPropertyIds.length > 0) {
+        if (!propertyFilters.OR) {
+          propertyFilters.OR = [];
+        }
+        propertyFilters.OR.push({ id: { in: matchingPropertyIds } });
+      } else {
+        // No properties match, return empty results
+        return res.status(200).json({
+          success: true,
+          data: [],
+        });
       }
     }
 
@@ -670,6 +801,14 @@ export const getSpecificListing = async (req, res) => {
             unitLeaseRules: true,
             targetPrice: true,
             requiresScreening: true,
+            // Unit Specs
+            floorArea: true,
+            bedrooms: true,
+            bathrooms: true,
+            // Unit Attributes
+            unitAttributes: true,
+            // Amenity Details
+            amenityDetails: true,
             property: {
               select: {
                 id: true,
@@ -779,6 +918,14 @@ export const getSpecificListing = async (req, res) => {
         viewCount: viewCount, // ✅ count from UnitView table
         targetPrice: listing.unit.targetPrice,
         requiresScreening: listing.unit.requiresScreening,
+        // Unit Specs
+        floorArea: listing.unit.floorArea,
+        bedrooms: listing.unit.bedrooms,
+        bathrooms: listing.unit.bathrooms,
+        // Unit Attributes
+        unitAttributes: listing.unit.unitAttributes,
+        // Amenity Details
+        amenityDetails: listing.unit.amenityDetails,
         avgRating,
         totalReviews,
         reviews: reviews.map((r) => {

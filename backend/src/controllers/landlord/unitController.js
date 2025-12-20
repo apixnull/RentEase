@@ -137,6 +137,14 @@ export const getUnitDetails = async (req, res) => {
       viewCount: viewCount, // ✅ count from UnitView table
       requiresScreening: unit.requiresScreening,
       unitCondition: unit.unitCondition,
+      // Unit Specs
+      floorArea: unit.floorArea,
+      bedrooms: unit.bedrooms,
+      bathrooms: unit.bathrooms,
+      // Unit Attributes
+      unitAttributes: unit.unitAttributes,
+      // Amenity Details
+      amenityDetails: unit.amenityDetails,
       occupiedAt: activeLease ? activeLease.startDate.toISOString() : null, // Use lease start date if active
       leaseId: activeLease ? activeLease.id : null, // Include lease ID for navigation
       listedAt:
@@ -193,6 +201,14 @@ export const createUnit = async (req, res) => {
       targetPrice,
       requiresScreening,
       amenities,
+      // Unit Specs
+      floorArea,
+      bedrooms,
+      bathrooms,
+      // Unit Attributes
+      unitAttributes,
+      // Amenity Details
+      amenityDetails,
     } = req.body;
 
     const ownerId = req.user?.id;
@@ -250,6 +266,39 @@ export const createUnit = async (req, res) => {
         .json({ message: "Target price cannot exceed ₱100,000" });
     }
 
+    // ✅ Parse Unit Specs
+    const parsedFloorArea = floorArea ? parseFloat(floorArea) : null;
+    const parsedBedrooms = bedrooms !== null && bedrooms !== undefined ? parseInt(bedrooms) : null;
+    const parsedBathrooms = bathrooms !== null && bathrooms !== undefined ? parseInt(bathrooms) : null;
+
+    // ✅ Validate Unit Attributes (JSON array)
+    let parsedUnitAttributes = null;
+    if (unitAttributes) {
+      if (Array.isArray(unitAttributes)) {
+        // Filter out empty attributes (name and imageUrl must be present)
+        const validAttributes = unitAttributes.filter(
+          (attr) => attr && attr.name && attr.name.trim() && attr.imageUrl && attr.imageUrl.trim()
+        );
+        parsedUnitAttributes = validAttributes.length > 0 ? validAttributes : null;
+      } else {
+        return res.status(400).json({ message: "unitAttributes must be an array" });
+      }
+    }
+
+    // ✅ Validate Amenity Details (JSON array)
+    let parsedAmenityDetails = null;
+    if (amenityDetails) {
+      if (Array.isArray(amenityDetails)) {
+        // Filter out empty amenity details (name must be present)
+        const validDetails = amenityDetails.filter(
+          (detail) => detail && detail.name && detail.name.trim()
+        );
+        parsedAmenityDetails = validDetails.length > 0 ? validDetails : null;
+      } else {
+        return res.status(400).json({ message: "amenityDetails must be an array" });
+      }
+    }
+
     // ✅ Create unit
     const newUnit = await prisma.unit.create({
       data: {
@@ -264,6 +313,14 @@ export const createUnit = async (req, res) => {
         unitLeaseRules: unitLeaseRules || null,
         targetPrice: parsedTargetPrice,
         requiresScreening: requiresScreening ?? false,
+        // Unit Specs
+        floorArea: parsedFloorArea,
+        bedrooms: parsedBedrooms,
+        bathrooms: parsedBathrooms,
+        // Unit Attributes
+        unitAttributes: parsedUnitAttributes,
+        // Amenity Details
+        amenityDetails: parsedAmenityDetails,
         amenities: amenities
           ? { connect: amenities.map((id) => ({ id })) }
           : undefined,
@@ -300,6 +357,14 @@ export const updateUnit = async (req, res) => {
       requiresScreening,
       amenities,
       unitCondition,
+      // Unit Specs
+      floorArea,
+      bedrooms,
+      bathrooms,
+      // Unit Attributes
+      unitAttributes,
+      // Amenity Details
+      amenityDetails,
     } = req.body;
 
     const ownerId = req.user?.id;
@@ -373,6 +438,43 @@ export const updateUnit = async (req, res) => {
       });
     }
 
+    // ✅ Parse Unit Specs
+    const parsedFloorArea = floorArea !== undefined ? (floorArea ? parseFloat(floorArea) : null) : undefined;
+    const parsedBedrooms = bedrooms !== undefined ? (bedrooms !== null && bedrooms !== undefined ? parseInt(bedrooms) : null) : undefined;
+    const parsedBathrooms = bathrooms !== undefined ? (bathrooms !== null && bathrooms !== undefined ? parseInt(bathrooms) : null) : undefined;
+
+    // ✅ Validate Unit Attributes (JSON array)
+    let parsedUnitAttributes = undefined;
+    if (unitAttributes !== undefined) {
+      if (unitAttributes === null) {
+        parsedUnitAttributes = null;
+      } else if (Array.isArray(unitAttributes)) {
+        // Filter out empty attributes (name and imageUrl must be present)
+        const validAttributes = unitAttributes.filter(
+          (attr) => attr && attr.name && attr.name.trim() && attr.imageUrl && attr.imageUrl.trim()
+        );
+        parsedUnitAttributes = validAttributes.length > 0 ? validAttributes : null;
+      } else {
+        return res.status(400).json({ message: "unitAttributes must be an array or null" });
+      }
+    }
+
+    // ✅ Validate Amenity Details (JSON array)
+    let parsedAmenityDetails = undefined;
+    if (amenityDetails !== undefined) {
+      if (amenityDetails === null) {
+        parsedAmenityDetails = null;
+      } else if (Array.isArray(amenityDetails)) {
+        // Filter out empty amenity details (name must be present)
+        const validDetails = amenityDetails.filter(
+          (detail) => detail && detail.name && detail.name.trim()
+        );
+        parsedAmenityDetails = validDetails.length > 0 ? validDetails : null;
+      } else {
+        return res.status(400).json({ message: "amenityDetails must be an array or null" });
+      }
+    }
+
     // ✅ Update unit
     const updateData = {
       label: label.trim(),
@@ -384,6 +486,14 @@ export const updateUnit = async (req, res) => {
       unitLeaseRules: unitLeaseRules || null,
       targetPrice: parsedTargetPrice,
       requiresScreening: requiresScreening ?? false,
+      // Unit Specs (only update if provided)
+      ...(parsedFloorArea !== undefined && { floorArea: parsedFloorArea }),
+      ...(parsedBedrooms !== undefined && { bedrooms: parsedBedrooms }),
+      ...(parsedBathrooms !== undefined && { bathrooms: parsedBathrooms }),
+      // Unit Attributes (only update if provided)
+      ...(parsedUnitAttributes !== undefined && { unitAttributes: parsedUnitAttributes }),
+      // Amenity Details (only update if provided)
+      ...(parsedAmenityDetails !== undefined && { amenityDetails: parsedAmenityDetails }),
       amenities: amenities
         ? { set: [], connect: amenities.map((id) => ({ id })) }
         : { set: [] },
